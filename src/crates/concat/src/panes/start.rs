@@ -153,6 +153,8 @@ pub struct StartPane {
     /// The projects' search, as typed; empty shows them all.
     pub query: String,
     pub trash_view: bool,
+    /// Stored paths selected for recovery or permanent deletion.
+    pub trash_selected: Vec<String>,
     /// [`SORT_RECENT`] or [`SORT_NAME`].
     pub sort: i32,
     /// Media dropped on the launch screen, waiting for the project the
@@ -179,6 +181,7 @@ impl Default for StartPane {
             error: String::new(),
             query: String::new(),
             trash_view: false,
+            trash_selected: Vec::new(),
             sort: SORT_RECENT,
             dropped: Vec::new(),
         }
@@ -398,6 +401,62 @@ impl StartPane {
                 };
             }
             StartMsg::Link(name) => {
+                if self.trash_view {
+                    if let Some(path) = name.strip_prefix("trash-select:") {
+                        let entries =
+                            concat_host::project_library::entries(&studio.host.dirs.config)
+                                .unwrap_or_default();
+                        if entries.iter().any(|entry| entry.stored == path) {
+                            if self.trash_selected.iter().any(|selected| selected == path) {
+                                self.trash_selected.retain(|selected| selected != path);
+                            } else {
+                                self.trash_selected.push(path.to_owned());
+                            }
+                        }
+                        return;
+                    }
+                    if name == "trash-select-all" {
+                        self.trash_selected =
+                            concat_host::project_library::entries(&studio.host.dirs.config)
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|entry| entry.stored)
+                                .collect();
+                        return;
+                    }
+                    if name == "trash-clear-selection" {
+                        self.trash_selected.clear();
+                        return;
+                    }
+                    if name == "trash-restore-selected" {
+                        for path in self.trash_selected.clone() {
+                            match concat_host::project_library::restore(
+                                &studio.host.dirs.config,
+                                &path,
+                            ) {
+                                Ok(()) => self.trash_selected.retain(|selected| selected != &path),
+                                Err(error) => studio.notify(&error, true),
+                            }
+                        }
+                        studio.recents = projects::recents(&studio.host.dirs.config);
+                        return;
+                    }
+                    if name == "trash-delete-selected" || name == "trash-empty" {
+                        let paths = if name == "trash-empty" {
+                            concat_host::project_library::entries(&studio.host.dirs.config)
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|entry| entry.stored)
+                                .collect()
+                        } else {
+                            self.trash_selected.clone()
+                        };
+                        if !paths.is_empty() {
+                            studio.confirm = Some(crate::studio::Confirm::EraseProjects { paths });
+                        }
+                        return;
+                    }
+                }
                 if let Some(path) = name.strip_prefix("export-project:") {
                     match studio.open_project_at(path) {
                         Ok(()) => studio.export_project_package(),
@@ -407,6 +466,7 @@ impl StartPane {
                 }
                 if name == "trash" {
                     self.trash_view = !self.trash_view;
+                    self.trash_selected.clear();
                     self.query.clear();
                     return;
                 }

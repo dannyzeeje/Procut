@@ -637,14 +637,14 @@ mod awake {
 
     pub fn install(app: &AndroidApp) {
         let app = app.clone();
-        concat::install_awake(Box::new(move |on| {
+        concat::install_awake(Box::new(move |on, portrait| {
             log::debug!("display: the screen kept on while a job runs: {on}");
             let asked = super::java::with_class(&app, |env, activity, class| {
                 env.call_static_method(
                     class,
                     jni_str!("keepScreenOn"),
-                    jni_sig!("(Landroid/app/Activity;Z)V"),
-                    &[activity.into(), on.into()],
+                    jni_sig!("(Landroid/app/Activity;ZZ)V"),
+                    &[activity.into(), on.into(), portrait.into()],
                 )?;
                 Ok(())
             });
@@ -663,13 +663,13 @@ mod preview_mode {
     use jni::{jni_sig, jni_str};
     pub fn install(app: &slint::android::AndroidApp) {
         let app = app.clone();
-        concat::install_preview_mode(Box::new(move |on| {
+        concat::install_preview_mode(Box::new(move |on, portrait| {
             if let Err(e) = super::java::with_class(&app, |env, activity, class| {
                 env.call_static_method(
                     class,
                     jni_str!("previewFullscreen"),
-                    jni_sig!("(Landroid/app/Activity;Z)V"),
-                    &[activity.into(), on.into()],
+                    jni_sig!("(Landroid/app/Activity;ZZ)V"),
+                    &[activity.into(), on.into(), portrait.into()],
                 )?;
                 Ok(())
             }) {

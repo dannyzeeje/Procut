@@ -646,9 +646,15 @@ pub enum Command {
         /// The stroke, in source fractions.
         stroke: Stroke,
     },
-    /// Repositions any number of clips in one edit - one undo step for a
-    /// whole multi-selection drag. Unknown clips and tracks are tolerated
-    /// per [`ClipMove`].
+    /// Move clips onto a newly minted typed lane in one undo step.
+    MoveToNewTrack {
+        /// Clips and timeline start positions to preserve on the new lane.
+        moves: Vec<ClipMove>,
+        /// Audio lanes grow downwards; video lanes grow upwards.
+        audio: bool,
+    },
+    /// Repositions clips in one undo step. Unknown clips and tracks are
+    /// tolerated per [`ClipMove`].
     MoveClips {
         /// Where each clip is going.
         moves: Vec<ClipMove>,
@@ -1242,7 +1248,9 @@ impl Command {
             Command::SetClipVoice { voice, .. } => voice
                 .as_ref()
                 .is_some_and(|voice| bad([voice.voice, voice.background])),
-            Command::MoveClips { moves } => bad(moves.iter().map(|wanted| wanted.start)),
+            Command::MoveClips { moves } | Command::MoveToNewTrack { moves, .. } => {
+                bad(moves.iter().map(|wanted| wanted.start))
+            }
             Command::TrimClip { delta, .. } => bad([*delta]),
             Command::SplitClips { time, .. } => bad([*time]),
             Command::FreezeFrame { time, duration, .. } => bad([*time]) || bad(*duration),
@@ -1346,6 +1354,40 @@ pub fn apply(
         return Err(CommandError::NotANumber);
     }
     match command {
+        Command::MoveToNewTrack { mut moves, audio } => {
+            moves.retain(|wanted| project.active().clip(&wanted.clip_id).is_some());
+            if moves.is_empty() {
+                return Ok(Outcome::default());
+            }
+            let mut staged = project.clone();
+            let mut staged_mint = mint.clone();
+            let outcome = apply(
+                &mut staged,
+                &mut staged_mint,
+                Command::AddTrack { bottom: audio },
+            )?;
+            let id = outcome
+                .created_id
+                .clone()
+                .expect("AddTrack creates a track");
+            let track = staged
+                .active_mut()
+                .tracks
+                .iter_mut()
+                .find(|track| track.id == id)
+                .unwrap();
+            track.extra.insert(
+                "procutRole".into(),
+                if audio { "audio" } else { "video" }.into(),
+            );
+            for wanted in &mut moves {
+                wanted.track_id = id.clone();
+            }
+            apply(&mut staged, &mut staged_mint, Command::MoveClips { moves })?;
+            *project = staged;
+            *mint = staged_mint;
+            Ok(outcome)
+        }
         Command::Batch { commands } => {
             // All or nothing: apply to a staged copy and commit only a fully
             // successful run, so one bad command cannot leave a half-applied

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Jareer Abdullah and Concat contributors
 
+import { MobileToolData } from "phone/tool-grid.slint";
 import { EffectData } from "demo/effects-panel.slint";
 import {
     AppliedEntryData, AppliedParamData, CatalogueEntryData, ChainChoiceData, ColourKnobData,
@@ -140,6 +141,13 @@ export global Editor {
     callback library-remove-lut(id: string);
     callback replace-clip-media();
     callback export-project-package();
+    in-out property <[MobileToolData]> mobile-quick-tools;
+    in-out property <[MobileToolData]> mobile-more-tools;
+    in-out property <[MobileToolData]> mobile-all-tools;
+    callback mobile-tool-customize(id: string, action: string);
+    in-out property <bool> effect-preview-active;
+    callback effect-preview(kind: string, id: string, label: string);
+    callback effect-preview-finish(apply: bool);
     in-out property <bool> preview-fullscreen;
     callback preview-fullscreen-changed(on: bool);
     /// Adjustments page: lay an adjustment layer at the playhead - the

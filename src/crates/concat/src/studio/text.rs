@@ -332,6 +332,10 @@ impl Studio {
     /// command, the mix and the publish happen once the moves pause. The
     /// monitor follows the echo in the meantime.
     pub fn clip_commit(&mut self) {
+        if self.effect_preview.is_some() {
+            self.request_preview();
+            return;
+        }
         self.commit_pending = true;
         self.request_preview();
         self.commit_timer.start(

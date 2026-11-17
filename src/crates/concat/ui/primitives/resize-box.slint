@@ -63,6 +63,7 @@ export component ResizeBox inherits Rectangle {
         y: 0;
         width: root.width - 2 * root.pad-x;
         height: root.height;
+        content-width: self.width;
         content-height: Math.max(self.height, root.content-height + 2 * root.pad-y);
         // Scrolled by the wheel and by the caret, never by a drag: a drag
         // over words is a selection.

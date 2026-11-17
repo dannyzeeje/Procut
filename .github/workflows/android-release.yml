@@ -1,0 +1,87 @@
+name: Procut Android release
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit, branch or tag to release
+        required: true
+        default: main
+      tag:
+        description: Release tag matching the source version
+        required: true
+        default: v0.2.15
+permissions:
+  contents: read
+concurrency:
+  group: procut-android-release-${{ inputs.tag }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref }}
+      - id: source
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' src/Cargo.toml | head -1)
+          test "$TAG" = "v$version"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
+        with:
+          toolchain: 1.93.1
+          components: rustfmt
+      - run: cargo fmt --check
+        working-directory: src
+      - run: python3 scripts/locales.py --check
+      - run: python3 scripts/models.py --check
+      - run: cargo test --locked -p concat-project
+        working-directory: src
+  android:
+    needs: validate
+    uses: ./.github/workflows/mobile.yml
+    with:
+      ref: ${{ needs.validate.outputs.sha }}
+      sign: true
+    secrets: inherit
+  publish:
+    needs: [validate, android]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: Procut-android-arm64
+          path: release
+      - name: Check architecture and write checksums
+        run: |
+          set -euo pipefail
+          test "$(find release -name '*.apk' | wc -l)" = 1
+          apk=$(find release -name '*.apk')
+          unzip -Z1 "$apk" | grep -q '^lib/arm64-v8a/libconcat_android.so$'
+          if unzip -Z1 "$apk" | grep -E '^lib/(x86|x86_64|armeabi-v7a)/'; then
+            echo 'Unexpected ABI in release APK' >&2
+            exit 1
+          fi
+          cd release
+          sha256sum *.apk > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3
+        with:
+          tag_name: ${{ inputs.tag }}
+          target_commitish: ${{ needs.validate.outputs.sha }}
+          name: Procut ${{ inputs.tag }}
+          draft: false
+          prerelease: false
+          body_path: docs/releases/0.2.15.md
+          fail_on_unmatched_files: true
+          files: release/*

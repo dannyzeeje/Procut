@@ -123,6 +123,52 @@ impl Studio {
                     .collect();
                 let shift = seconds + self.snap_shift(&edges, threshold, &moving);
                 let rows = nearest_row(lanes, row_top(lanes, anchor.row) + pixels) - anchor.row;
+                // Dragging beyond the media's stack opens a typed lane. The
+                // ghost lives only on the echo until the finger is released.
+                if crate::platform::phone() && origins.len() == 1 {
+                    let original = self.session.as_ref().unwrap().project().clone();
+                    let clip = original.active().clip(primary).unwrap();
+                    let audio = matches!(
+                        clip.kind,
+                        model::ClipKind::Audio | model::ClipKind::SoundLayer
+                    );
+                    let target = self.row_track((anchor.row + rows).max(0));
+                    let target_audio = target.is_some_and(|track| {
+                        track
+                            .extra
+                            .get("procutRole")
+                            .and_then(serde_json::Value::as_str)
+                            == Some("audio")
+                    });
+                    let y = row_top(lanes, anchor.row) + pixels;
+                    let beyond = y < -24.0 || y > lanes.iter().sum::<f32>() - 24.0;
+                    self.echo = Some(original);
+                    if pixels.abs() > 36.0 && (beyond || audio != target_audio) {
+                        let id = "__procut_new_track".to_owned();
+                        let track = Track {
+                            id: id.clone(),
+                            extra: [(
+                                "procutRole".into(),
+                                if audio { "audio" } else { "video" }.into(),
+                            )]
+                            .into_iter()
+                            .collect(),
+                            ..Track::default()
+                        };
+                        let timeline = self.echo.as_mut().unwrap().active_mut();
+                        if audio {
+                            timeline.tracks.insert(0, track);
+                        } else {
+                            timeline.tracks.push(track);
+                        }
+                        if let Some(clip) = timeline.clip_mut(primary) {
+                            clip.track_id = id;
+                            clip.start = (anchor.start + f64::from(shift)).max(0.0);
+                        }
+                        self.gesture = gesture;
+                        return;
+                    }
+                }
                 let count = self.timeline().tracks.len() as i32;
                 // Every start moves by the one shift, in f64 and from the
                 // start the press recorded: `self.clip` is the echo while a
@@ -293,6 +339,21 @@ impl Studio {
                         })
                     })
                     .collect();
+                if let Some(track) = echo
+                    .active()
+                    .tracks
+                    .iter()
+                    .find(|track| track.id == "__procut_new_track")
+                {
+                    let audio = track
+                        .extra
+                        .get("procutRole")
+                        .and_then(serde_json::Value::as_str)
+                        == Some("audio");
+                    self.echo = None;
+                    self.apply(Command::MoveToNewTrack { moves, audio });
+                    return;
+                }
                 let moves = if crate::platform::phone() && origins.len() == 1 {
                     let before = self
                         .session

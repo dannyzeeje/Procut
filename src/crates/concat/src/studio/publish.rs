@@ -30,6 +30,7 @@ impl Studio {
     // ── publishing ──
 
     pub fn publish(&self, app: &App, models: &Models) {
+        self.publish_mobile_tools(app);
         // The tray's three menu labels and the tooltips' bare-letter
         // hints, spelled from the keymap so a rebind moves the words
         // with the key. An action left unbound shows an em dash rather
@@ -204,6 +205,8 @@ impl Studio {
     /// The timeline and the readouts that follow it: what runs on every
     /// event of a scrub, a drag, a trim or a knob.
     pub fn publish_lanes(&self, app: &App, models: &Models) {
+        app.global::<Editor>()
+            .set_effect_preview_active(self.effect_preview.is_some());
         let editor = app.global::<Editor>();
         let project = self.project();
         sync(
