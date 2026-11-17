@@ -42,6 +42,7 @@ import { Dark } from "dark.slint";
 import { Light } from "light.slint";
 
 export global Theme {
+    in-out property <bool> mobile: false;
     /// Which palette every colour below is read from. Settings > Appearance
     /// picks it (main.rs, `on_settings_theme_changed`), and every binding in
     /// the tree is a property read away from it, so the window retones in a
@@ -59,7 +60,7 @@ export global Theme {
     /// Remembered by name rather than by number, so a list that grows or
     /// reorders keeps everyone's choice; 0 is Lime, the default. One past
     /// the last name is the custom colour, `accent-custom`.
-    in-out property <int> accent-choice: 0;
+    in-out property <int> accent-choice: 2;
     /// A colour picked by hand in place of any on the list. Read only while
     /// `accent-choice` points past the list, and one colour under both
     /// palettes: whoever picked it picked what they see, and the three
@@ -85,7 +86,7 @@ export global Theme {
     /// worn as the palette that is on has it - the first, Lime, is the
     /// palette's own playhead - or one past them for `playhead-custom`.
     /// Settings > Appearance sets it (lib.rs, `on_settings_playhead_chosen`).
-    in-out property <int> playhead-choice: 0;
+    in-out property <int> playhead-choice: 2;
     /// The playhead wears `playhead-custom` rather than one of the list.
     out property <bool> playhead-is-custom: playhead-choice >= accent-names.length;
     /// Which interface scale the window is drawn at: an index into the
@@ -115,11 +116,11 @@ export global Theme {
     /// side of it are the dense readout and the panel title. `xl` is for the
     /// few lines that are content rather than chrome — a project's name in a
     /// list — and `display` is the launch screen's heading and nothing else.
-    out property <length> fs-xs: 10px;
-    out property <length> fs-sm: 11px;
-    out property <length> fs: 12px;
-    out property <length> fs-lg: 13px;
-    out property <length> fs-xl: 14px;
+    out property <length> fs-xs: mobile ? 11px : 10px;
+    out property <length> fs-sm: mobile ? 12px : 11px;
+    out property <length> fs: mobile ? 14px : 12px;
+    out property <length> fs-lg: mobile ? 16px : 13px;
+    out property <length> fs-xl: mobile ? 18px : 14px;
     out property <length> fs-input: 15px;
     out property <length> fs-display: 34px;
 
@@ -146,14 +147,14 @@ export global Theme {
     // radii
     out property <length> r-xs: 3px;
     out property <length> r-sm: 5px;
-    out property <length> r: 7px;
+    out property <length> r: mobile ? 12px : 7px;
     out property <length> r-lg: 12px;
     /// The dialog sheet, and nothing smaller. A modal is the largest rounded
     /// thing in the window and wants a corner to match.
-    out property <length> r-xl: 16px;
+    out property <length> r-xl: mobile ? 24px : 16px;
 
     // metrics
-    out property <length> h: 28px;        // standard control height
+    out property <length> h: mobile ? 40px : 28px;        // standard control height
     out property <length> gap: 6px;
     out property <length> pad: 14px;      // panel horizontal padding
     out property <length> label-w: 62px;

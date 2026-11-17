@@ -14,6 +14,7 @@ impl Studio {
     pub fn shortcut(&mut self, action: &str) {
         log::debug!("shortcut: {action}");
         match action {
+            "delete" => self.delete_selected(),
             // The selected clips when there are any, as the tray's button
             // and the menu split: the chord cut every track under the
             // playhead whatever was selected, titles and music with it.

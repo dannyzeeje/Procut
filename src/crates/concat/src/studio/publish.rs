@@ -219,6 +219,54 @@ impl Studio {
         );
 
         let timeline = self.timeline();
+        let role = |lane: &Track| -> &'static str {
+            if lane
+                .extra
+                .get("procutRole")
+                .and_then(serde_json::Value::as_str)
+                == Some("audio")
+            {
+                return "A";
+            }
+            if lane
+                .extra
+                .get("procutRole")
+                .and_then(serde_json::Value::as_str)
+                == Some("video")
+            {
+                return "V";
+            }
+            match timeline
+                .clips
+                .iter()
+                .find(|clip| clip.track_id == lane.id)
+                .map(|clip| clip.kind)
+            {
+                Some(model::ClipKind::Audio | model::ClipKind::SoundLayer) => "A",
+                Some(model::ClipKind::Text) => "T",
+                Some(model::ClipKind::Layer) => "FX",
+                Some(model::ClipKind::Shape) => "S",
+                _ => "V",
+            }
+        };
+        let mut labels = std::collections::HashMap::new();
+        let mut counts = std::collections::HashMap::new();
+        for lane in &timeline.tracks {
+            let prefix = role(lane);
+            if prefix == "A" {
+                continue;
+            }
+            let n = counts.entry(prefix).or_insert(0);
+            *n += 1;
+            labels.insert(lane.id.clone(), format!("{prefix}{n}"));
+        }
+        let mut audio = 0;
+        for lane in timeline.tracks.iter().rev() {
+            if role(lane) == "A" {
+                audio += 1;
+                labels.insert(lane.id.clone(), format!("A{audio}"));
+            }
+        }
         let mut top = 0.0;
         sync(
             &models.tracks,
@@ -229,6 +277,12 @@ impl Studio {
                 .map(|lane| {
                     let height = self.lane_height(lane);
                     let row = TrackData {
+                        label: labels.get(&lane.id).cloned().unwrap_or_default().into(),
+                        minimized: self
+                            .lanes
+                            .lane_view
+                            .get(&lane.id)
+                            .is_some_and(|view| view.minimized),
                         id: lane.id.as_str().into(),
                         visible: lane.visible,
                         muted: lane.muted,

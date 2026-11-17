@@ -54,8 +54,7 @@ pub(super) fn apply(
                 .clone();
             let duration = clip_length(&media);
             let timeline = project.active_mut();
-            let track_id = first_free_track(timeline, start, duration)
-                .unwrap_or_else(|| fresh_track(timeline, mint));
+            let track_id = media_track(timeline, mint, start, duration, media.kind);
             let id = mint.next("c");
             timeline
                 .clips
@@ -93,8 +92,7 @@ pub(super) fn apply(
             let track_id = match track_id {
                 Some(id) if timeline.track(&id).is_none() => return Err(CommandError::TrackGone),
                 Some(id) => id,
-                None => first_free_track(timeline, start, total)
-                    .unwrap_or_else(|| fresh_track(timeline, mint)),
+                None => media_track(timeline, mint, start, total, items[0].kind),
             };
             let mut at = start;
             let mut first = None;
@@ -1012,6 +1010,51 @@ fn clip_length(media: &MediaItem) -> f64 {
     }
 }
 
+/// Typed mobile media lanes; legacy timelines retain their free-lane policy.
+fn media_track(
+    timeline: &mut Timeline,
+    mint: &mut IdMint,
+    start: f64,
+    duration: f64,
+    kind: MediaKind,
+) -> String {
+    let typed = timeline
+        .tracks
+        .iter()
+        .any(|t| t.extra.contains_key("procutRole"));
+    if !typed {
+        return first_free_track(timeline, start, duration)
+            .unwrap_or_else(|| fresh_track(timeline, mint));
+    }
+    let role = if kind == MediaKind::Audio {
+        "audio"
+    } else {
+        "video"
+    };
+    if let Some(track) = timeline.tracks.iter().find(|track| {
+        track
+            .extra
+            .get("procutRole")
+            .and_then(serde_json::Value::as_str)
+            == Some(role)
+            && timeline.is_free(&track.id, start, duration, &[])
+    }) {
+        return track.id.clone();
+    }
+    let id = mint.next("t");
+    let track = Track {
+        id: id.clone(),
+        extra: [("procutRole".into(), role.into())].into_iter().collect(),
+        ..Track::default()
+    };
+    if role == "audio" {
+        timeline.tracks.insert(0, track);
+    } else {
+        timeline.tracks.push(track);
+    }
+    id
+}
+
 /// The lowest track with nothing occupying `[start, start + duration)`.
 /// `None` when every lane is taken there: the caller opens a new one
 /// rather than covering a clip.
@@ -1061,7 +1104,15 @@ fn first_free_track_above(timeline: &Timeline, start: f64, duration: f64) -> Opt
         .tracks
         .iter()
         .skip(floor)
-        .find(|track| !occupied(&track.id))
+        .find(|track| {
+            !matches!(
+                track
+                    .extra
+                    .get("procutRole")
+                    .and_then(serde_json::Value::as_str),
+                Some("audio" | "video")
+            ) && !occupied(&track.id)
+        })
         .map(|track| track.id.clone())
 }
 

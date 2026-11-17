@@ -429,6 +429,27 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     }
     studio.reload_packages(false);
     studio.watch_packages();
+    if !studio.prefs.atlas_defaults {
+        if studio
+            .prefs
+            .accent
+            .as_deref()
+            .is_none_or(|value| value == "lime")
+        {
+            studio.prefs.accent = Some("violet".into());
+        }
+        if studio
+            .prefs
+            .playhead
+            .as_deref()
+            .is_none_or(|value| value == "lime")
+        {
+            studio.prefs.playhead = Some("violet".into());
+        }
+        studio.prefs.atlas_defaults = true;
+        studio.prefs.save(&studio.host.dirs);
+    }
+    app.global::<Theme>().set_mobile(platform::phone());
     let dark = studio.prefs.dark.unwrap_or(true);
     app.global::<Theme>().set_dark(dark);
     motion_tiles::install(&app);
@@ -1293,6 +1314,11 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
             state.track_flags(row, visible, muted, locked);
         }
     ));
+    editor.on_track_minimized(on_window!(|state, index: i32, on: bool| {
+        if let Some(id) = state.row_track(index).map(|track| track.id.clone()) {
+            state.lanes.lane_view.entry(id).or_default().minimized = on;
+        }
+    }));
     editor.on_track_sized(on_window!(|state, row: i32, size: TrackSize| {
         state.set_lane_size(row, size);
     }));
@@ -1532,6 +1558,10 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
         }));
     }
 
+    editor.on_audio_fades_edited(on_lanes!(|state, a: f32, b: f32| {
+        state.clip_set(ClipField::FadeIn, a);
+        state.clip_set(ClipField::FadeOut, b);
+    }));
     editor.on_clip_set(on_lanes!(|state, field: ClipField, value: f32| {
         state.clip_set(field, value);
     }));

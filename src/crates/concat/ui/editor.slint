@@ -177,6 +177,7 @@ export global Editor {
     /// A shape's colour; see ShapePanel.set-colour.
     callback clip-shape-colour(which: int, value: color);
     callback clip-commit();
+    callback audio-fades-edited(fade-in: float, fade-out: float);
     /// The families a title can be set in: the bundled face, the user's
     /// own fonts, then the machine's. See `Studio::font_families`.
     in-out property <[string]> font-families;
@@ -516,6 +517,7 @@ export global Editor {
     callback drag-hovered(payload: string, seconds: float, y: length);
     callback dropped(payload: string, seconds: float, y: length);
     callback track-flag-changed(index: int, visible: bool, muted: bool, locked: bool);
+    callback track-minimized(index: int, on: bool);
     callback track-sized(index: int, size: TrackSize);
     callback track-removed(index: int);
     /// A tab dragged to a new place in the strip. `to` is counted with the

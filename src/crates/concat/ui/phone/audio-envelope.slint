@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Procut contributors
+import { Theme } from "../theme/theme.slint";
+import { I18n } from "../i18n.slint";
+import { Fmt } from "../util.slint";
+import { SelectedClipData } from "../timeline/model.slint";
+import { AtlasChip } from "atlas-components.slint";
+export component AudioEnvelope inherits Rectangle {
+    in property <SelectedClipData> selected;
+    callback edited(fade-in: float, fade-out: float);
+    callback committed();
+    height: 320px;
+    property <float> duration: Math.max(0.001, root.selected.duration);
+    property <float> fade-in;
+    property <float> fade-out;
+    function seed() { root.fade-in = Math.clamp(root.selected.fade-in, 0, root.duration); root.fade-out = Math.clamp(root.selected.fade-out, 0, root.duration - root.fade-in); }
+    init => { root.seed(); }
+    changed selected => { root.seed(); }
+    property <float> a: root.fade-in / root.duration;
+    property <float> b: 1 - root.fade-out / root.duration;
+    property <string> curve: "M 0 1 Q " + (root.a / 2) + " 1 " + root.a + " 0.12 L " + root.b + " 0.12 Q " + ((root.b + 1) / 2) + " 1 1 1";
+    function preset(kind: int) {
+        let d = root.duration;
+        let quick = Math.min(0.2, d / 4);
+        let soft = Math.min(1, d / 5);
+        let long = Math.min(3, d / 3);
+        root.fade-in = kind == 0 || kind == 5 ? 0 : kind == 1 ? quick : kind == 3 ? long : soft;
+        root.fade-out = kind == 0 || kind == 4 ? 0 : kind == 1 ? quick : kind == 3 ? long : soft;
+        root.edited(root.fade-in, root.fade-out); root.committed();
+    }
+    Text { x: 16px; y: 0; text: I18n.t("atlas.audioEnvelope"); color: Theme.fg; font-size: 16px; font-weight: 600; }
+    Text { x: 16px; y: 26px; text: I18n.t2("atlas.fadeSummary", "" + (Math.round(root.fade-in * 100) / 100), "" + (Math.round(root.fade-out * 100) / 100)); color: Theme.fg-muted; font-size: 12px; }
+    plot := Rectangle {
+        x: 16px; y: 52px; width: root.width - 32px; height: 160px;
+        border-radius: 14px; background: Theme.well; border-width: 1px; border-color: Theme.line;
+        property <length> graph-w: self.width - 32px;
+        for line in 5: Rectangle { x: 16px; y: 16px + line * 28px; width: parent.width - 32px; height: 1px; background: Theme.line; }
+        Path { x: 16px; y: 16px; width: plot.graph-w; height: 112px; viewbox-width: 1; viewbox-height: 1; fit: fill; commands: root.curve + " Z"; fill: Theme.accent.with-alpha(0.18); }
+        Path { x: 16px; y: 16px; width: plot.graph-w; height: 112px; viewbox-width: 1; viewbox-height: 1; fit: fill; commands: root.curve; fill: transparent; stroke: Theme.accent; stroke-width: 2px; }
+        Text { x: 16px; y: 138px; text: "0:00"; color: Theme.fg-muted; font-size: 10px; }
+        Text { x: parent.width - self.width - 16px; y: 138px; text: Fmt.short-duration(root.duration); color: Theme.fg-muted; font-size: 10px; }
+        for side in 2: TouchArea {
+            x: 16px + (side == 0 ? root.a : root.b) * plot.graph-w - 16px;
+            y: 13px; width: 32px; height: 32px;
+            property <length> origin;
+            property <float> initial;
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.down) { self.origin = self.absolute-position.x + self.mouse-x; self.initial = side == 0 ? root.fade-in : root.fade-out; }
+                if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) { root.committed(); }
+            }
+            moved => {
+                if (self.pressed) {
+                    let dt = (self.absolute-position.x + self.mouse-x - self.origin) / plot.graph-w * root.duration;
+                    if (side == 0) { root.fade-in = Math.clamp(self.initial + dt, 0, Math.min(root.duration / 2, root.duration - root.fade-out)); }
+                    else { root.fade-out = Math.clamp(self.initial - dt, 0, Math.min(root.duration / 2, root.duration - root.fade-in)); }
+                    root.edited(root.fade-in, root.fade-out);
+                }
+            }
+            Rectangle { x: 10px; y: 10px; width: 12px; height: 12px; border-radius: 6px; background: Theme.accent; border-width: 2px; border-color: Theme.fg; }
+        }
+    }
+    HorizontalLayout { x: 16px; y: 224px; width: root.width - 32px; height: 40px; spacing: 8px;
+        AtlasChip { label: I18n.t("common.none"); clicked => { root.preset(0); } }
+        AtlasChip { label: I18n.t("atlas.fadeQuick"); clicked => { root.preset(1); } }
+        AtlasChip { label: I18n.t("atlas.fadeSoft"); clicked => { root.preset(2); } }
+    }
+    HorizontalLayout { x: 16px; y: 272px; width: root.width - 32px; height: 40px; spacing: 8px;
+        AtlasChip { label: I18n.t("atlas.fadeLong"); clicked => { root.preset(3); } }
+        AtlasChip { label: I18n.t("atlas.fadeIn"); clicked => { root.preset(4); } }
+        AtlasChip { label: I18n.t("atlas.fadeOut"); clicked => { root.preset(5); } }
+    }
+}

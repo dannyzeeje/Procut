@@ -76,6 +76,7 @@ name = "android.permission.INTERNET"
 name = "android.permission.RECORD_AUDIO"
 
 [package.metadata.android.application]
+theme = "@style/ProcutTheme"
 label = "Procut"
 icon = "@mipmap/ic_launcher"
 # The activity is never recreated for a change the window can take as it

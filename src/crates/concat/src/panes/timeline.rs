@@ -33,6 +33,7 @@ const ZOOM_STEP: f32 = 1.4;
 /// it is locked, and how tall to draw it.
 #[derive(Clone, Copy)]
 pub struct LaneView {
+    pub minimized: bool,
     pub locked: bool,
     pub size: TrackSize,
 }
@@ -40,6 +41,7 @@ pub struct LaneView {
 impl Default for LaneView {
     fn default() -> Self {
         Self {
+            minimized: false,
             locked: false,
             size: TrackSize::Auto,
         }

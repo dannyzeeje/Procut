@@ -1,3 +1,4 @@
+import { BrandMark, AtlasChip } from "phone/atlas-components.slint";
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Jareer Abdullah
 
@@ -1862,11 +1863,11 @@ component NarrowHome inherits Rectangle {
             padding-left: 8px; padding-right: 16px; spacing: 12px;
             VerticalLayout { alignment: center; RoundButton { glyph: Glyph.menu; label: I18n.t("mobile.menu"); clicked => { PhoneNavigation.open = true; } } }
             Text { text: I18n.t("mobile.brand"); font-size: 22px; font-weight: 600; color: Theme.fg; vertical-alignment: center; horizontal-stretch: 1; }
-            VerticalLayout { alignment: center; Image { source: @image-url("../../../../assets/procut-logo.png"); width: 40px; height: 40px; image-fit: contain; } }
+            VerticalLayout { alignment: center; Rectangle { width: 44px; height: 44px; border-radius: 12px; background: #180f2b; BrandMark { x: -18px; y: -18px; width: 80px; height: 80px; } } }
         }
     }
     flick := Flickable {
-        y: 64px; width: root.width; height: root.height - 64px;
+        y: 64px; width: root.width; height: root.height - 148px;
         content-width: self.width; content-height: stack.preferred-height;
         stack := VerticalLayout {
             x: 0; y: 0;
@@ -1874,17 +1875,16 @@ component NarrowHome inherits Rectangle {
             padding-left: 16px; padding-right: 16px; padding-top: 16px; padding-bottom: 28px;
             spacing: 16px; alignment: start;
             Text {
-                text: root.trash-view ? I18n.t("mobile.trash") : I18n.t("mobile.welcome");
-                color: Theme.fg; font-size: 28px; font-weight: 600; wrap: word-wrap;
+                text: root.trash-view ? I18n.t("mobile.trash") : I18n.t("atlas.projects");
+                color: Theme.fg; font-size: 26px; font-weight: 600; wrap: word-wrap;
             }
             Text {
-                text: root.trash-view ? I18n.t("mobile.restoreHelp") : I18n.t("mobile.welcomeNote");
+                text: root.trash-view ? I18n.t("mobile.restoreHelp") : I18n.t("atlas.projectsNote");
                 color: Theme.fg-muted; font-size: 14px; wrap: word-wrap;
             }
-            if !root.trash-view: CreateTile {
-                height: 80px; primary: true; glyph: Glyph.plus;
-                title: I18n.t("start.newProject"); note: I18n.t("mobile.newProjectNote");
-                enabled: !root.busy; clicked => { root.compose(); }
+            HorizontalLayout { spacing: 10px; height: 44px;
+                AtlasChip { label: I18n.t("mobile.importProjectMenu"); enabled: !root.busy; clicked => { root.link("import-project"); } }
+                AtlasChip { label: I18n.t("mobile.findProjects"); enabled: !root.busy; clicked => { root.link("recover"); } }
             }
             SectionHead {
                 height: 32px;
@@ -1913,6 +1913,9 @@ component NarrowHome inherits Rectangle {
                 forgotten => { if (!root.export-mode) { root.forget-recent(project.path); } }
             }
         }
+    }
+    Rectangle { y: root.height - 84px; width: root.width; height: 84px; background: Theme.page;
+        AtlasChip { x: 16px; y: 12px; width: parent.width - 32px; height: 52px; current: true; enabled: !root.busy; label: "+ " + I18n.t("start.newProject"); clicked => { root.compose(); } }
     }
     PhoneMenu {
         width: root.width; height: root.height; open: PhoneNavigation.open;

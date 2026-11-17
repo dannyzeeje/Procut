@@ -1,0 +1,1 @@
+<resources><style name="ProcutTheme" parent="ProcutBase"><item name="android:windowSplashScreenBackground">#180F2B</item><item name="android:windowSplashScreenAnimatedIcon">@drawable/procut_symbol</item><item name="android:windowSplashScreenIconBackgroundColor">#180F2B</item></style></resources>

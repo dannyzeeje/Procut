@@ -134,6 +134,38 @@ fn now_millis() -> u64 {
 ///
 /// Refuses to touch a folder that already holds a manifest. Overwriting
 /// someone's edit because they reused a name is not a recoverable mistake.
+pub fn create_mobile(
+    location: &str,
+    name: &str,
+    width: u32,
+    height: u32,
+    rate_num: i64,
+    rate_den: i64,
+    canvas: [u8; 4],
+) -> Result<ProjectInfo, String> {
+    let info = create(location, name, width, height, rate_num, rate_den, canvas)?;
+    let settings = concat_project::DocumentSettings {
+        name: name.into(),
+        width,
+        height,
+        rate_num,
+        rate_den,
+        canvas,
+    };
+    let editor = concat_project::Editor::with_video(settings.video());
+    let mut doc = editor.to_document(&settings);
+    // Stored bottom first, so V1 is above A1 in the editor.
+    let tracks = serde_json::json!([
+        {"id":"A1","visible":true,"muted":false,"procutRole":"audio"},
+        {"id":"V1","visible":true,"muted":false,"procutRole":"video"}
+    ]);
+    doc["timelines"][0]["tracks"] = tracks.clone();
+    doc["tracks"] = tracks;
+    save(&info.path, &doc)?;
+    Ok(info)
+}
+
+/// Create a project with the upstream desktop starter layout.
 pub fn create(
     location: &str,
     name: &str,
@@ -701,6 +733,22 @@ fn count_files(dir: &Path) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mobile_project_has_only_video_above_audio_and_reopens() {
+        let root = scratch("mobile-two-tracks");
+        let info = create_mobile(&root, "Mobile", 1920, 1080, 24, 1, opaque_black()).unwrap();
+        let doc = read_document(&info.path).unwrap().unwrap();
+        let editor = concat_project::Editor::from_document(&doc).unwrap();
+        let tracks = &editor.project().active().tracks;
+        assert_eq!(tracks.len(), 2);
+        assert_eq!(tracks[0].id, "A1");
+        assert_eq!(tracks[1].id, "V1");
+        assert_eq!(tracks[0].extra["procutRole"], "audio");
+        assert_eq!(tracks[1].extra["procutRole"], "video");
+        assert!(editor.project().active().clips.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     /// A recents list written while the canvas was three channels still
     /// reads, each entry opaque, and a four-channel one keeps its alpha

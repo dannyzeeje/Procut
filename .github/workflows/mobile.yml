@@ -1,54 +1,11 @@
 name: Procut phone builds
 
-# Builds Concat for Android and iOS and uploads one artifact per phone,
-# named like the desktop bundles from build-app.yml:
-#
-#   Android  arm64  -> Concat-<version>-android-arm64.apk
-#   iOS      arm64  -> Concat-<version>-ios-arm64.ipa
-#
-# Reusable, the way build-app.yml is: release.yml calls it on every tag,
-# so a release carries the phones beside the desktops. Pull requests build
-# here directly.
-#
-# Phones are cross-compiled - the Android job runs on Linux with the NDK,
-# the iOS job on macOS with Xcode - and the two native libraries that
-# cannot be fetched prebuilt for a phone are built from source here and
-# cached: FFmpeg by src/scripts/ffmpeg-mobile.sh, with the platform's
-# hardware codecs, and whisper.cpp by its crate. ONNX Runtime comes from
-# ort's own downloads, and on Android the C++ runtime it links (and the
-# emulator's ONNX Runtime) from src/scripts/android-libs.sh.
-#
-# src/scripts/mobile-env.sh is the one description of the build
-# environment, here and on a developer's machine.
-#
-# The APK is built under a key made for the run, and a release (the `sign`
-# input, which release.yml alone passes) signs it over again with the
-# repository's key, ANDROID_KEYSTORE (the keystore, base64),
-# ANDROID_KEYSTORE_PASSWORD, and optionally ANDROID_KEY_ALIAS and
-# ANDROID_KEY_PASSWORD, in a step of its own after the build: the key
-# never sits in the environment of the build and the several hundred build
-# scripts it runs, and a pull request's run never sees it at all. The .ipa
-# is ad-hoc signed: a tester signs it with their own Apple ID on the way
-# onto a phone (AltStore, Sideloadly, Xcode's Devices window all do this).
-#
-# No phone build passes unless it starts on a phone. The Android app is
-# installed on an emulator of Android 11 (API 30, where #312's preview
-# failed) and of Android 15 (API 35, the SDK the app targets) and started
-# there (scripts/ci/smoke-android.sh). The emulators are x86_64 ones on
-# Linux with KVM: GitHub's arm64 Macs cannot run the emulator at all (no
-# nested virtualisation, so HVF fails with HV_UNSUPPORTED). The APK that
-# ships is arm64 only, and under the ARM translation the x86_64 images
-# carry, ONNX Runtime's CPU detection crashed as the library loaded,
-# before any of the app's code, so it was never tested at all. So the
-# Android job also builds the same source for x86_64, an APK that never
-# leaves the run, and that is the one the emulators start natively. The
-# iPhone is tested the same way through the
-# iOS Simulator, which needs a build of its own for aarch64-apple-ios-sim,
-# made beside the device build and never shipped
-# (scripts/ci/smoke-ios.sh). release.yml waits on every job here, so a
-# release with a phone that does not start is never published; what the
-# smokes leave behind (logs, screenshots) is uploaded under smoke-*, a
-# name the release does not pick up.
+# Procut fork: this iteration builds only arm64-v8a, as requested.
+# The x86 emulator companion and its smoke job are disabled. The latest
+# completed emulator smoke coverage belongs to version 0.2.13, not this build.
+# FFmpeg/whisper/ONNX dependencies are cross-compiled or downloaded below.
+# CI uses a temporary APK signer unless release signing secrets are supplied.
+# Delivered APKs are signed separately with the private Procut release key.
 on:
   workflow_call:
     inputs:
@@ -102,9 +59,7 @@ jobs:
     name: Android ${{ matrix.abi }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
-    # arm64 is the APK that ships. x86_64 is the same source built for CI's
-    # emulators, which run x86_64 and could not start the arm64 one: the
-    # launch check below installs it, and it never leaves the run.
+    # arm64 only; this iteration deliberately omits the emulator companion.
     strategy:
       fail-fast: false
       matrix:
@@ -112,9 +67,6 @@ jobs:
           - target: aarch64-linux-android
             abi: arm64
             ship: true
-          - target: x86_64-linux-android
-            abi: x86_64
-            ship: false
     steps:
       # The ref release.yml names, which is its tag: without one a run
       # started by hand builds main and publishes it under the tag's name.
@@ -358,6 +310,7 @@ jobs:
   # detection crashed before any of the app's code, so it was never
   # tested at all.
   android-smoke:
+    if: ${{ false }} # ARM64-only delivery requested; this job needs an x86 emulator companion.
     name: Android smoke (API ${{ matrix.api }})
     needs: android
     runs-on: ubuntu-24.04

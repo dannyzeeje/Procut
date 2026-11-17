@@ -66,6 +66,7 @@ import {
     StartScreen,
 } from "start.slint";
 import { TitleBar } from "title-bar.slint";
+import { BootScreen } from "phone/atlas-components.slint";
 import { PhoneNavigation } from "phone/navigation.slint";
 import { PhoneEditor, PhoneSheets } from "phone/editor.slint";
 import {
@@ -190,6 +191,7 @@ export {
     NewVoiceData,
 }
 export component App inherits Window {
+    property <bool> booting: true;
     title: "Procut";
     // The taskbar's and Alt-Tab's picture on Windows, and the window
     // list's on X11. A Mac takes its Dock icon from the bundle and ignores
@@ -1218,5 +1220,8 @@ export component App inherits Window {
         // The arrows walk the strip: File, Edit, View and round again.
         neighbour(by) => { root.open-menu-from-keys(Math.mod(root.open-menu + by, 3)); }
     }
+
+    if root.phone && root.booting: BootScreen { width: root.width; height: root.height; }
+    Timer { interval: 1200ms; running: root.phone && root.booting; triggered => { root.booting = false; } }
 
 }

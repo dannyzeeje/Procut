@@ -233,6 +233,14 @@ impl Studio {
     /// the middle size.
     pub(super) fn lane_height(&self, lane: &Track) -> f32 {
         if crate::platform::phone() {
+            if self
+                .lanes
+                .lane_view
+                .get(&lane.id)
+                .is_some_and(|view| view.minimized)
+            {
+                return 36.0;
+            }
             return match self.lane_size(&lane.id) {
                 TrackSize::Small => 88.0,
                 TrackSize::Medium => 112.0,

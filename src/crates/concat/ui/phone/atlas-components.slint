@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Procut contributors
+import { Theme } from "../theme/theme.slint";
+import { I18n } from "../i18n.slint";
+export component BrandMark inherits Rectangle {
+    Path { width: parent.width; height: parent.height; viewbox-width: 1280; viewbox-height: 1280; fit: contain; fill: #b69aff; fill-rule: evenodd; commands: "M640 455 Q654 455 666 467 L813 614 Q839 640 813 666 L666 813 Q640 839 614 813 L467 666 Q441 640 467 614 L614 467 Q626 455 640 455 Z M640 521 L521 640 L640 759 L759 640 Z M384 682 Q391 682 396 687 L431 722 Q443 734 431 746 L396 781 Q384 793 372 781 L337 746 Q325 734 337 722 L372 687 Q377 682 384 682 Z M898 496 Q905 496 910 501 L945 536 Q957 548 945 560 L910 595 Q898 607 886 595 L851 560 Q839 548 851 536 L886 501 Q891 496 898 496 Z"; }
+}
+export component AtlasChip inherits Rectangle {
+    in property <string> label;
+    in property <bool> enabled: true;
+    in property <bool> current;
+    callback clicked();
+    min-width: 0px; height: 40px; horizontal-stretch: 1;
+    border-radius: 20px; clip: true;
+    opacity: root.enabled ? 1 : 0.35;
+    background: root.current ? Theme.accent : touch.pressed ? Theme.field-active : Theme.field;
+    Text { x: 8px; y: 0; width: parent.width - 16px; height: parent.height; text: root.label; color: root.current ? Theme.on-accent : Theme.fg; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; wrap: word-wrap; overflow: elide; }
+    touch := TouchArea { enabled: root.enabled; clicked => { root.clicked(); } }
+}
+export component BootScreen inherits Rectangle {
+    background: #180f2b;
+    property <float> progress: 0;
+    init => { root.progress = 1; }
+    animate progress { duration: 1000ms; easing: ease-in-out; }
+    BrandMark { x: (parent.width - self.width) / 2; y: parent.height / 2 - 78px; width: 170px; height: 170px; opacity: 0.4 + root.progress * 0.6; }
+    Text { x: 0; y: parent.height / 2 + 60px; width: parent.width; text: I18n.t("mobile.brand"); color: #f1eafb; font-size: 22px; horizontal-alignment: center; }
+    Rectangle { x: (parent.width - 72px) / 2; y: parent.height - 64px; width: 72px; height: 3px; border-radius: 2px; background: #54416e;
+        Rectangle { x: 0; y: 0; width: parent.width * root.progress; height: parent.height; border-radius: 2px; background: #b69aff; }
+    }
+}

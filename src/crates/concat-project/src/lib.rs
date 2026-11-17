@@ -4852,6 +4852,119 @@ mod tests {
     }
 
     #[test]
+    fn mobile_media_routes_by_kind_creates_tracks_and_deletes_with_undo() {
+        let mut doc = Editor::new().to_document(&settings());
+        let tracks = json!([
+            {"id":"A1","procutRole":"audio","visible":true,"muted":false},
+            {"id":"V1","procutRole":"video","visible":true,"muted":false}
+        ]);
+        doc["timelines"][0]["tracks"] = tracks.clone();
+        doc["tracks"] = tracks;
+        let mut editor = Editor::from_document(&doc).unwrap();
+        // A title added before any media must leave both base lanes free.
+        let title = editor
+            .apply(Command::AddTextClip {
+                track_id: None,
+                above: true,
+                start: 0.0,
+                style: None,
+                duration: Some(3.0),
+                offset_y: None,
+            })
+            .unwrap()
+            .created_id
+            .unwrap();
+        assert_eq!(editor.project().active().tracks.len(), 3);
+        let title_track = &editor.project().active().clip(&title).unwrap().track_id;
+        assert_ne!(title_track, "A1");
+        assert_ne!(title_track, "V1");
+        assert!(editor.undo());
+        assert_eq!(editor.project().active().tracks.len(), 2);
+        let video = editor
+            .apply(media("/v.mp4", 5.0, true))
+            .unwrap()
+            .created_id
+            .unwrap();
+        let Command::AddMedia { mut item } = media("/a.wav", 5.0, true) else {
+            unreachable!()
+        };
+        item.kind = MediaKind::Audio;
+        let audio = editor
+            .apply(Command::AddMedia { item })
+            .unwrap()
+            .created_id
+            .unwrap();
+        let mut placed = Vec::new();
+        for (media_id, expected) in [(video, "V1"), (audio.clone(), "A1")] {
+            let id = editor
+                .apply(Command::AddClipAtFirstFree {
+                    media_id,
+                    start: 0.0,
+                })
+                .unwrap()
+                .created_id
+                .unwrap();
+            assert_eq!(
+                editor.project().active().clip(&id).unwrap().track_id,
+                expected
+            );
+            placed.push(id);
+        }
+        let extra = editor
+            .apply(Command::AddClipAtFirstFree {
+                media_id: audio,
+                start: 0.0,
+            })
+            .unwrap()
+            .created_id
+            .unwrap();
+        let timeline = editor.project().active();
+        assert_eq!(timeline.tracks.len(), 3);
+        assert_eq!(
+            timeline.clip(&extra).unwrap().track_id,
+            timeline.tracks[0].id
+        );
+        assert_eq!(timeline.tracks[2].id, "V1", "video stays above audio");
+        assert!(editor.undo());
+        assert_eq!(editor.project().active().tracks.len(), 2);
+        for id in placed {
+            editor
+                .apply(Command::RemoveClips {
+                    clip_ids: vec![id.clone()],
+                    ripple: false,
+                })
+                .unwrap();
+            assert!(editor.project().active().clip(&id).is_none());
+            assert!(editor.undo());
+            assert!(editor.project().active().clip(&id).is_some());
+        }
+        let title = editor
+            .apply(Command::AddTextClip {
+                track_id: None,
+                above: true,
+                start: 0.0,
+                style: None,
+                duration: Some(3.0),
+                offset_y: None,
+            })
+            .unwrap()
+            .created_id
+            .unwrap();
+        let timeline = editor.project().active();
+        assert_eq!(timeline.tracks.len(), 3);
+        assert_eq!(
+            timeline.clip(&title).unwrap().track_id,
+            timeline.tracks[2].id
+        );
+        let saved = editor.to_document(&settings());
+        let restored = Editor::from_document(&saved).unwrap();
+        assert_eq!(
+            restored.project().active().tracks[0].extra["procutRole"],
+            "audio"
+        );
+    }
+
+    #[test]
     fn add_at_first_free_takes_the_lowest_empty_lane_or_opens_one() {
         let (mut editor, media_id, _) = fixture();
         // Track one is occupied for [0, 10), so the same span lands on two.

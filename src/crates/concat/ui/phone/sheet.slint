@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Jareer Abdullah
 
+import { I18n } from "../i18n.slint";
 import { Theme } from "../theme/theme.slint";
 import { Glyph, Icon } from "../icons.slint";
+import { AtlasChip } from "atlas-components.slint";
 import { PhoneScroll } from "controls.slint";
 
 // The sheet: where the phone shows a panel.
@@ -19,6 +21,7 @@ import { PhoneScroll } from "controls.slint";
 // finger. See ui/phone/editor.slint for what goes in one.
 export component PhoneSheet inherits Rectangle {
     in property <bool> open;
+    in property <bool> footer: true;
     in property <string> title;
     /// How much of the screen the sheet takes: enough for a panel, with
     /// the monitor still in view above it.
@@ -26,6 +29,7 @@ export component PhoneSheet inherits Rectangle {
 
     callback closed();
 
+    changed title => { body.content-y = 0px; }
     /// How far the header has been dragged down, while it is held: the
     /// sheet follows the finger, and past `dismiss-at` on release it is
     /// closed, as a phone's sheets are. Zero when nothing is held.
@@ -134,7 +138,7 @@ export component PhoneSheet inherits Rectangle {
                             Icon {
                                 x: (parent.width - self.width) / 2;
                                 y: (parent.height - self.height) / 2;
-                                glyph: Glyph.check;
+                                glyph: Glyph.close;
                                 size: 18px;
                                 weight: 2.2;
                                 tint: Theme.accent;
@@ -149,9 +153,13 @@ export component PhoneSheet inherits Rectangle {
             }
 
             // ── the body ──────────────────────────────────────────────────
-            PhoneScroll {
+            body := PhoneScroll {
                 vertical-stretch: 1;
                 @children
+            }
+            if root.footer: Rectangle {
+                height: 68px;
+                AtlasChip { x: 16px; y: 12px; width: parent.width - 32px; height: 44px; current: true; label: I18n.t("mobile.done"); clicked => { root.closed(); } }
             }
         }
     }

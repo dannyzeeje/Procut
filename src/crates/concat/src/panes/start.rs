@@ -509,7 +509,12 @@ impl StartPane {
             self.error = t("start.chooseWhereProjectFolder");
             return;
         }
-        let opened = projects::create(&self.location, &name, width, height, num, den, self.canvas)
+        let create = if platform::phone() {
+            projects::create_mobile
+        } else {
+            projects::create
+        };
+        let opened = create(&self.location, &name, width, height, num, den, self.canvas)
             .inspect_err(|error| {
                 log::error!(
                     "project: making {name} failed: {error}; the new-project sheet stays up"

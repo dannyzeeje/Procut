@@ -1,3 +1,4 @@
+import { PhoneQuickActions } from "quick-actions.slint";
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Jareer Abdullah and Concat contributors
 
@@ -7,6 +8,9 @@ import { Fmt } from "../util.slint";
 import { Glyph, Icon } from "../icons.slint";
 import { Editor } from "../editor.slint";
 import { PhoneTrackHeaders } from "../timeline/track-header.slint";
+import { AudioEnvelope } from "audio-envelope.slint";
+import { AtlasChip } from "atlas-components.slint";
+import { TrackSize } from "../timeline/model.slint";
 import { PhoneTransport, FullscreenPlayer } from "player.slint";
 import { PhoneNavigation, PhoneMenu, MenuAction } from "navigation.slint";
 import { Select } from "../primitives/select.slint";
@@ -389,6 +393,9 @@ export component PhoneEditor inherits Rectangle {
     /// "adjustments", "transitions" - the project's own, and a "clip-" page
     /// of the inspector for the selected clip.
     property <string> sheet;
+    property <bool> sidebar-collapsed;
+    property <int> track-index: 0;
+    property <length> sidebar-width: root.sidebar-collapsed ? 0px : 56px;
     // Back closes the sheet on top before it leaves the editor; the window
     // hears the key, so the sheet's state is told it through PhoneSheets.
     changed sheet => { PhoneSheets.open = root.sheet != ""; }
@@ -442,7 +449,9 @@ export component PhoneEditor inherits Rectangle {
     }
 
     pure function sheet-title(name: string) -> string {
-        return name == "tools" ? I18n.t("mobile.allTools")
+        return name == "track-controls" ? I18n.t("atlas.trackControls")
+            : name == "timeline-controls" ? I18n.t("atlas.timelineControls")
+            : name == "tools" ? I18n.t("mobile.allTools")
             : name == "media" ? I18n.t("common.media")
             : name == "audio" ? I18n.t("common.audio")
             : name == "text" || name == "clip-text" ? I18n.t("common.text")
@@ -476,14 +485,14 @@ export component PhoneEditor inherits Rectangle {
     property <length> top-h: 48px;
     property <length> transport-h: 96px;
     /// A resizable timeline with room for the preview.
-    property <float> timeline-share: 0.48;
+    property <float> timeline-share: 0.42;
     property <length> lanes-h: Math.max(170px, Math.min(root.height - root.top-h - root.transport-h - root.bar-h - 130px, root.height * root.timeline-share));
     property <length> bar-h: 74px;
     property <length> lanes-y: root.height - root.bar-h - root.lanes-h;
     property <length> transport-y: root.lanes-y - root.transport-h - 20px;
     /// How tall the sheet is when one is up. The bin's is lower: it is a
     /// grid to pick from, and the picture is what the picks are judged in.
-    property <length> sheet-h: root.sheet == "media" ? root.height * 0.58 : root.sheet == "tools" ? root.height * 0.78 : root.height * 0.68;
+    property <length> sheet-h: root.sheet == "media" ? root.height * 0.58 : root.sheet == "tools" ? root.height * 0.78 : root.height * 0.76;
     /// The foot of the monitor: the transport's head, or the sheet's while
     /// one is up - the monitor shrinks to the room left above the sheet
     /// rather than going under it, so the whole picture stays in view
@@ -703,17 +712,17 @@ export component PhoneEditor inherits Rectangle {
             clip: true;
 
             PhoneTrackHeaders {
-                x: 0; y: 0; width: 80px; height: parent.height;
-                tracks: Editor.tracks;
-                track-scroll: stack.at;
-                flag-changed(index, visible, muted, locked) => { Editor.track-flag-changed(index, visible, muted, locked); }
-                sized(index, size) => { Editor.track-sized(index, size); }
+                x: 0; y: 44px; width: root.sidebar-width; height: parent.height - 44px;
+                visible: !root.sidebar-collapsed;
+                tracks: Editor.tracks; track-scroll: stack.at;
+                selected(index) => { root.track-index = index; root.show("track-controls", false); }
+                scrolled(pixels) => { stack.lift = Math.clamp(stack.overflow - stack.at - pixels, 0px, stack.overflow); }
             }
             lanes := Lanes {
-                x: 80px;
-                y: 0;
-                width: parent.width - 80px;
-                height: parent.height;
+                x: root.sidebar-width;
+                y: 44px;
+                width: parent.width - root.sidebar-width;
+                height: parent.height - 44px;
 
                 finger: true;
                 duration-seconds: Editor.duration-seconds;
@@ -778,7 +787,7 @@ export component PhoneEditor inherits Rectangle {
             // lanes under it still do.
             if Editor.clips.length == 0: Text {
                 x: 16px;
-                y: lanes.ruler-height + 14px;
+                y: 44px + lanes.ruler-height + 14px;
                 width: parent.width - 32px;
                 text: I18n.t("phone.emptyLanes");
                 color: Theme.fg-dim;
@@ -787,54 +796,17 @@ export component PhoneEditor inherits Rectangle {
                 wrap: word-wrap;
             }
 
-            // The way in from the lanes: the plus at the end of the
-            // main track. The bin, and Add lays the picks after the main
-            // lane's last clip, wherever the playhead is.
-            add-media := Rectangle {
-                x: parent.width - self.width - 8px;
-                y: lanes.ruler-height
-                    + Math.max(4px, (parent.height - lanes.ruler-height - 50px - self.height) / 2);
-                width: 44px;
-                height: 44px;
-                border-radius: Theme.r;
-                background: add-touch.pressed ? Theme.accent-hover : Theme.accent;
-                drop-shadow-blur: 8px;
-                drop-shadow-color: #00000066;
-
-                Icon {
-                    x: (parent.width - self.width) / 2;
-                    y: (parent.height - self.height) / 2;
-                    glyph: Glyph.plus;
-                    size: 20px;
-                    weight: 2.4;
-                    tint: Theme.on-accent;
-                }
-
-                add-touch := TouchArea {
-                    clicked => { root.show-media(true); }
+            Rectangle {
+                x: 0; y: 0; width: parent.width; height: 44px; background: Theme.panel;
+                HorizontalLayout { padding-left: 4px; padding-right: 4px; spacing: 0px;
+                    RoundButton { glyph: root.sidebar-collapsed ? Glyph.chevron-right : Glyph.chevron-left; label: I18n.t("atlas.toggleSidebar"); size: 40px; clicked => { root.sidebar-collapsed = !root.sidebar-collapsed; } }
+                    Text { text: I18n.t("atlas.timeline"); color: Theme.fg; font-size: 14px; font-weight: 600; vertical-alignment: center; horizontal-stretch: 1; }
+                    RoundButton { glyph: Glyph.magnet; label: I18n.t("common.snapToEdges"); foreground: Editor.snap ? Theme.accent : Theme.fg; size: 40px; clicked => { Editor.snap-changed(!Editor.snap); } }
+                    RoundButton { glyph: Glyph.settings; label: I18n.t("atlas.timelineControls"); size: 40px; clicked => { root.show("timeline-controls", false); } }
+                    RoundButton { glyph: Glyph.plus; label: I18n.t("common.media"); size: 40px; clicked => { root.show-media(true); } }
                 }
             }
 
-            // The zoom, about the playhead - which is the middle, so the
-            // cut grows and shrinks around what is under it.
-            HorizontalLayout {
-                x: parent.width - self.preferred-width - 8px;
-                y: parent.height - 34px - 8px;
-                width: self.preferred-width;
-                height: 34px;
-                spacing: 6px;
-
-                LaneChip {
-                    glyph: Glyph.minus;
-                    label: I18n.t("common.zoomOut");
-                    clicked => { Editor.zoom(1.4, Editor.playhead); }
-                }
-                LaneChip {
-                    glyph: Glyph.plus;
-                    label: I18n.t("common.zoomIn");
-                    clicked => { Editor.zoom(1 / 1.4, Editor.playhead); }
-                }
-            }
         }
     }
 
@@ -851,25 +823,12 @@ export component PhoneEditor inherits Rectangle {
         }
     }
 
-    // Fixed phone actions: the complete labeled tool list opens from More.
-    Rectangle {
-        y: root.height - root.bar-h; width: root.width; height: root.bar-h;
-        background: Theme.panel;
-        if !root.has-clip: HorizontalLayout {
-            padding: 4px; spacing: 0px;
-            ToolItem { width: (root.width - 8px) / 4; glyph: Glyph.film; label: I18n.t("common.media"); clicked => { root.show-media(false); } }
-            ToolItem { width: (root.width - 8px) / 4; glyph: Glyph.music; label: I18n.t("common.audio"); clicked => { root.show("audio", false); } }
-            ToolItem { width: (root.width - 8px) / 4; glyph: Glyph.text-mark; label: I18n.t("common.text"); clicked => { root.show("text", false); } }
-            ToolItem { width: (root.width - 8px) / 4; glyph: Glyph.more; label: I18n.t("mobile.allTools"); clicked => { root.show("tools", false); } }
-        }
-        if root.has-clip: HorizontalLayout {
-            padding: 4px; spacing: 0px;
-            ToolItem { width: (root.width - 8px) / 5; glyph: Glyph.chevron-left; label: I18n.t("mobile.done"); clicked => { root.hide(); Editor.shortcut("deselect"); } }
-            ToolItem { width: (root.width - 8px) / 5; glyph: Glyph.split; label: I18n.t("phone.split"); clicked => { Editor.shortcut("split-selected"); } }
-            ToolItem { width: (root.width - 8px) / 5; glyph: Glyph.trash; label: I18n.t("common.delete"); clicked => { Editor.shortcut("delete"); } }
-            ToolItem { width: (root.width - 8px) / 5; glyph: Glyph.frame; label: I18n.t("phone.edit"); clicked => { root.show(root.is-audio ? "clip-audio" : root.is-text ? "clip-text" : root.is-shape ? "clip-shape" : root.is-layer ? "clip-layer" : "clip-video", true); } }
-            ToolItem { width: (root.width - 8px) / 5; glyph: Glyph.more; label: I18n.t("mobile.allTools"); clicked => { root.show("tools", false); } }
-        }
+    PhoneQuickActions {
+        y: root.height - root.bar-h; width: root.width; height: root.bar-h; has-clip: root.has-clip;
+        media => { root.show-media(false); } audio => { root.show("audio", false); }
+        text-tool => { root.show("text", false); } tools => { root.show("tools", false); }
+        done => { root.hide(); }
+        edit => { root.show(root.is-audio ? "clip-audio" : root.is-text ? "clip-text" : root.is-shape ? "clip-shape" : root.is-layer ? "clip-layer" : "clip-video", true); }
     }
 
     // ── the sheet ────────────────────────────────────────────────────────
@@ -884,6 +843,7 @@ export component PhoneEditor inherits Rectangle {
         width: root.width;
         height: root.height;
         sheet-height: root.sheet-h;
+        footer: root.sheet != "media";
         open: root.sheet != "";
         title: root.sheet-title(root.sheet);
         closed => { root.hide(); }
@@ -1248,6 +1208,11 @@ export component PhoneEditor inherits Rectangle {
         }
 
         if root.sheet == "clip-audio": VerticalLayout {
+            if !Editor.selected-clip.batch-volume && Editor.selected-clip.has-sound: AudioEnvelope {
+                selected: Editor.selected-clip;
+                edited(a, b) => { Editor.audio-fades-edited(a, b); }
+                committed => { Editor.clip-commit(); }
+            }
             AudioPanel {
                 selected: Editor.selected-clip;
                 audio-tracks: Editor.audio-tracks;
@@ -1336,66 +1301,58 @@ export component PhoneEditor inherits Rectangle {
 
         if root.sheet == "tools": VerticalLayout {
             padding: 16px; spacing: 8px;
-            if !root.has-clip: VerticalLayout { spacing: 8px;
-            MenuAction {
-                glyph: Glyph.film;
+            if !root.has-clip: VerticalLayout { spacing: 10px;
+HorizontalLayout { spacing: 8px; height: 40px;
+AtlasChip {
                 label: I18n.t("common.media");
                 current: root.sheet == "media";
                 clicked => { root.show-media(false); }
             }
-            // Beside Media: the user's own sounds.
-            MenuAction {
-                glyph: Glyph.music;
+AtlasChip {
                 label: I18n.t("common.audio");
                 current: root.sheet == "audio";
                 clicked => { root.show("audio", false); }
             }
-            MenuAction {
-                glyph: Glyph.text-mark;
+AtlasChip {
                 label: I18n.t("common.text");
                 current: root.sheet == "text";
                 clicked => { root.show("text", false); }
             }
-            MenuAction {
-                glyph: Glyph.sparkle;
+}
+HorizontalLayout { spacing: 8px; height: 40px;
+AtlasChip {
                 label: I18n.t("common.effects");
                 current: root.sheet == "effects";
                 clicked => { root.show("effects", false); }
             }
-            MenuAction {
-                glyph: Glyph.filter;
+AtlasChip {
                 label: I18n.t("mediaPane.filters");
                 current: root.sheet == "filters";
                 clicked => { root.show("filters", false); }
             }
-            // Adjust, beside Filters: a layer that grades the
-            // whole picture beneath it, and the user's LUTs.
-            MenuAction {
-                glyph: Glyph.sun;
+AtlasChip {
                 label: I18n.t("mediaPane.adjustments");
                 current: root.sheet == "adjustments";
                 clicked => { root.show("adjustments", false); }
             }
-            MenuAction {
-                glyph: Glyph.transition;
+}
+HorizontalLayout { spacing: 8px; height: 40px;
+AtlasChip {
                 label: I18n.t("mediaPane.transitions");
                 current: root.sheet == "transitions";
                 clicked => { root.show("transitions", false); }
             }
-            MenuAction {
-                glyph: Glyph.waveform;
+AtlasChip {
                 label: I18n.t("phone.captions");
                 clicked => { Editor.captions(); }
             }
-            MenuAction {
-                glyph: Glyph.volume;
+AtlasChip {
                 label: I18n.t("phone.speak");
                 clicked => { Editor.speak(); }
             }
-            // The voiceover panel, which stands at the foot of the screen
-            // over this bar; the same press puts it away, or stops a take.
-            MenuAction {
-                glyph: Glyph.mic;
+}
+HorizontalLayout { spacing: 8px; height: 40px;
+AtlasChip {
                 label: I18n.t("phone.voiceover");
                 current: Editor.recording;
                 clicked => {
@@ -1403,202 +1360,178 @@ export component PhoneEditor inherits Rectangle {
                     Editor.record-voiceover();
                 }
             }
-            // What fills a tall frame beside a wide shot, for the whole
-            // timeline: the Canvas, where a phone editor keeps it.
-            MenuAction {
-                glyph: Glyph.frame;
+AtlasChip {
                 label: I18n.t("phone.canvas");
                 current: root.sheet == "canvas";
                 clicked => { root.show("canvas", false); }
             }
-            MenuAction {
-                glyph: Glyph.magnet; label: I18n.t("common.snapToEdges"); current: Editor.snap;
+AtlasChip { label: I18n.t("common.snapToEdges"); current: Editor.snap;
                 clicked => { Editor.snap-changed(!Editor.snap); }
             }
-            MenuAction {
-                glyph: Glyph.magnet; label: I18n.t("mobile.ripple"); current: Editor.magnetic;
+}
+HorizontalLayout { spacing: 8px; height: 40px;
+AtlasChip { label: I18n.t("mobile.ripple"); current: Editor.magnetic;
                 clicked => { Editor.magnetic-changed(!Editor.magnetic); }
             }
-            MenuAction {
-                glyph: Glyph.info;
+AtlasChip {
                 label: I18n.t("phone.project");
                 current: root.sheet == "project";
                 clicked => { root.show("project", false); }
             }
-                    }
-            if root.has-clip: VerticalLayout { spacing: 8px;
-            MenuAction {
-                glyph: Glyph.chevron-left;
+}
+}
+            if root.has-clip: VerticalLayout { spacing: 10px;
+HorizontalLayout { spacing: 8px; height: 40px;
+AtlasChip {
                 label: I18n.t("phone.back");
                 clicked => {
                     root.hide();
                     Editor.shortcut("deselect");
                 }
             }
-            MenuAction {
-                glyph: Glyph.split;
+AtlasChip {
                 label: I18n.t("phone.split");
                 clicked => { Editor.shortcut("split-selected"); }
             }
-            MenuAction {
-                glyph: Glyph.trash;
+AtlasChip {
                 label: I18n.t("common.delete");
                 clicked => { Editor.delete-selected(); }
             }
-            // The figure itself: its size, fill, outline and shadow.
-            if root.is-shape: MenuAction {
-                glyph: Glyph.shapes;
+}
+if (root.is-shape) || (root.is-picture || root.is-shape) || (root.is-picture): HorizontalLayout { spacing: 8px; height: 40px;
+if root.is-shape: AtlasChip {
                 label: I18n.t("shapePanel.shape");
                 current: root.sheet == "clip-shape";
                 clicked => { root.show("clip-shape", true); }
             }
-            if root.is-picture || root.is-shape: MenuAction {
-                glyph: Glyph.fit;
+if root.is-picture || root.is-shape: AtlasChip {
                 label: I18n.t("phone.edit");
                 current: root.sheet == "clip-video";
                 clicked => { root.show("clip-video", true); }
             }
-            // The clip's own Canvas: Fit and Fill, and its background.
-            if root.is-picture: MenuAction {
-                glyph: Glyph.frame;
+if root.is-picture: AtlasChip {
                 label: I18n.t("phone.canvas");
                 current: root.sheet == "clip-canvas";
                 clicked => { root.show("clip-canvas", true); }
             }
-            if root.is-text: MenuAction {
-                glyph: Glyph.text-mark;
+}
+if (root.is-text) || (root.is-layer) || (root.is-layer): HorizontalLayout { spacing: 8px; height: 40px;
+if root.is-text: AtlasChip {
                 label: I18n.t("common.text");
                 current: root.sheet == "clip-text";
                 clicked => { root.show("clip-text", true); }
             }
-            if root.is-layer: MenuAction {
-                glyph: Glyph.filter;
+if root.is-layer: AtlasChip {
                 label: I18n.t("configPane.filter");
                 current: root.sheet == "clip-layer";
                 clicked => { root.show("clip-layer", true); }
             }
-            // An adjustment layer is graded as a clip is: the same colour
-            // sheet, and its chain, for everything beneath it.
-            if root.is-layer: MenuAction {
-                glyph: Glyph.sun;
+if root.is-layer: AtlasChip {
                 label: I18n.t("common.adjust");
                 current: root.sheet == "clip-adjust";
                 clicked => { root.show("clip-adjust", true); }
             }
-            if root.is-layer: MenuAction {
-                glyph: Glyph.sparkle;
+}
+if (root.is-layer) || ((root.is-video || root.is-audio) && !Editor.selected-clip.batch-volume) || (root.is-video || root.is-audio): HorizontalLayout { spacing: 8px; height: 40px;
+if root.is-layer: AtlasChip {
                 label: I18n.t("common.effects");
                 current: root.sheet == "clip-effects";
                 clicked => { root.show("clip-effects", true); }
             }
-            if (root.is-video || root.is-audio) && !Editor.selected-clip.batch-volume: MenuAction {
-                glyph: Glyph.clock;
+if (root.is-video || root.is-audio) && !Editor.selected-clip.batch-volume: AtlasChip {
                 label: I18n.t("common.speed");
                 current: root.sheet == "clip-speed";
                 clicked => { root.show("clip-speed", true); }
             }
-            if root.is-video || root.is-audio: MenuAction {
-                glyph: Glyph.volume;
+if root.is-video || root.is-audio: AtlasChip {
                 label: I18n.t("common.audio");
                 current: root.sheet == "clip-audio";
                 clicked => { root.show("clip-audio", true); }
             }
-            // The desk's Audio › Audio effects: the sound's chain and its
-            // library on a sheet of their own, not under the level.
-            if (root.is-video || root.is-audio) && !Editor.selected-clip.batch-volume: MenuAction {
-                glyph: Glyph.waveform;
+}
+if ((root.is-video || root.is-audio) && !Editor.selected-clip.batch-volume) || (root.is-picture || root.is-text || root.is-shape) || (root.is-picture): HorizontalLayout { spacing: 8px; height: 40px;
+if (root.is-video || root.is-audio) && !Editor.selected-clip.batch-volume: AtlasChip {
                 label: I18n.t("configPane.audioEffects");
                 current: root.sheet == "clip-audio-effects";
                 clicked => { root.show("clip-audio-effects", true); }
             }
-            // In, Out and Loop: the moves a clip, a title or a shape makes.
-            if root.is-picture || root.is-text || root.is-shape: MenuAction {
-                glyph: Glyph.circle-play;
+if root.is-picture || root.is-text || root.is-shape: AtlasChip {
                 label: I18n.t("motion.animate");
                 current: root.sheet == "clip-animate";
                 clicked => { root.show("clip-animate", true); }
             }
-            // The Mask, on a sheet of its own.
-            if root.is-picture: MenuAction {
-                glyph: Glyph.mask-circle;
+if root.is-picture: AtlasChip {
                 label: I18n.t("mask.title");
                 current: root.sheet == "clip-mask";
                 clicked => { root.show("clip-mask", true); }
             }
-            if root.is-picture: MenuAction {
-                glyph: Glyph.sun;
+}
+if (root.is-picture) || (root.is-picture) || (root.is-picture || root.is-text): HorizontalLayout { spacing: 8px; height: 40px;
+if root.is-picture: AtlasChip {
                 label: I18n.t("common.adjust");
                 current: root.sheet == "clip-adjust";
                 clicked => { root.show("clip-adjust", true); }
             }
-            // The desk's Video > Enhance, on a sheet of its own: the same
-            // panel, settings, preview and all.
-            if root.is-picture: MenuAction {
-                glyph: Glyph.maximize;
+if root.is-picture: AtlasChip {
                 label: I18n.t("common.enhance");
                 current: root.sheet == "clip-enhance";
                 clicked => { root.show("clip-enhance", true); }
             }
-            if root.is-picture || root.is-text: MenuAction {
-                glyph: Glyph.sparkle;
+if root.is-picture || root.is-text: AtlasChip {
                 label: I18n.t("common.effects");
                 current: root.sheet == "clip-effects";
                 clicked => { root.show("clip-effects", true); }
             }
-            if root.is-picture: MenuAction {
-                glyph: Glyph.transition;
+}
+HorizontalLayout { spacing: 8px; height: 40px;
+if root.is-picture: AtlasChip {
                 label: I18n.t("mediaPane.transitions");
                 current: root.sheet == "transitions";
                 clicked => { root.show("transitions", true); }
             }
-            if root.is-picture || root.is-audio: MenuAction {
-                glyph: Glyph.import;
+if root.is-picture || root.is-audio: AtlasChip {
                 label: I18n.t("mobile.replaceClip");
                 clicked => { Editor.replace-clip-media(); }
             }
-            MenuAction {
-                glyph: Glyph.copy;
+AtlasChip {
                 label: I18n.t("phone.duplicate");
                 clicked => { Editor.shortcut("duplicate"); }
             }
-            if root.is-picture: MenuAction {
-                glyph: Glyph.frame;
+}
+if (root.is-picture) || (root.is-video || root.is-audio) || (root.is-picture || root.is-shape): HorizontalLayout { spacing: 8px; height: 40px;
+if root.is-picture: AtlasChip {
                 label: I18n.t("timelinePane.freeze");
                 enabled: Editor.freezable;
                 clicked => { Editor.shortcut("freeze"); }
             }
-            if root.is-video || root.is-audio: MenuAction {
-                glyph: Glyph.reverse;
+if root.is-video || root.is-audio: AtlasChip {
                 label: I18n.t("common.reverse");
                 enabled: Editor.reversible;
                 clicked => { Editor.shortcut("reverse"); }
             }
-            if root.is-picture || root.is-shape: MenuAction {
-                glyph: Glyph.flip-h;
+if root.is-picture || root.is-shape: AtlasChip {
                 label: I18n.t("timelinePane.mirror");
                 enabled: Editor.picture-selected;
                 clicked => { Editor.shortcut("mirror"); }
             }
-            if root.is-picture || root.is-shape: MenuAction {
-                glyph: Glyph.rotate;
+}
+if (root.is-picture || root.is-shape) || (Editor.sound-selected) || (Editor.title-selected): HorizontalLayout { spacing: 8px; height: 40px;
+if root.is-picture || root.is-shape: AtlasChip {
                 label: I18n.t("timelinePane.rotate");
                 enabled: Editor.picture-selected;
                 clicked => { Editor.shortcut("rotate"); }
             }
-            if Editor.sound-selected: MenuAction {
-                glyph: Glyph.waveform;
+if Editor.sound-selected: AtlasChip {
                 label: I18n.t("phone.captions");
                 clicked => { Editor.captions(); }
             }
-            if Editor.title-selected: MenuAction {
-                glyph: Glyph.volume;
+if Editor.title-selected: AtlasChip {
                 label: I18n.t("phone.speak");
                 clicked => { Editor.speak(); }
             }
-            // The rest of the clip's menu - copy, paste, its sound taken
-            // off its picture - as the menu itself, hung over the bar.
-            MenuAction {
-                glyph: Glyph.chevron-up;
+}
+HorizontalLayout { spacing: 8px; height: 40px;
+AtlasChip {
                 label: I18n.t("phone.more");
                 clicked => {
                     more-menu.request-x = self.absolute-position.x - root.absolute-position.x;
@@ -1606,9 +1539,35 @@ export component PhoneEditor inherits Rectangle {
                     Editor.clip-context(Editor.selected-clip.id);
                 }
             }
-                    }
+}
+}
         }
 
+        if root.sheet == "track-controls" && root.track-index < Editor.tracks.length: VerticalLayout {
+            padding: 16px; spacing: 12px;
+            Text { text: I18n.t1("atlas.trackOptions", Editor.tracks[root.track-index].label); color: Theme.accent; font-size: 16px; }
+            SwitchRow { label: I18n.t("atlas.visible"); checked: Editor.tracks[root.track-index].visible; toggled(on) => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, on, tr.muted, tr.locked); } }
+            SwitchRow { label: I18n.t("atlas.muteAudio"); checked: Editor.tracks[root.track-index].muted; toggled(on) => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, tr.visible, on, tr.locked); } }
+            SwitchRow { label: I18n.t("atlas.lockTrack"); checked: Editor.tracks[root.track-index].locked; toggled(on) => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, tr.visible, tr.muted, on); } }
+            AtlasChip { label: Editor.tracks[root.track-index].minimized ? I18n.t("atlas.expandTrack") : I18n.t("atlas.minimizeTrack"); clicked => { Editor.track-minimized(root.track-index, !Editor.tracks[root.track-index].minimized); root.hide(); } }
+            Text { text: I18n.t("atlas.trackHeight"); color: Theme.fg; font-size: 14px; }
+            HorizontalLayout { spacing: 8px;
+                AtlasChip { label: I18n.t("common.small"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.small); } }
+                AtlasChip { label: I18n.t("common.medium"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.medium); } }
+                AtlasChip { label: I18n.t("common.large"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.large); } }
+            }
+        }
+        if root.sheet == "timeline-controls": VerticalLayout {
+            padding: 16px; spacing: 12px;
+            SwitchRow { label: I18n.t("common.snapToEdges"); checked: Editor.snap; toggled(on) => { Editor.snap-changed(on); } }
+            SwitchRow { label: I18n.t("mobile.ripple"); checked: Editor.magnetic; toggled(on) => { Editor.magnetic-changed(on); } }
+            AtlasChip { label: root.sidebar-collapsed ? I18n.t("atlas.showSidebar") : I18n.t("atlas.hideSidebar"); clicked => { root.sidebar-collapsed = !root.sidebar-collapsed; } }
+            HorizontalLayout { spacing: 8px;
+                AtlasChip { label: I18n.t("common.zoomOut"); clicked => { Editor.zoom(1.4, Editor.playhead); } }
+                AtlasChip { label: I18n.t("atlas.fitTimeline"); clicked => { Editor.zoom(Math.max(0.001, Editor.duration-seconds / Math.max(1, lanes.width / 1px)) / Editor.seconds-per-pixel, Editor.playhead); Editor.scrolled(0); } }
+                AtlasChip { label: I18n.t("common.zoomIn"); clicked => { Editor.zoom(1 / 1.4, Editor.playhead); } }
+            }
+        }
         // ── the project's facts, and the sheet that changes them ──
         if root.sheet == "project": VerticalLayout {
             SheetButton {

@@ -3844,6 +3844,14 @@ impl Timeline {
                     .any(|clip| clip.track_id == track.id && clip.kind.is_visual())
             })
             .map(|track| track.id.as_str())
+            .or_else(|| {
+                self.tracks
+                    .iter()
+                    .find(|track| {
+                        track.extra.get("procutRole").and_then(Value::as_str) == Some("video")
+                    })
+                    .map(|track| track.id.as_str())
+            })
     }
 
     /// What fills the frame behind `clip`: its own background, else the

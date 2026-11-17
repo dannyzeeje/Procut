@@ -39,6 +39,8 @@ pub struct SavedLayout {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Preferences {
+    /// This fork has applied its initial Atlas color defaults.
+    pub atlas_defaults: bool,
     /// The dark theme. `None` is the app's default, which is dark.
     pub dark: Option<bool>,
     /// The parent folder of the last project created successfully.
