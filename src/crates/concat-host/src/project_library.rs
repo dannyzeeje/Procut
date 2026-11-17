@@ -118,6 +118,31 @@ pub fn recover(config: &Path, roots: &[PathBuf]) -> Result<usize, String> {
     Ok(count)
 }
 
+/// Permanently remove a journaled trash folder, never an arbitrary path.
+pub fn erase(config: &Path, stored: &str) -> Result<(), String> {
+    let mut list = entries(config)?;
+    let index = list
+        .iter()
+        .position(|e| e.stored == stored)
+        .ok_or("Not a trashed project")?;
+    let folder = Path::new(stored)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    if folder
+        .parent()
+        .and_then(Path::file_name)
+        .is_none_or(|s| s != ".procut-trash")
+    {
+        return Err("Invalid trash location".into());
+    }
+    if !projects::is_project(&folder) {
+        return Err("Trash entry is not a project".into());
+    }
+    std::fs::remove_dir_all(folder).map_err(|e| e.to_string())?;
+    list.remove(index);
+    write(config, &list)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -147,29 +172,4 @@ mod tests {
         assert!(projects::is_project(Path::new(&info.path)));
         assert!(entries(&config).unwrap().is_empty());
     }
-}
-
-/// Permanently remove a journaled trash folder, never an arbitrary path.
-pub fn erase(config: &Path, stored: &str) -> Result<(), String> {
-    let mut list = entries(config)?;
-    let index = list
-        .iter()
-        .position(|e| e.stored == stored)
-        .ok_or("Not a trashed project")?;
-    let folder = Path::new(stored)
-        .canonicalize()
-        .map_err(|e| e.to_string())?;
-    if folder
-        .parent()
-        .and_then(Path::file_name)
-        .is_none_or(|s| s != ".procut-trash")
-    {
-        return Err("Invalid trash location".into());
-    }
-    if !projects::is_project(&folder) {
-        return Err("Trash entry is not a project".into());
-    }
-    std::fs::remove_dir_all(folder).map_err(|e| e.to_string())?;
-    list.remove(index);
-    write(config, &list)
 }
