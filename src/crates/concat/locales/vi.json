@@ -764,7 +764,6 @@
   "start.dropNothingToOpen": "Không có gì để mở ở đó: hãy thả thư mục dự án, hoặc tệp video, ảnh hay âm thanh.",
   "start.droppedFiles": "{0} tệp đã thả sẽ được đưa vào dự án này khi tạo xong.",
   "start.droppedOneFile": "Tệp đã thả sẽ được đưa vào dự án này khi tạo xong.",
-  "start.firstEdit": "Lần chỉnh sửa đầu tiên",
   "start.folderMissing": "{0} không còn ở đó: có thể ổ đĩa đã bị rút, hoặc thư mục đã bị di chuyển hay xóa.",
   "start.folderNotFound": "Không tìm thấy thư mục",
   "start.githubNote": "Mã nguồn, các issue và mọi bản phát hành",
@@ -774,7 +773,6 @@
   "start.keyboardShortcutsNote": "Xem mọi phím và đổi bất kỳ phím nào",
   "start.lastRunClosed": "Lần trước Concat tự đóng. Nhật ký cho biết nó đang làm gì: hãy chia sẻ với chúng tôi để chúng tôi tìm ra nguyên nhân.",
   "start.lastRunClosedTitle": "Lần trước Concat đã đóng",
-  "start.learnAndCommunity": "Học tập và cộng đồng",
   "start.location": "Vị trí",
   "start.newProject": "Dự án mới",
   "start.newProjectNote": "Chọn tỷ lệ khung hình và tốc độ khung hình",
@@ -803,9 +801,7 @@
   "start.welcome": "Chào mừng bạn đến với Concat",
   "start.welcomeBack": "Chào mừng bạn trở lại",
   "start.welcomeBackNote": "Tiếp tục từ chỗ bạn dừng lại, hoặc bắt đầu điều gì đó mới.",
-  "start.newsNote": "Tiêu đề nhanh hơn 45 lần, hiệu ứng hiện ngay. Xem số liệu",
   "start.welcomeNote": "Trình chỉnh sửa video miễn phí chạy hoàn toàn trên máy này.",
-  "start.whatsNew": "Có gì mới trong {0}",
   "start.whereShouldProjectFolder": "Đặt thư mục dự án ở đâu?",
   "studio.addAtPlayhead": "Thêm tại đầu phát",
   "studio.addSelectedToTimeline": "Thêm mục đã chọn vào timeline",
@@ -1086,5 +1082,7 @@
   "voices.styles": "Phong cách",
   "voices.stylesHint": "Phong cách là một giọng có hiệu ứng. Chọn một phong cách để viết bằng nó: hiệu ứng được đặt lên clip giọng nói, nơi bạn có thể thay đổi.",
   "voices.voices": "Giọng nói",
-  "voices.yours": "Giọng của bạn"
+  "voices.yours": "Giọng của bạn",
+  "start.removeProjectTitle": "Remove project from library?",
+  "start.removeProjectMessage": "Remove {0} from your recent projects? Your project folder and media stay on this device. You can open the folder again at any time."
 }

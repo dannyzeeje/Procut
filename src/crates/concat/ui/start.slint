@@ -1462,9 +1462,9 @@ component EmptyProjects inherits Rectangle {
         HorizontalLayout {
             alignment: center;
             PillButton {
-                label: I18n.t("start.firstEdit");
+                label: I18n.t("start.newProject");
                 glyph: Glyph.circle-play;
-                external: true;
+                external: false;
                 clicked => { root.first-edit(); }
             }
         }
@@ -1496,8 +1496,8 @@ global Learn {
         name: "report", glyph: Glyph.bug, external: true,
         title: I18n.t("start.reportProblem"), note: I18n.t("start.reportProblemNote"),
     };
-    out property <[LearnItem]> desk: [docs, keys, code, chat, report];
-    out property <[LearnItem]> phone: [docs, code, chat, report];
+    out property <[LearnItem]> desk: [keys];
+    out property <[LearnItem]> phone: [];
 }
 
 // The learn cards as a grid of rows, for the wide page under the projects
@@ -1636,7 +1636,7 @@ component WideHome inherits Rectangle {
     property <length> pad-top: Math.max(28px, Math.min(72px, root.height / 12));
     property <length> content-w: Math.min(root.width - 2 * root.pad, 1360px);
     /// Room for the learn panel beside the projects.
-    property <bool> aside: root.content-w >= 1100px;
+    property <bool> aside: false;
     property <length> aside-w: root.content-w >= 1280px ? 360px : 330px;
     property <length> aside-gap: 40px;
     property <length> main-w: root.aside ? root.content-w - root.aside-w - root.aside-gap
@@ -1647,7 +1647,7 @@ component WideHome inherits Rectangle {
     property <int> extra-tiles: root.capcut ? 1 : 0;
     property <length> tile-unit: (root.main-w - (1 + root.extra-tiles) * 14px)
         / (2.3 + root.extra-tiles);
-    property <bool> searchable: root.recents-total > 8;
+    property <bool> searchable: root.recents-total > 0;
 
     flick := Flickable {
         content-width: self.width;
@@ -1673,6 +1673,12 @@ component WideHome inherits Rectangle {
                 // across the words and not across empty space after them.
                 HorizontalLayout {
                     alignment: start;
+                    Image {
+                        source: @image-url("../../../../assets/procut-logo.png");
+                        width: 52px;
+                        height: 52px;
+                        image-fit: contain;
+                    }
                     Text {
                         text: root.recents-total == 0
                             ? I18n.t("start.welcome")
@@ -1768,7 +1774,7 @@ component WideHome inherits Rectangle {
                 Rectangle { height: 16px; }
 
                 if root.recents-total == 0: EmptyProjects {
-                    first-edit => { root.link("first-edit"); }
+                    first-edit => { root.compose(); }
                 }
 
                 if root.recents-total > 0 && root.recents.length == 0: Text {
@@ -1788,81 +1794,15 @@ component WideHome inherits Rectangle {
                 }
 
                 // ── learn, under the projects ────────────────────────
-                if !root.aside: VerticalLayout {
-                    padding-top: 48px;
-                    spacing: 16px;
 
-                    NewsCard {
-                        height: 176px;
-                        compact: true;
-                        title: I18n.t1("start.whatsNew", root.version);
-                        note: I18n.t("start.newsNote");
-                        clicked => { root.link("news"); }
-                    }
-
-                    SectionHead {
-                        height: 34px;
-                        text: I18n.t("start.learnAndCommunity");
-                    }
-
-                    LearnGrid {
-                        items: Learn.desk;
-                        link(name) => { root.link(name); }
-                    }
-
-                }
             }
 
             // ── learn, beside the projects ───────────────────────────
             // From the create row down, so its top lines up with the
             // first thing that can be pressed.
-            news := NewsCard {
-                x: root.main-w + root.aside-gap;
-                y: create-row.y;
-                width: root.aside-w;
-                height: self.width * 0.62;
-                visible: root.aside;
-                enabled: root.aside;
-                title: I18n.t1("start.whatsNew", root.version);
-                note: I18n.t("start.newsNote");
-                clicked => { root.link("news"); }
-            }
 
-            side := Rectangle {
-                x: root.main-w + root.aside-gap;
-                y: news.y + news.height + 16px;
-                width: root.aside-w;
-                height: side-body.preferred-height;
-                visible: root.aside;
-                border-radius: 28px;
-                background: Theme.launch-panel;
 
-                side-body := VerticalLayout {
-                    padding: 8px;
-                    padding-top: 16px;
-                    spacing: 2px;
 
-                    HorizontalLayout {
-                        padding-left: 10px;
-                        Text {
-                            text: I18n.t("start.learnAndCommunity");
-                            color: Theme.fg;
-                            font-size: Theme.fs-xl;
-                            font-weight: Theme.weight-title;
-                        }
-                    }
-
-                    Rectangle { height: 8px; }
-
-                    for item in Learn.desk: LearnCard {
-                        height: 58px;
-                        flat: true;
-                        item: item;
-                        enabled: root.aside;
-                        clicked => { root.link(item.name); }
-                    }
-                }
-            }
         }
     }
 
@@ -1885,6 +1825,7 @@ component NarrowHome inherits Rectangle {
     in property <[RecentProjectData]> recents;
     in property <int> recents-total;
     in property <string> query;
+    in property <int> sort;
     in property <bool> busy;
     in property <string> version;
     /// A phone: no folder picker, so no Open; projects live in the app's
@@ -1900,10 +1841,11 @@ component NarrowHome inherits Rectangle {
     callback open-recent(path: string);
     callback forget-recent(path: string);
     callback search-edited(query: string);
+    callback sort-changed(sort: int);
     callback link(name: string);
 
     property <length> pad: 16px;
-    property <bool> searchable: root.recents-total > 8;
+    property <bool> searchable: root.recents-total > 0;
 
     flick := Flickable {
         content-width: self.width;
@@ -1924,6 +1866,13 @@ component NarrowHome inherits Rectangle {
             HorizontalLayout {
                 spacing: 8px;
 
+                Image {
+                    source: @image-url("../../../../assets/procut-logo.png");
+                    width: 44px;
+                    height: 44px;
+                    image-fit: contain;
+                }
+
                 Text {
                     horizontal-stretch: 1;
                     text: root.recents-total == 0
@@ -1937,7 +1886,7 @@ component NarrowHome inherits Rectangle {
                     wrap: word-wrap;
                 }
 
-                if !root.phone: VerticalLayout {
+                VerticalLayout {
                     alignment: center;
                     BarAction {
                         glyph: Glyph.folder;
@@ -2008,12 +1957,17 @@ component NarrowHome inherits Rectangle {
                     placeholder: I18n.t("start.searchProjects");
                     edited(text) => { root.search-edited(text); }
                 }
+                Select {
+                    options: [I18n.t("start.sortRecent"), I18n.t("start.sortName")];
+                    current: root.sort;
+                    changed(index) => { root.sort-changed(index); }
+                }
             }
 
             Rectangle { height: 10px; }
 
             if root.recents-total == 0: EmptyProjects {
-                first-edit => { root.link("first-edit"); }
+                first-edit => { root.compose(); }
             }
 
             if root.recents-total > 0 && root.recents.length == 0: Text {
@@ -2030,52 +1984,7 @@ component NarrowHome inherits Rectangle {
                 forgotten => { root.forget-recent(project.path); }
             }
 
-            Rectangle { height: 32px; }
 
-            SectionHead {
-                height: 28px;
-                text: I18n.t("start.learnAndCommunity");
-            }
-
-            Rectangle { height: 10px; }
-
-            // One grouped list, as a phone's settings are: one surface,
-            // rows on it, hairlines between.
-            Rectangle {
-                border-radius: Theme.r-lg;
-                background: Theme.launch-panel;
-                border-width: 1px;
-                border-color: Theme.line;
-                height: list.preferred-height;
-
-                list := VerticalLayout {
-                    padding: 6px;
-
-                    for item[index] in (root.phone ? Learn.phone : Learn.desk): VerticalLayout {
-                        if index > 0: Rectangle {
-                            height: 1px;
-                            background: Theme.line;
-                        }
-
-                        LearnCard {
-                            height: 56px;
-                            flat: true;
-                            item: item;
-                            clicked => { root.link(item.name); }
-                        }
-                    }
-                }
-            }
-
-            Rectangle { height: 16px; }
-
-            NewsCard {
-                height: 150px;
-                compact: true;
-                title: I18n.t1("start.whatsNew", root.version);
-                note: I18n.t("start.newsNote");
-                clicked => { root.link("news"); }
-            }
         }
     }
 }
@@ -2149,6 +2058,7 @@ export component StartScreen inherits Rectangle {
         recents: root.recents;
         recents-total: root.recents-total;
         query: root.query;
+        sort: root.sort;
         busy: root.busy;
         version: root.version;
         phone: root.phone;
@@ -2160,6 +2070,7 @@ export component StartScreen inherits Rectangle {
         open-recent(path) => { root.open-recent(path); }
         forget-recent(path) => { root.forget-recent(path); }
         search-edited(query) => { root.search-edited(query); }
+        sort-changed(sort) => { root.sort-changed(sort); }
         link(name) => { root.link(name); }
     }
 }

@@ -764,7 +764,6 @@
   "start.dropNothingToOpen": "ไม่มีอะไรให้เปิด: วางโฟลเดอร์โปรเจกต์ หรือไฟล์วิดีโอ รูปภาพ หรือเสียง",
   "start.droppedFiles": "ไฟล์ที่วางไว้ {0} ไฟล์จะถูกเพิ่มในโปรเจกต์นี้เมื่อสร้างเสร็จ",
   "start.droppedOneFile": "ไฟล์ที่วางไว้จะถูกเพิ่มในโปรเจกต์นี้เมื่อสร้างเสร็จ",
-  "start.firstEdit": "การตัดต่อครั้งแรกของคุณ",
   "start.folderMissing": "{0} ไม่อยู่ที่นั่นแล้ว: ไดรฟ์อาจถูกถอดออก หรือโฟลเดอร์ถูกย้ายหรือลบไปแล้ว",
   "start.folderNotFound": "ไม่พบโฟลเดอร์",
   "start.githubNote": "โค้ด ปัญหาที่รายงาน และทุกรุ่นที่เผยแพร่",
@@ -774,7 +773,6 @@
   "start.keyboardShortcutsNote": "ดูทุกปุ่ม และเปลี่ยนปุ่มใดก็ได้",
   "start.lastRunClosed": "Concat ปิดตัวเองในครั้งล่าสุดที่คุณใช้ บันทึกของมันบอกว่ากำลังทำอะไรอยู่ แชร์ให้เรา แล้วเราจะหาสาเหตุให้",
   "start.lastRunClosedTitle": "Concat ปิดไปเมื่อครั้งก่อน",
-  "start.learnAndCommunity": "เรียนรู้และชุมชน",
   "start.location": "ตำแหน่ง",
   "start.newProject": "โปรเจกต์ใหม่",
   "start.newProjectNote": "เลือกสัดส่วนภาพและอัตราเฟรม",
@@ -803,9 +801,7 @@
   "start.welcome": "ยินดีต้อนรับสู่ Concat",
   "start.welcomeBack": "ยินดีต้อนรับกลับมา",
   "start.welcomeBackNote": "ทำต่อจากที่ค้างไว้ หรือเริ่มงานใหม่",
-  "start.newsNote": "ข้อความไตเติลเร็วขึ้น 45 เท่า เอฟเฟกต์แสดงทันที ดูตัวเลข",
   "start.welcomeNote": "โปรแกรมตัดต่อวิดีโอฟรีที่ทำงานบนเครื่องนี้ทั้งหมด",
-  "start.whatsNew": "มีอะไรใหม่ใน {0}",
   "start.whereShouldProjectFolder": "จะเก็บโฟลเดอร์โปรเจกต์ไว้ที่ไหน",
   "studio.addAtPlayhead": "เพิ่มที่หัวเล่น",
   "studio.addSelectedToTimeline": "เพิ่มรายการที่เลือกลงไทม์ไลน์",
@@ -1086,5 +1082,7 @@
   "voices.styles": "สไตล์",
   "voices.stylesHint": "สไตล์คือเสียงพูดที่ใส่เอฟเฟกต์ เลือกหนึ่งสไตล์เพื่อเขียนด้วยเสียงนั้น เอฟเฟกต์จะอยู่บนคลิปเสียงพูด ซึ่งคุณเปลี่ยนได้",
   "voices.voices": "เสียงพูด",
-  "voices.yours": "เสียงพูดของคุณ"
+  "voices.yours": "เสียงพูดของคุณ",
+  "start.removeProjectTitle": "Remove project from library?",
+  "start.removeProjectMessage": "Remove {0} from your recent projects? Your project folder and media stay on this device. You can open the folder again at any time."
 }

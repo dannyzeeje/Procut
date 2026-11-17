@@ -764,7 +764,6 @@
   "start.dropNothingToOpen": "沒有可打開的內容：請拖放專案資料夾，或影片、照片、音訊檔案。",
   "start.droppedFiles": "拖放的 {0} 個檔案會在專案建立時加入其中。",
   "start.droppedOneFile": "拖放的檔案會在專案建立時加入其中。",
-  "start.firstEdit": "你的第一次剪輯",
   "start.folderMissing": "{0} 已不在原處：所在磁碟機可能已拔除，或資料夾已被移動或刪除。",
   "start.folderNotFound": "找不到資料夾",
   "start.githubNote": "程式碼、問題回報和每個版本",
@@ -774,7 +773,6 @@
   "start.keyboardShortcutsNote": "查看每個按鍵，並可隨意變更",
   "start.lastRunClosed": "你上次使用時，Concat 自行關閉了。記錄中寫著它當時在做什麼：分享給我們，我們就能找出原因。",
   "start.lastRunClosedTitle": "Concat 上次已關閉",
-  "start.learnAndCommunity": "學習與社群",
   "start.location": "位置",
   "start.newProject": "新增專案",
   "start.newProjectNote": "選擇形狀和影格率",
@@ -803,9 +801,7 @@
   "start.welcome": "歡迎使用 Concat",
   "start.welcomeBack": "歡迎回來",
   "start.welcomeBackNote": "從上次中斷的地方繼續，或開始新的創作。",
-  "start.newsNote": "標題快 45 倍，特效即時呈現。查看數據",
   "start.welcomeNote": "一款完全在這台電腦上執行的免費影片編輯器。",
-  "start.whatsNew": "{0} 的新功能",
   "start.whereShouldProjectFolder": "專案資料夾要放在哪裡？",
   "studio.addAtPlayhead": "在播放磁頭處加入",
   "studio.addSelectedToTimeline": "將所選項目加入時間軸",
@@ -1086,5 +1082,7 @@
   "voices.styles": "風格",
   "voices.stylesHint": "風格就是加了效果的嗓音。選一個用它來寫：效果會加在語音片段上，之後可以修改。",
   "voices.voices": "嗓音",
-  "voices.yours": "你的嗓音"
+  "voices.yours": "你的嗓音",
+  "start.removeProjectTitle": "Remove project from library?",
+  "start.removeProjectMessage": "Remove {0} from your recent projects? Your project folder and media stay on this device. You can open the folder again at any time."
 }

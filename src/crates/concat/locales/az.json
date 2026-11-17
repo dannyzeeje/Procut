@@ -764,7 +764,6 @@
   "start.dropNothingToOpen": "Orada açılacaq heç nə yoxdur: layihə qovluğu və ya video, foto, audio faylları buraxın.",
   "start.droppedFiles": "{0} buraxılmış fayl layihə yaradılanda ona daxil edilir.",
   "start.droppedOneFile": "Buraxılmış fayl layihə yaradılanda ona daxil edilir.",
-  "start.firstEdit": "İlk montajınız",
   "start.folderMissing": "{0} artıq orada deyil: diski çıxarılmış ola bilər, ya da qovluq köçürülüb və ya silinib.",
   "start.folderNotFound": "Qovluq tapılmadı",
   "start.githubNote": "Kod, məsələlər və hər buraxılış",
@@ -774,7 +773,6 @@
   "start.keyboardShortcutsNote": "Hər düyməyə baxın və istədiyinizi dəyişin",
   "start.lastRunClosed": "Concat sonuncu dəfə istifadə etdiyiniz zaman özü bağlandı. Jurnalında nə etdiyi yazılıb: bizimlə paylaşın, səbəbini tapaq.",
   "start.lastRunClosedTitle": "Concat ötən dəfə bağlandı",
-  "start.learnAndCommunity": "Öyrən və icma",
   "start.location": "Yer",
   "start.newProject": "Yeni layihə",
   "start.newProjectNote": "Forma və kadr tezliyi seçin",
@@ -803,9 +801,7 @@
   "start.welcome": "Concat-a xoş gəlmisiniz",
   "start.welcomeBack": "Xoş gəlmisiniz",
   "start.welcomeBackNote": "Qaldığınız yerdən davam edin və ya yeni bir şey başlayın.",
-  "start.newsNote": "Başlıqlar 45 dəfə sürətli, effektlər dərhal. Rəqəmlərə baxın",
   "start.welcomeNote": "Tamamilə bu maşında işləyən pulsuz video redaktor.",
-  "start.whatsNew": "{0} versiyasında yeniliklər",
   "start.whereShouldProjectFolder": "Layihə qovluğu harada olsun?",
   "studio.addAtPlayhead": "Oxutma başlığında əlavə et",
   "studio.addSelectedToTimeline": "Seçilmişləri zaman xəttinə əlavə et",
@@ -1086,5 +1082,7 @@
   "voices.styles": "Üslublar",
   "voices.stylesHint": "Üslub effektləri olan səsdir. Onunla yazmaq üçün birini seçin: effektlər nitq klipinə düşür və orada dəyişə bilərsiniz.",
   "voices.voices": "Səslər",
-  "voices.yours": "Sizin səsləriniz"
+  "voices.yours": "Sizin səsləriniz",
+  "start.removeProjectTitle": "Remove project from library?",
+  "start.removeProjectMessage": "Remove {0} from your recent projects? Your project folder and media stay on this device. You can open the folder again at any time."
 }

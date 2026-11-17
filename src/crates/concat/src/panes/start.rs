@@ -347,10 +347,7 @@ impl StartPane {
                 }
             }
             StartMsg::ForgetRecent(path) => {
-                if let Err(error) = projects::forget(&studio.host.dirs.config, &path) {
-                    studio.notify(&error, true);
-                }
-                studio.recents = projects::recents(&studio.host.dirs.config);
+                studio.confirm = Some(crate::studio::Confirm::RemoveRecent { path });
             }
             StartMsg::RevealRecent(path) => {
                 if let Err(error) = platform::reveal(&path) {

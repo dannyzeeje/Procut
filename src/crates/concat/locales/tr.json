@@ -764,7 +764,6 @@
   "start.dropNothingToOpen": "Orada açılacak bir şey yok: bir proje klasörü ya da video, fotoğraf veya ses dosyaları bırakın.",
   "start.droppedFiles": "Bırakılan {0} dosya, proje oluşturulduğunda bu projeye eklenir.",
   "start.droppedOneFile": "Bırakılan dosya, proje oluşturulduğunda bu projeye eklenir.",
-  "start.firstEdit": "İlk düzenlemeniz",
   "start.folderMissing": "{0} artık orada değil: sürücüsü çıkarılmış olabilir ya da klasör taşınmış veya silinmiş.",
   "start.folderNotFound": "Klasör bulunamadı",
   "start.githubNote": "Kod, sorun kayıtları ve tüm sürümler",
@@ -774,7 +773,6 @@
   "start.keyboardShortcutsNote": "Tüm tuşları görün ve istediğinizi değiştirin",
   "start.lastRunClosed": "Concat en son kullandığınızda kendiliğinden kapandı. Günlüğü ne yaptığını gösteriyor: bizimle paylaşın, nedenini bulalım.",
   "start.lastRunClosedTitle": "Concat geçen sefer kapandı",
-  "start.learnAndCommunity": "Öğrenme ve topluluk",
   "start.location": "Konum",
   "start.newProject": "Yeni proje",
   "start.newProjectNote": "Bir biçim ve kare hızı seçin",
@@ -803,9 +801,7 @@
   "start.welcome": "Concat'e hoş geldiniz",
   "start.welcomeBack": "Tekrar hoş geldiniz",
   "start.welcomeBackNote": "Kaldığınız yerden devam edin ya da yeni bir şey başlatın.",
-  "start.newsNote": "Başlıklar 45 kat hızlı, efektler anında. Rakamlara bakın",
   "start.welcomeNote": "Tamamen bu makinede çalışan ücretsiz bir video düzenleyici.",
-  "start.whatsNew": "{0} sürümündeki yenilikler",
   "start.whereShouldProjectFolder": "Proje klasörü nereye gitsin?",
   "studio.addAtPlayhead": "Playhead konumuna ekle",
   "studio.addSelectedToTimeline": "Seçilenleri zaman çizelgesine ekle",
@@ -1086,5 +1082,7 @@
   "voices.styles": "Stiller",
   "voices.stylesHint": "Stil, efekt uygulanmış bir sestir. Onunla yazmak için birini seçin: efektler konuşma klibine eklenir, orada değiştirebilirsiniz.",
   "voices.voices": "Ses tonları",
-  "voices.yours": "Sizin sesleriniz"
+  "voices.yours": "Sizin sesleriniz",
+  "start.removeProjectTitle": "Remove project from library?",
+  "start.removeProjectMessage": "Remove {0} from your recent projects? Your project folder and media stay on this device. You can open the folder again at any time."
 }

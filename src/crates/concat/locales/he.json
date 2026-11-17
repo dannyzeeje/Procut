@@ -764,7 +764,6 @@
   "start.dropNothingToOpen": "אין כאן מה לפתוח: אפשר לגרור תיקיית פרויקט, או קובצי וידאו, תמונה או שמע.",
   "start.droppedFiles": "{0} הקבצים שנגררו ייכנסו לפרויקט הזה כשייווצר.",
   "start.droppedOneFile": "הקובץ שנגרר ייכנס לפרויקט הזה כשייווצר.",
-  "start.firstEdit": "העריכה הראשונה שלך",
   "start.folderMissing": "{0} כבר לא שם: ייתכן שהכונן מנותק, או שהתיקייה הועברה או נמחקה.",
   "start.folderNotFound": "התיקייה לא נמצאה",
   "start.githubNote": "הקוד, הדיווחים וכל גרסה",
@@ -774,7 +773,6 @@
   "start.keyboardShortcutsNote": "כל המקשים, ואפשר לשנות כל אחד מהם",
   "start.lastRunClosed": "Concat נסגרה מעצמה בפעם האחרונה שהשתמשת בה. היומן שלה מראה מה היא עשתה: שתף אותו איתנו ונברר מה קרה.",
   "start.lastRunClosedTitle": "Concat נסגרה בפעם הקודמת",
-  "start.learnAndCommunity": "למידה וקהילה",
   "start.location": "מיקום",
   "start.newProject": "פרויקט חדש",
   "start.newProjectNote": "בחירת צורה וקצב פריימים",
@@ -803,9 +801,7 @@
   "start.welcome": "ברוכים הבאים ל-Concat",
   "start.welcomeBack": "ברוכים השבים",
   "start.welcomeBackNote": "אפשר להמשיך מאיפה שהפסקת, או להתחיל משהו חדש.",
-  "start.newsNote": "כותרות מהירות פי 45, אפקטים מיד. לנתונים",
   "start.welcomeNote": "עורך וידאו חינמי שפועל כולו במחשב הזה.",
-  "start.whatsNew": "מה חדש ב-{0}",
   "start.whereShouldProjectFolder": "איפה תהיה תיקיית הפרויקט?",
   "studio.addAtPlayhead": "הוספה בסמן ההפעלה",
   "studio.addSelectedToTimeline": "הוספת הנבחרים לציר הזמן",
@@ -1086,5 +1082,7 @@
   "voices.styles": "סגנונות",
   "voices.stylesHint": "סגנון הוא קול עם אפקטים. בחרו אחד כדי לכתוב בו: האפקטים נוספים לקליפ הדיבור, ושם אפשר לשנות אותם.",
   "voices.voices": "קולות",
-  "voices.yours": "הקולות שלכם"
+  "voices.yours": "הקולות שלכם",
+  "start.removeProjectTitle": "Remove project from library?",
+  "start.removeProjectMessage": "Remove {0} from your recent projects? Your project folder and media stay on this device. You can open the folder again at any time."
 }

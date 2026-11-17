@@ -764,7 +764,6 @@
   "start.dropNothingToOpen": "لا شيء لفتحه هنا: أفلِت مجلد مشروع، أو ملفات فيديو أو صور أو صوت.",
   "start.droppedFiles": "ستُضاف الملفات المُفلَتة ({0}) إلى هذا المشروع عند إنشائه.",
   "start.droppedOneFile": "سيُضاف الملف المُفلَت إلى هذا المشروع عند إنشائه.",
-  "start.firstEdit": "تحريرك الأول",
   "start.folderMissing": "لم يعد {0} موجودًا: ربما فُصل محرك الأقراص، أو نُقل المجلد أو حُذف.",
   "start.folderNotFound": "المجلد غير موجود",
   "start.githubNote": "الشيفرة والمشكلات وكل إصدار",
@@ -774,7 +773,6 @@
   "start.keyboardShortcutsNote": "اطّلع على كل مفتاح، وغيّر أيًّا منها",
   "start.lastRunClosed": "أُغلق Concat من تلقاء نفسه في آخر مرة استخدمته فيها. يوضّح سجله ما كان يفعله: شاركه معنا لنعرف السبب.",
   "start.lastRunClosedTitle": "أُغلق Concat في المرة الماضية",
-  "start.learnAndCommunity": "التعلّم والمجتمع",
   "start.location": "الموقع",
   "start.newProject": "مشروع جديد",
   "start.newProjectNote": "اختر الشكل ومعدّل الإطارات",
@@ -803,9 +801,7 @@
   "start.welcome": "مرحبًا بك في Concat",
   "start.welcomeBack": "مرحبًا بعودتك",
   "start.welcomeBackNote": "تابع من حيث توقفت، أو ابدأ شيئًا جديدًا.",
-  "start.newsNote": "العناوين أسرع 45 مرة، والتأثيرات فورية. شاهد الأرقام",
   "start.welcomeNote": "محرر فيديو مجاني يعمل بالكامل على هذا الجهاز.",
-  "start.whatsNew": "ما الجديد في {0}",
   "start.whereShouldProjectFolder": "أين يجب أن يكون مجلد المشروع؟",
   "studio.addAtPlayhead": "إضافة عند مؤشر التشغيل",
   "studio.addSelectedToTimeline": "إضافة المحدّد إلى المخطط الزمني",
@@ -1086,5 +1082,7 @@
   "voices.styles": "الأنماط",
   "voices.stylesHint": "النمط صوت عليه مؤثرات. اختر واحدًا لتكتب به: توضع المؤثرات على مقطع الكلام، حيث يمكنك تغييرها.",
   "voices.voices": "الأصوات البشرية",
-  "voices.yours": "أصواتك"
+  "voices.yours": "أصواتك",
+  "start.removeProjectTitle": "Remove project from library?",
+  "start.removeProjectMessage": "Remove {0} from your recent projects? Your project folder and media stay on this device. You can open the folder again at any time."
 }

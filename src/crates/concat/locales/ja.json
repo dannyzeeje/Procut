@@ -764,7 +764,6 @@
   "start.dropNothingToOpen": "開けるものがありません。プロジェクトフォルダー、またはビデオ・写真・オーディオファイルをドロップしてください。",
   "start.droppedFiles": "ドロップした {0} 個のファイルは、プロジェクトの作成時に追加されます。",
   "start.droppedOneFile": "ドロップしたファイルは、プロジェクトの作成時に追加されます。",
-  "start.firstEdit": "はじめての編集",
   "start.folderMissing": "{0} はもうありません。ドライブが外されたか、フォルダーが移動または削除された可能性があります。",
   "start.folderNotFound": "フォルダーが見つかりません",
   "start.githubNote": "コード、Issue、すべてのリリース",
@@ -774,7 +773,6 @@
   "start.keyboardShortcutsNote": "すべてのキーを確認し、自由に変更できます",
   "start.lastRunClosed": "前回の使用中に Concat が自動的に終了しました。ログには終了前の動作が記録されています。共有していただければ原因を調べられます。",
   "start.lastRunClosedTitle": "前回 Concat が終了しました",
-  "start.learnAndCommunity": "学習とコミュニティ",
   "start.location": "場所",
   "start.newProject": "新規プロジェクト",
   "start.newProjectNote": "形とフレームレートを選択",
@@ -803,9 +801,7 @@
   "start.welcome": "Concat へようこそ",
   "start.welcomeBack": "おかえりなさい",
   "start.welcomeBackNote": "前回の続きから、または新しく始めましょう。",
-  "start.newsNote": "タイトルは45倍速く、エフェクトはすぐに表示。数字を見る",
   "start.welcomeNote": "このマシンだけで動く無料のビデオエディター。",
-  "start.whatsNew": "{0} の新機能",
   "start.whereShouldProjectFolder": "プロジェクトフォルダをどこに置きますか?",
   "studio.addAtPlayhead": "再生ヘッドに追加",
   "studio.addSelectedToTimeline": "選択項目をタイムラインに追加",
@@ -1086,5 +1082,7 @@
   "voices.styles": "スタイル",
   "voices.stylesHint": "スタイルはエフェクト付きのボイスです。選ぶとその声で書けます。エフェクトは音声クリップに付き、あとから変更できます。",
   "voices.voices": "ボイス",
-  "voices.yours": "あなたのボイス"
+  "voices.yours": "あなたのボイス",
+  "start.removeProjectTitle": "Remove project from library?",
+  "start.removeProjectMessage": "Remove {0} from your recent projects? Your project folder and media stay on this device. You can open the folder again at any time."
 }

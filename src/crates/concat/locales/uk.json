@@ -764,7 +764,6 @@
   "start.dropNothingToOpen": "Тут нічого відкрити: перетягніть папку проєкту або файли відео, фото чи аудіо.",
   "start.droppedFiles": "Перетягнуті файли ({0}) потраплять у цей проєкт після його створення.",
   "start.droppedOneFile": "Перетягнутий файл потрапить у цей проєкт після його створення.",
-  "start.firstEdit": "Ваш перший монтаж",
   "start.folderMissing": "{0} більше немає: можливо, диск від’єднано, або папку переміщено чи видалено.",
   "start.folderNotFound": "Папку не знайдено",
   "start.githubNote": "Код, задачі та кожен реліз",
@@ -774,7 +773,6 @@
   "start.keyboardShortcutsNote": "Усі клавіші, і будь-яку можна змінити",
   "start.lastRunClosed": "Минулого разу Concat закрився сам. У журналі записано, що він робив: поділіться ним із нами, і ми з'ясуємо причину.",
   "start.lastRunClosedTitle": "Concat закрився минулого разу",
-  "start.learnAndCommunity": "Навчання та спільнота",
   "start.location": "Розташування",
   "start.newProject": "Новий проєкт",
   "start.newProjectNote": "Виберіть формат і частоту кадрів",
@@ -803,9 +801,7 @@
   "start.welcome": "Ласкаво просимо до Concat",
   "start.welcomeBack": "З поверненням",
   "start.welcomeBackNote": "Продовжте з того місця, де зупинилися, або почніть щось нове.",
-  "start.newsNote": "Титри у 45 разів швидше, ефекти одразу. Переглянути цифри",
   "start.welcomeNote": "Безкоштовний відеоредактор, що працює повністю на цьому комп’ютері.",
-  "start.whatsNew": "Що нового в {0}",
   "start.whereShouldProjectFolder": "Де розмістити папку проєкту?",
   "studio.addAtPlayhead": "Додати на курсорі",
   "studio.addSelectedToTimeline": "Додати вибране на часову шкалу",
@@ -1086,5 +1082,7 @@
   "voices.styles": "Стилі",
   "voices.stylesHint": "Стиль — це голос з ефектами. Виберіть стиль, щоб писати ним: ефекти ляжуть на мовний кліп, де їх можна змінити.",
   "voices.voices": "Голоси",
-  "voices.yours": "Ваші голоси"
+  "voices.yours": "Ваші голоси",
+  "start.removeProjectTitle": "Remove project from library?",
+  "start.removeProjectMessage": "Remove {0} from your recent projects? Your project folder and media stay on this device. You can open the folder again at any time."
 }

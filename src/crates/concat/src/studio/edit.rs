@@ -73,6 +73,12 @@ impl Studio {
     /// The confirmation sheet's answer: go ahead with what it asked about.
     pub fn confirm_accepted(&mut self) {
         match self.confirm.take() {
+            Some(Confirm::RemoveRecent { path }) => {
+                if let Err(error) = concat_host::projects::forget(&self.host.dirs.config, &path) {
+                    self.notify(&error, true);
+                }
+                self.recents = concat_host::projects::recents(&self.host.dirs.config);
+            }
             Some(Confirm::RemoveTrack { track_id }) => {
                 self.apply(Command::RemoveTrack { track_id });
             }
@@ -113,6 +119,13 @@ impl Studio {
             return crate::ui::ConfirmData::default();
         };
         match confirm {
+            Confirm::RemoveRecent { path } => crate::ui::ConfirmData {
+                open: true,
+                title: t("start.removeProjectTitle").into(),
+                message: tf("start.removeProjectMessage", &[path]).into(),
+                action: t("start.removeFromList").into(),
+                ..Default::default()
+            },
             Confirm::RemoveTrack { track_id } => {
                 let clips = self
                     .timeline()

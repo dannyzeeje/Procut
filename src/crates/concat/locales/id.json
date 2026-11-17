@@ -764,7 +764,6 @@
   "start.dropNothingToOpen": "Tidak ada yang bisa dibuka di sana: lepaskan folder proyek, atau file video, foto, atau audio.",
   "start.droppedFiles": "{0} file yang dilepas akan masuk ke proyek ini saat dibuat.",
   "start.droppedOneFile": "File yang dilepas akan masuk ke proyek ini saat dibuat.",
-  "start.firstEdit": "Suntingan pertama Anda",
   "start.folderMissing": "{0} sudah tidak ada: drive-nya mungkin dicabut, atau folder telah dipindahkan atau dihapus.",
   "start.folderNotFound": "Folder tidak ditemukan",
   "start.githubNote": "Kode, isu, dan setiap rilis",
@@ -774,7 +773,6 @@
   "start.keyboardShortcutsNote": "Lihat setiap tombol, dan ubah yang mana saja",
   "start.lastRunClosed": "Concat menutup sendiri saat terakhir kali Anda memakainya. Lognya menunjukkan apa yang sedang dikerjakannya: bagikan kepada kami agar kami bisa mencari tahu sebabnya.",
   "start.lastRunClosedTitle": "Concat tertutup terakhir kali",
-  "start.learnAndCommunity": "Belajar dan komunitas",
   "start.location": "Lokasi",
   "start.newProject": "Proyek baru",
   "start.newProjectNote": "Pilih bentuk dan laju bingkai",
@@ -803,9 +801,7 @@
   "start.welcome": "Selamat datang di Concat",
   "start.welcomeBack": "Selamat datang kembali",
   "start.welcomeBackNote": "Lanjutkan dari bagian terakhir, atau mulai sesuatu yang baru.",
-  "start.newsNote": "Judul 45x lebih cepat, efek langsung tampil. Lihat angkanya",
   "start.welcomeNote": "Editor video gratis yang berjalan sepenuhnya di mesin ini.",
-  "start.whatsNew": "Yang baru di {0}",
   "start.whereShouldProjectFolder": "Di mana folder proyek akan disimpan?",
   "studio.addAtPlayhead": "Tambahkan di penanda putar",
   "studio.addSelectedToTimeline": "Tambahkan pilihan ke linimasa",
@@ -1086,5 +1082,7 @@
   "voices.styles": "Gaya",
   "voices.stylesHint": "Gaya adalah suara dengan efek. Pilih satu untuk menulis dengannya: efeknya dipasang di klip ucapan, tempat kamu bisa mengubahnya.",
   "voices.voices": "Suara narator",
-  "voices.yours": "Suaramu"
+  "voices.yours": "Suaramu",
+  "start.removeProjectTitle": "Remove project from library?",
+  "start.removeProjectMessage": "Remove {0} from your recent projects? Your project folder and media stay on this device. You can open the folder again at any time."
 }

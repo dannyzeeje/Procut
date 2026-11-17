@@ -764,7 +764,6 @@
   "start.dropNothingToOpen": "وہاں کھولنے کو کچھ نہیں: پروجیکٹ فولڈر، یا ویڈیو، تصویر یا آڈیو فائلیں چھوڑیں۔",
   "start.droppedFiles": "چھوڑی گئی {0} فائلیں پروجیکٹ بننے پر اس میں شامل ہو جائیں گی۔",
   "start.droppedOneFile": "چھوڑی گئی فائل پروجیکٹ بننے پر اس میں شامل ہو جائے گی۔",
-  "start.firstEdit": "آپ کا پہلا ایڈٹ",
   "start.folderMissing": "{0} اب وہاں نہیں ہے: شاید اس کی ڈرائیو نکال دی گئی ہے، یا فولڈر منتقل یا حذف کر دیا گیا۔",
   "start.folderNotFound": "فولڈر نہیں ملا",
   "start.githubNote": "کوڈ، مسائل اور ہر ریلیز",
@@ -774,7 +773,6 @@
   "start.keyboardShortcutsNote": "ہر کی دیکھیں، اور کوئی بھی بدلیں",
   "start.lastRunClosed": "پچھلی بار استعمال کرتے وقت Concat خود بخود بند ہو گیا تھا۔ اس کا لاگ بتاتا ہے کہ وہ کیا کر رہا تھا: اسے ہمارے ساتھ شیئر کریں تاکہ ہم وجہ معلوم کر سکیں۔",
   "start.lastRunClosedTitle": "Concat پچھلی بار بند ہو گیا تھا",
-  "start.learnAndCommunity": "سیکھنا اور کمیونٹی",
   "start.location": "مقام",
   "start.newProject": "نیا پروجیکٹ",
   "start.newProjectNote": "شکل اور فریم ریٹ چنیں",
@@ -803,9 +801,7 @@
   "start.welcome": "Concat میں خوش آمدید",
   "start.welcomeBack": "دوبارہ خوش آمدید",
   "start.welcomeBackNote": "جہاں چھوڑا تھا وہیں سے جاری رکھیں، یا کچھ نیا شروع کریں۔",
-  "start.newsNote": "ٹائٹل 45 گنا تیز، ایفیکٹس فوراً۔ اعداد دیکھیں",
   "start.welcomeNote": "ایک مفت ویڈیو ایڈیٹر جو مکمل طور پر اسی مشین پر چلتا ہے۔",
-  "start.whatsNew": "{0} میں نیا کیا ہے",
   "start.whereShouldProjectFolder": "پروجیکٹ فولڈر کہاں ہونا چاہیے؟",
   "studio.addAtPlayhead": "پلے ہیڈ پر شامل کریں",
   "studio.addSelectedToTimeline": "منتخب کو ٹائم لائن میں شامل کریں",
@@ -1086,5 +1082,7 @@
   "voices.styles": "انداز",
   "voices.stylesHint": "انداز ایفیکٹس والی صوت ہے۔ اس میں لکھنے کے لیے کوئی ایک چنیں: ایفیکٹس تقریر کی کلپ پر لگتے ہیں، جہاں آپ انہیں بدل سکتے ہیں۔",
   "voices.voices": "صوتیں",
-  "voices.yours": "آپ کی صوتیں"
+  "voices.yours": "آپ کی صوتیں",
+  "start.removeProjectTitle": "Remove project from library?",
+  "start.removeProjectMessage": "Remove {0} from your recent projects? Your project folder and media stay on this device. You can open the folder again at any time."
 }

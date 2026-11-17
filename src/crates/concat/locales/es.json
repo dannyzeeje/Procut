@@ -764,7 +764,6 @@
   "start.dropNothingToOpen": "Ahí no hay nada que abrir: suelta una carpeta de proyecto, o archivos de vídeo, foto o audio.",
   "start.droppedFiles": "Los {0} archivos soltados se añadirán a este proyecto cuando se cree.",
   "start.droppedOneFile": "El archivo soltado se añadirá a este proyecto cuando se cree.",
-  "start.firstEdit": "Tu primera edición",
   "start.folderMissing": "{0} ya no está: puede que su unidad esté desconectada, o que la carpeta se haya movido o eliminado.",
   "start.folderNotFound": "Carpeta no encontrada",
   "start.githubNote": "El código, las incidencias y cada versión",
@@ -774,7 +773,6 @@
   "start.keyboardShortcutsNote": "Mira cada tecla y cambia la que quieras",
   "start.lastRunClosed": "Concat se cerró por sí solo la última vez que lo usaste. Su registro dice qué estaba haciendo: compártelo con nosotros y descubriremos el motivo.",
   "start.lastRunClosedTitle": "Concat se cerró la última vez",
-  "start.learnAndCommunity": "Aprendizaje y comunidad",
   "start.location": "Ubicación",
   "start.newProject": "Nuevo proyecto",
   "start.newProjectNote": "Elige la forma y los fotogramas por segundo",
@@ -803,9 +801,7 @@
   "start.welcome": "Te damos la bienvenida a Concat",
   "start.welcomeBack": "Hola de nuevo",
   "start.welcomeBackNote": "Sigue donde lo dejaste o empieza algo nuevo.",
-  "start.newsNote": "Títulos 45x más rápidos, efectos al instante. Mira las cifras",
   "start.welcomeNote": "Un editor de vídeo gratuito que funciona por completo en este equipo.",
-  "start.whatsNew": "Novedades de {0}",
   "start.whereShouldProjectFolder": "¿Dónde irá la carpeta del proyecto?",
   "studio.addAtPlayhead": "Añadir en el cabezal",
   "studio.addSelectedToTimeline": "Añadir la selección a la línea de tiempo",
@@ -1086,5 +1082,7 @@
   "voices.styles": "Estilos",
   "voices.stylesHint": "Un estilo es una voz con efectos. Elige uno para escribir con él: los efectos van al clip de voz, donde puedes cambiarlos.",
   "voices.voices": "Voces",
-  "voices.yours": "Tus voces"
+  "voices.yours": "Tus voces",
+  "start.removeProjectTitle": "Remove project from library?",
+  "start.removeProjectMessage": "Remove {0} from your recent projects? Your project folder and media stay on this device. You can open the folder again at any time."
 }

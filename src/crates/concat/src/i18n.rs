@@ -245,6 +245,7 @@ pub fn t(key: &str) -> String {
     translated(key)
         .or_else(|| english().by_key.get(key).cloned())
         .unwrap_or_else(|| key.to_owned())
+        .replace("Concat", "Procut")
 }
 
 /// The active language's line for `key`, if it has one.

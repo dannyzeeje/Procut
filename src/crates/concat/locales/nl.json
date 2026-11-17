@@ -764,7 +764,6 @@
   "start.dropNothingToOpen": "Daar valt niets te openen: zet een projectmap neer, of video-, foto- of audiobestanden.",
   "start.droppedFiles": "{0} neergezette bestanden gaan in dit project zodra het is gemaakt.",
   "start.droppedOneFile": "Het neergezette bestand gaat in dit project zodra het is gemaakt.",
-  "start.firstEdit": "Je eerste montage",
   "start.folderMissing": "{0} is er niet meer: de schijf is misschien losgekoppeld, of de map is verplaatst of verwijderd.",
   "start.folderNotFound": "Map niet gevonden",
   "start.githubNote": "De code, de issues en elke release",
@@ -774,7 +773,6 @@
   "start.keyboardShortcutsNote": "Bekijk elke toets en wijzig wat je wilt",
   "start.lastRunClosed": "Concat is de vorige keer uit zichzelf gesloten. Het logboek laat zien wat het deed: deel het met ons, dan zoeken we uit waarom.",
   "start.lastRunClosedTitle": "Concat sloot de vorige keer",
-  "start.learnAndCommunity": "Leren en community",
   "start.location": "Locatie",
   "start.newProject": "Nieuw project",
   "start.newProjectNote": "Kies een beeldverhouding en framesnelheid",
@@ -803,9 +801,7 @@
   "start.welcome": "Welkom bij Concat",
   "start.welcomeBack": "Welkom terug",
   "start.welcomeBackNote": "Ga verder waar je gebleven was, of begin iets nieuws.",
-  "start.newsNote": "Titels 45x sneller, effecten meteen. Bekijk de cijfers",
   "start.welcomeNote": "Een gratis video-editor die volledig op deze computer draait.",
-  "start.whatsNew": "Nieuw in {0}",
   "start.whereShouldProjectFolder": "Waar moet de projectmap komen?",
   "studio.addAtPlayhead": "Toevoegen bij afspeelkop",
   "studio.addSelectedToTimeline": "Selectie aan tijdlijn toevoegen",
@@ -1086,5 +1082,7 @@
   "voices.styles": "Stijlen",
   "voices.stylesHint": "Een stijl is een stem met effecten. Kies er een om erin te schrijven: de effecten komen op de spraakclip, waar je ze kunt aanpassen.",
   "voices.voices": "Stemmen",
-  "voices.yours": "Jouw stemmen"
+  "voices.yours": "Jouw stemmen",
+  "start.removeProjectTitle": "Remove project from library?",
+  "start.removeProjectMessage": "Remove {0} from your recent projects? Your project folder and media stay on this device. You can open the folder again at any time."
 }
