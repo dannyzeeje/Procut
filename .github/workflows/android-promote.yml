@@ -1,4 +1,4 @@
-name: Sign and release validated Android APK
+name: Verify updated Android keystore
 on:
   workflow_dispatch:
     inputs:
@@ -14,7 +14,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: procut-android-release-${{ inputs.tag }}
+  group: procut-keystore-check-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   sign:
@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
           [[ "$RUN_ID" =~ ^[0-9]+$ ]]
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          test "$GITHUB_REF_NAME" = main
+          test "$GITHUB_REF_NAME" = verify-updated-keystore
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > "$RUNNER_TEMP/source-run.json"
           python3 - <<'PY'
           import json, os, subprocess
@@ -103,6 +103,7 @@ jobs:
           path: release/*
           if-no-files-found: error
   publish:
+    if: ${{ false }}
     needs: sign
     runs-on: ubuntu-24.04
     timeout-minutes: 10
