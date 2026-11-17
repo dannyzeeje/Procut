@@ -7,7 +7,7 @@ impl Studio {
     pub fn replace_selected_media() {
         crate::host::pick_files_then(t("mobile.replaceClip"), None, |studio, _, _, paths| {
             let Some(path) = paths.first() else { return };
-            let Some(id) = studio.selection.iter().next().cloned() else {
+            let Some(id) = studio.selection.first().cloned() else {
                 return;
             };
             let Some(clip) = studio.clip(&id).cloned() else {

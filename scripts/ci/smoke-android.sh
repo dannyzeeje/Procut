@@ -44,7 +44,7 @@
 # whole logcat from before the launch to the end, the app's lines alone,
 # a screenshot of the screen at the end, the window focus, and the
 # device's properties. CI uploads that folder. The package is
-# app.concat.editor unless --package names another.
+# app.procut.editor.next unless --package names another.
 #
 # --export CLIP needs an APK built with concat-android's `smoke` feature
 # (never the one that ships). The clip is pushed into the app's files
@@ -217,7 +217,18 @@ if [ -n "$export_clip" ]; then
     done
     adb shell am force-stop "$package" < /dev/null || true
   fi
-  adb shell "[ -d $files_dir ]" < /dev/null || fail "the app never made its files folder, $files_dir"
+  # Android 11's emulated-storage view can hide another UID's app folder
+  # from adb shell even while the app itself can list it. On our disposable
+  # CI emulator only, stage the fixture through the root backing directory.
+  # Never change adb privileges on a developer's connected phone.
+  if ! adb shell "[ -d $files_dir ]" < /dev/null \
+      && [ "${GITHUB_ACTIONS:-}" = true ] \
+      && [ "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" = 1 ]; then
+    limit 30 adb root < /dev/null || fail "could not access the emulator's app files"
+    limit 60 adb wait-for-device < /dev/null || fail "emulator did not reconnect after adb root"
+    files_dir=/data/media/0/Android/data/$package/files
+  fi
+  adb shell "[ -d $files_dir ]" < /dev/null || fail "the app files folder is missing or inaccessible: $files_dir"
   adb shell "rm -rf $files_dir/smoke $files_dir/smoke-export.*" < /dev/null
   ext=${export_clip##*.}
   limit 120 adb push "$export_clip" "$files_dir/smoke-export.$ext" < /dev/null \
