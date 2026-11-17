@@ -643,8 +643,8 @@ mod awake {
                 env.call_static_method(
                     class,
                     jni_str!("keepScreenOn"),
-                    jni_sig!("(Landroid/app/Activity;ZZ)V"),
-                    &[activity.into(), on.into(), portrait.into()],
+                    jni_sig!("(Landroid/app/Activity;Z)V"),
+                    &[activity.into(), on.into()],
                 )?;
                 Ok(())
             });
