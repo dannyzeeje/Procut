@@ -1658,8 +1658,7 @@ component WideHome inherits Rectangle {
             x: (flick.width - self.width) / 2;
             y: root.pad-top;
             width: root.content-w;
-            height: Math.max(main.preferred-height,
-                root.aside ? side.y + side-body.preferred-height : 0px);
+            height: main.preferred-height;
 
             main := VerticalLayout {
                 x: 0;
