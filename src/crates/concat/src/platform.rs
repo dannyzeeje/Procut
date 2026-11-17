@@ -1191,6 +1191,20 @@ pub fn reveal(path: &str) -> Result<(), String> {
     }
 }
 
+/// The phone's immersive preview mode, installed by its activity.
+pub type PreviewMode = Box<dyn Fn(bool) + Send + Sync>;
+static PREVIEW_MODE: std::sync::OnceLock<PreviewMode> = std::sync::OnceLock::new();
+/// Install native presentation changes for the full-screen player.
+pub fn install_preview_mode(handler: PreviewMode) {
+    let _ = PREVIEW_MODE.set(handler);
+}
+/// Enter or leave the phone's immersive preview; desktop has no handler.
+pub(crate) fn set_preview_mode(on: bool) {
+    if let Some(handler) = PREVIEW_MODE.get() {
+        handler(on);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1274,19 +1288,5 @@ mod tests {
             PickKinds::of(Some(&["ttf", "otf"])),
             PickKinds::Files(vec!["ttf".to_owned(), "otf".to_owned()])
         );
-    }
-}
-
-/// The phone's immersive preview mode, installed by its activity.
-pub type PreviewMode = Box<dyn Fn(bool) + Send + Sync>;
-static PREVIEW_MODE: std::sync::OnceLock<PreviewMode> = std::sync::OnceLock::new();
-/// Install native presentation changes for the full-screen player.
-pub fn install_preview_mode(handler: PreviewMode) {
-    let _ = PREVIEW_MODE.set(handler);
-}
-/// Enter or leave the phone's immersive preview; desktop has no handler.
-pub(crate) fn set_preview_mode(on: bool) {
-    if let Some(handler) = PREVIEW_MODE.get() {
-        handler(on);
     }
 }
