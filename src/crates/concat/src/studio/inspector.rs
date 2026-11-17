@@ -10,6 +10,9 @@ impl Studio {
     /// One field of the selected clip, on the echo. `clip_commit` turns the
     /// accumulated edits into commands.
     pub fn clip_set(&mut self, field: ClipField, value: f32) {
+        if self.effect_preview.is_some() {
+            self.flat = None;
+        }
         // Some words selected in the text box: the typography they can
         // wear goes on those words alone.
         if let Some((id, start, end)) = self.styled_words()

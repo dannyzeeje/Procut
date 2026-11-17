@@ -39,6 +39,12 @@ pub struct SavedLayout {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Preferences {
+    /// Ordered tool ids for each phone editing section.
+    pub mobile_tool_order: BTreeMap<String, Vec<String>>,
+    /// Hidden tools, independently for each phone editing section.
+    pub mobile_tool_hidden: BTreeMap<String, Vec<String>>,
+    /// Tools placed in the phone bottom bar for each editing section.
+    pub mobile_tool_pinned: BTreeMap<String, Vec<String>>,
     /// This fork has applied its initial Atlas color defaults.
     pub atlas_defaults: bool,
     /// The dark theme. `None` is the app's default, which is dark.

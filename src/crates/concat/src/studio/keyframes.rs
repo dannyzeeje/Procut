@@ -1851,6 +1851,8 @@ impl Studio {
             app.set_start(data)
         });
         app.set_trash_view(self.start.trash_view);
+        app.global::<crate::ui::ProjectTrash>()
+            .set_selected_count(self.start.trash_selected.len() as i32);
         let trashed: Vec<concat_host::projects::Recent> = if self.start.trash_view {
             concat_host::project_library::entries(&self.host.dirs.config)
                 .unwrap_or_default()
@@ -1878,6 +1880,7 @@ impl Studio {
                 .map(|recent| {
                     let project = &recent.info;
                     RecentProjectData {
+                        selected: self.start.trash_selected.contains(&project.path),
                         path: project.path.as_str().into(),
                         name: project.name.as_str().into(),
                         detail: format!(

@@ -4852,6 +4852,182 @@ mod tests {
     }
 
     #[test]
+    fn dragging_to_new_typed_lanes_preserves_time_and_undoes_atomically() {
+        for audio in [false, true] {
+            let mut editor = Editor::new();
+            let Command::AddMedia { mut item } = media("/clip.mp4", 12.0, true) else {
+                unreachable!()
+            };
+            if audio {
+                item.kind = MediaKind::Audio;
+            }
+            let media_id = editor
+                .apply(Command::AddMedia { item })
+                .unwrap()
+                .created_id
+                .unwrap();
+            let clip = editor
+                .apply(Command::AddClipAtFirstFree {
+                    media_id,
+                    start: 2.0,
+                })
+                .unwrap()
+                .created_id
+                .unwrap();
+            let before = editor.to_document(&settings());
+            let track_count = editor.project().active().tracks.len();
+            let new_track = editor
+                .apply(Command::MoveToNewTrack {
+                    moves: vec![ClipMove {
+                        clip_id: clip.clone(),
+                        start: 7.0,
+                        track_id: String::new(),
+                    }],
+                    audio,
+                })
+                .unwrap()
+                .created_id
+                .unwrap();
+            let timeline = editor.project().active();
+            let target = if audio {
+                timeline.tracks.first()
+            } else {
+                timeline.tracks.last()
+            }
+            .unwrap();
+            assert_eq!(target.id, new_track);
+            assert_eq!(
+                target.extra["procutRole"],
+                if audio { "audio" } else { "video" }
+            );
+            assert_eq!(timeline.tracks.len(), track_count + 1);
+            assert_eq!(timeline.clip(&clip).unwrap().start, 7.0);
+            assert_eq!(timeline.clip(&clip).unwrap().track_id, new_track);
+            assert!(editor.undo());
+            assert_eq!(
+                editor.to_document(&settings()),
+                before,
+                "one undo restores the clip and removes its new lane"
+            );
+        }
+    }
+
+    #[test]
+    fn empty_or_invalid_new_lane_moves_never_create_tracks() {
+        let mut editor = Editor::new();
+        let count = editor.project().active().tracks.len();
+        for moves in [
+            vec![],
+            vec![ClipMove {
+                clip_id: "missing".into(),
+                track_id: String::new(),
+                start: 4.0,
+            }],
+        ] {
+            let result = editor
+                .apply(Command::MoveToNewTrack {
+                    moves,
+                    audio: false,
+                })
+                .unwrap();
+            assert!(!result.applied);
+            assert_eq!(editor.project().active().tracks.len(), count);
+        }
+        assert!(
+            editor
+                .apply(Command::MoveToNewTrack {
+                    moves: vec![ClipMove {
+                        clip_id: "missing".into(),
+                        track_id: String::new(),
+                        start: f64::NAN
+                    }],
+                    audio: true,
+                })
+                .is_err()
+        );
+        assert_eq!(editor.project().active().tracks.len(), count);
+    }
+
+    #[test]
+    fn overlapping_and_late_imports_start_at_the_requested_playhead() {
+        let mut editor = Editor::new();
+        let media_id = editor
+            .apply(media("/take.mp4", 10.0, true))
+            .unwrap()
+            .created_id
+            .unwrap();
+        editor
+            .apply(Command::AddClipsInSequence {
+                media_ids: vec![media_id.clone()],
+                track_id: None,
+                start: 0.0,
+                ripple: false,
+            })
+            .unwrap();
+        let original = editor.project().active().clips[0].clone();
+        for start in [3.25, 30.0] {
+            editor
+                .apply(Command::AddClipsInSequence {
+                    media_ids: vec![media_id.clone()],
+                    track_id: None,
+                    start,
+                    ripple: false,
+                })
+                .unwrap();
+            assert!(
+                editor
+                    .project()
+                    .active()
+                    .clips
+                    .iter()
+                    .any(|clip| clip.start == start)
+            );
+            assert_eq!(
+                editor.project().active().clip(&original.id).unwrap().start,
+                original.start
+            );
+        }
+    }
+
+    #[test]
+    fn mixed_imports_use_typed_lanes_and_prefer_a1() {
+        let mut doc = Editor::new().to_document(&settings());
+        let tracks = json!([
+            {"id":"A2","procutRole":"audio","visible":true,"muted":false},
+            {"id":"A1","procutRole":"audio","visible":true,"muted":false},
+            {"id":"V1","procutRole":"video","visible":true,"muted":false}
+        ]);
+        doc["timelines"][0]["tracks"] = tracks.clone();
+        doc["tracks"] = tracks;
+        let mut editor = Editor::from_document(&doc).unwrap();
+        let video = editor
+            .apply(media("/video.mp4", 5.0, true))
+            .unwrap()
+            .created_id
+            .unwrap();
+        let Command::AddMedia { mut item } = media("/audio.wav", 5.0, true) else {
+            unreachable!()
+        };
+        item.kind = MediaKind::Audio;
+        let audio = editor
+            .apply(Command::AddMedia { item })
+            .unwrap()
+            .created_id
+            .unwrap();
+        editor
+            .apply(Command::AddClipsInSequence {
+                media_ids: vec![video, audio],
+                track_id: None,
+                start: 2.5,
+                ripple: false,
+            })
+            .unwrap();
+        let clips = &editor.project().active().clips;
+        assert_eq!((clips[0].track_id.as_str(), clips[0].start), ("V1", 2.5));
+        assert_eq!((clips[1].track_id.as_str(), clips[1].start), ("A1", 7.5));
+    }
+
+    #[test]
     fn mobile_media_routes_by_kind_creates_tracks_and_deletes_with_undo() {
         let mut doc = Editor::new().to_document(&settings());
         let tracks = json!([

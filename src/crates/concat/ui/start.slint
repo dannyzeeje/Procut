@@ -87,7 +87,10 @@ export struct ChipOption {
 /// two places and a coarse "4 days ago" are both easier to produce where
 /// the numbers are than in an expression language with no printf and no
 /// clock.
+export global ProjectTrash { in-out property <int> selected-count; }
+
 export struct RecentProjectData {
+    selected: bool,
     /// The folder, and the card's identity — what reopening and forgetting
     /// name.
     path: string,
@@ -1054,6 +1057,7 @@ component ProjectsGrid inherits Rectangle {
 // start, the name and what it is beside it, Remove at the end.
 component ProjectRow inherits Pressable {
     in property <RecentProjectData> project;
+    in property <bool> selectable;
 
     callback opened();
     callback forgotten();
@@ -1063,7 +1067,7 @@ component ProjectRow inherits Pressable {
     clicked => { root.opened(); }
     deleted => { root.forgotten(); }
     height: 68px;
-    background: root.lit || root.down ? Theme.launch-raised : Colors.transparent;
+    background: root.project.selected ? Theme.accent-soft : root.lit || root.down ? Theme.launch-raised : Colors.transparent;
 
     HorizontalLayout {
         padding-left: 8px;
@@ -1143,14 +1147,14 @@ component ProjectRow inherits Pressable {
             Icon {
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
-                glyph: Glyph.close;
+                glyph: root.selectable ? (root.project.selected ? Glyph.check : Glyph.mask-rectangle) : Glyph.close;
                 size: 14px;
                 tint: forget.pressed || forget.has-hover ? Theme.fg : Theme.fg-dim;
             }
 
             forget := TouchArea {
                 mouse-cursor: pointer;
-                clicked => { root.forgotten(); }
+                clicked => { if (root.selectable) { root.opened(); } else { root.forgotten(); } }
             }
         }
     }
@@ -1862,34 +1866,40 @@ component NarrowHome inherits Rectangle {
         HorizontalLayout {
             padding-left: 8px; padding-right: 16px; spacing: 12px;
             VerticalLayout { alignment: center; RoundButton { glyph: Glyph.menu; label: I18n.t("mobile.menu"); clicked => { PhoneNavigation.open = true; } } }
+            VerticalLayout { alignment: center; Image { source: @image-url("../../../../assets/procut-logo.png"); width: 36px; height: 36px; image-fit: contain; } }
             Text { text: I18n.t("mobile.brand"); font-size: 22px; font-weight: 600; color: Theme.fg; vertical-alignment: center; horizontal-stretch: 1; }
-            VerticalLayout { alignment: center; Rectangle { width: 44px; height: 44px; border-radius: 12px; background: #180f2b; BrandMark { x: -18px; y: -18px; width: 80px; height: 80px; } } }
         }
     }
     flick := Flickable {
-        y: 64px; width: root.width; height: root.height - 148px;
+        y: 64px; width: root.width; height: root.height - 64px;
         content-width: self.width; content-height: stack.preferred-height;
         stack := VerticalLayout {
             x: 0; y: 0;
             width: flick.width; height: self.preferred-height;
             padding-left: 16px; padding-right: 16px; padding-top: 16px; padding-bottom: 28px;
             spacing: 16px; alignment: start;
-            Text {
-                text: root.trash-view ? I18n.t("mobile.trash") : I18n.t("atlas.projects");
-                color: Theme.fg; font-size: 26px; font-weight: 600; wrap: word-wrap;
-            }
-            Text {
-                text: root.trash-view ? I18n.t("mobile.restoreHelp") : I18n.t("atlas.projectsNote");
-                color: Theme.fg-muted; font-size: 14px; wrap: word-wrap;
-            }
-            HorizontalLayout { spacing: 10px; height: 44px;
-                AtlasChip { label: I18n.t("mobile.importProjectMenu"); enabled: !root.busy; clicked => { root.link("import-project"); } }
-                AtlasChip { label: I18n.t("mobile.findProjects"); enabled: !root.busy; clicked => { root.link("recover"); } }
-            }
+            if !root.trash-view: PillButton { primary: true; block: true; glyph: Glyph.plus; enabled: !root.busy; label: I18n.t("start.newProject"); clicked => { root.compose(); } }
             SectionHead {
                 height: 32px;
                 text: root.export-mode ? I18n.t("mobile.chooseExport") : root.trash-view ? I18n.t("mobile.trash") : I18n.t("mobile.yourProjects");
                 count: root.recents-total > 0 ? "\{root.recents-total}" : "";
+            }
+            if root.trash-view && ProjectTrash.selected-count == 0: PillButton {
+                label: I18n.t("mobile.emptyTrashButton"); glyph: Glyph.trash;
+                enabled: root.recents-total > 0 && !root.busy;
+                clicked => { root.link("trash-empty"); }
+            }
+            if root.trash-view && ProjectTrash.selected-count > 0: VerticalLayout {
+                spacing: 8px;
+                Text { text: I18n.t1("mobile.projectsSelected", ProjectTrash.selected-count); color: Theme.fg-muted; }
+                HorizontalLayout { spacing: 8px;
+                    AtlasChip { label: I18n.t("mobile.restoreSelected"); clicked => { root.link("trash-restore-selected"); } }
+                    AtlasChip { label: I18n.t("common.delete"); clicked => { root.link("trash-delete-selected"); } }
+                }
+                HorizontalLayout { spacing: 8px;
+                    AtlasChip { label: I18n.t("mobile.selectAll"); clicked => { root.link("trash-select-all"); } }
+                    AtlasChip { label: I18n.t("common.cancel"); clicked => { root.link("trash-clear-selection"); } }
+                }
             }
             if root.export-mode: PillButton { label: I18n.t("common.cancel"); clicked => { root.export-mode = false; } }
             if root.recents-total > 0: VerticalLayout {
@@ -1905,17 +1915,15 @@ component NarrowHome inherits Rectangle {
                 text: I18n.t1("start.noMatches", root.query); color: Theme.fg-muted; font-size: 15px; wrap: word-wrap;
             }
             for project in root.recents: ProjectRow {
-                project: project; enabled: !root.busy;
+                project: project; enabled: !root.busy; selectable: root.trash-view;
                 opened => {
-                    if (root.export-mode) { root.export-mode = false; root.link("export-project:" + project.path); }
+                    if (root.trash-view) { root.link("trash-select:" + project.path); }
+                    else if (root.export-mode) { root.export-mode = false; root.link("export-project:" + project.path); }
                     else { root.open-recent(project.path); }
                 }
-                forgotten => { if (!root.export-mode) { root.forget-recent(project.path); } }
+                forgotten => { if (!root.export-mode && !root.trash-view) { root.forget-recent(project.path); } }
             }
         }
-    }
-    Rectangle { y: root.height - 84px; width: root.width; height: 84px; background: Theme.page;
-        AtlasChip { x: 16px; y: 12px; width: parent.width - 32px; height: 52px; current: true; enabled: !root.busy; label: "+ " + I18n.t("start.newProject"); clicked => { root.compose(); } }
     }
     PhoneMenu {
         width: root.width; height: root.height; open: PhoneNavigation.open;

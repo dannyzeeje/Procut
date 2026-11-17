@@ -22,10 +22,11 @@ import { PhoneScroll } from "controls.slint";
 export component PhoneSheet inherits Rectangle {
     in property <bool> open;
     in property <bool> footer: true;
+    in property <bool> preview-footer;
     in property <string> title;
     /// How much of the screen the sheet takes: enough for a panel, with
     /// the monitor still in view above it.
-    in property <length> sheet-height: root.height * 0.6;
+    in property <length> sheet-height: root.height * 0.5;
 
     callback closed();
 
@@ -36,7 +37,11 @@ export component PhoneSheet inherits Rectangle {
     out property <length> drag;
     property <length> dismiss-at: 80px;
 
-    visible: root.open;
+    property <float> reveal;
+    changed open => { root.reveal = root.open ? 1 : 0; }
+    animate reveal { duration: 180ms; easing: cubic-bezier(0.2, 0, 0, 1); }
+    visible: root.open || root.reveal > 0;
+    opacity: root.reveal;
     background: transparent;
 
     // What is left above the sheet. A tap there is a dismissal; declared
@@ -47,7 +52,7 @@ export component PhoneSheet inherits Rectangle {
 
     surface := Rectangle {
         x: 0;
-        y: root.height - self.height + root.drag;
+        y: root.height - self.height * root.reveal + root.drag;
         width: root.width;
         height: root.sheet-height;
         background: Theme.panel;
@@ -157,6 +162,7 @@ export component PhoneSheet inherits Rectangle {
                 vertical-stretch: 1;
                 @children
             }
+            if root.preview-footer: Rectangle { height: 64px; }
             if root.footer: Rectangle {
                 height: 68px;
                 AtlasChip { x: 16px; y: 12px; width: parent.width - 32px; height: 44px; current: true; label: I18n.t("mobile.done"); clicked => { root.closed(); } }

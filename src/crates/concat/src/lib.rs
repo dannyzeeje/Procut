@@ -1155,7 +1155,26 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
         state.remove_imported_lut(&id);
     }));
     editor.on_replace_clip_media(Studio::replace_selected_media);
-    editor.on_preview_fullscreen_changed(crate::platform::set_preview_mode);
+    editor.on_mobile_tool_customize(on_window!(
+        |state, id: SharedString, action: SharedString| {
+            state.customize_mobile_tool(&id, &action);
+        }
+    ));
+    editor.on_effect_preview(on_window!(
+        |state, kind: SharedString, id: SharedString, label: SharedString| {
+            state.preview_effect(&kind, &id, &label);
+        }
+    ));
+    editor.on_effect_preview_finish(on_window!(|state, apply: bool| {
+        state.finish_effect_preview(apply);
+    }));
+    editor.on_preview_fullscreen_changed(|on| {
+        Shell::with(|shell, _| {
+            let state = shell.studio.borrow();
+            let video = &state.timeline().video;
+            crate::platform::set_preview_mode(on, video.height >= video.width);
+        });
+    });
     editor.on_export_project_package(on_window!(|state| {
         state.export_project_package();
     }));

@@ -18,7 +18,7 @@ export component AtlasChip inherits Rectangle {
     touch := TouchArea { enabled: root.enabled; clicked => { root.clicked(); } }
 }
 export component BootScreen inherits Rectangle {
-    background: #180f2b;
+    background: Theme.page;
     property <float> progress: 0;
     init => { root.progress = 1; }
     animate progress { duration: 1000ms; easing: ease-in-out; }

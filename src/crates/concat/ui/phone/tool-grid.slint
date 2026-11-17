@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import { Glyph } from "../icons.slint";
+import { ToolItem } from "controls.slint";
+export struct MobileToolData { id: string, label: string, glyph: Glyph, pinned: bool, hidden: bool }
+export component ToolGrid inherits Rectangle {
+    in property <[MobileToolData]> tools;
+    callback activated(id: string);
+    property <int> columns: Math.max(3, Math.floor(root.width / 88px));
+    height: Math.ceil(root.tools.length / root.columns) * 80px;
+    for tool[index] in root.tools: ToolItem {
+        x: Math.mod(index, root.columns) * root.width / root.columns;
+        y: Math.floor(index / root.columns) * 80px;
+        width: root.width / root.columns; height: 76px;
+        glyph: tool.glyph; label: tool.label;
+        clicked => { root.activated(tool.id); }
+    }
+}

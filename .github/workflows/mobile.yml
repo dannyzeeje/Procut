@@ -198,8 +198,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$KEYSTORE_B64" ]; then
-            echo "::warning::ANDROID_KEYSTORE is not set; the APK keeps the key made for this run"
-            exit 0
+            echo "::error::ANDROID_KEYSTORE is required for a signed release"
+            exit 1
           fi
           keystore=$RUNNER_TEMP/release.keystore
           echo "$KEYSTORE_B64" | base64 --decode > "$keystore"

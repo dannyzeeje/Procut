@@ -73,7 +73,9 @@ mod stage;
 mod text;
 mod toast;
 pub use toast::ToastState;
+mod effect_preview;
 mod mobile_tools;
+mod tool_layout;
 mod vision;
 mod voice;
 use slint::{Model, ModelRc, SharedString, VecModel};
@@ -1020,6 +1022,7 @@ pub struct Studio {
     /// A clone of the project a gesture is mutating. `project()` reads it
     /// while it exists; a command replaces it.
     pub echo: Option<Project>,
+    effect_preview: Option<effect_preview::EffectPreview>,
     /// Stands in for a project when none is open, so every reader has
     /// something to read.
     empty: Project,
@@ -1964,7 +1967,7 @@ fn command_kind(command: &Command) -> &'static str {
         Command::SetClipVoice { voice: Some(_), .. } => "Voice isolation",
         Command::SetClipVoice { .. } => "Voice isolation off",
         Command::AddCutoutStroke { .. } => "Smart brush stroke",
-        Command::MoveClips { .. } => "Move",
+        Command::MoveClips { .. } | Command::MoveToNewTrack { .. } => "Move",
         Command::TrimClip { .. } => "Trim",
         Command::SplitClips { .. } => "Split",
         Command::ReplaceClipMedia { .. } => "Replace clip's file",
@@ -2824,18 +2827,31 @@ fn few(names: &[String]) -> String {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Confirm {
     /// Erase a project already in the journaled trash.
-    EraseProject { path: String },
+    EraseProject {
+        path: String,
+    },
+    EraseProjects {
+        paths: Vec<String>,
+    },
     /// Remove a project from the recent list after confirmation.
-    RemoveRecent { path: String },
+    RemoveRecent {
+        path: String,
+    },
     /// Deleting a whole track, and every clip on it.
-    RemoveTrack { track_id: String },
+    RemoveTrack {
+        track_id: String,
+    },
     /// Exporting over a file that is already at `path`.
-    ReplaceExport { path: String },
+    ReplaceExport {
+        path: String,
+    },
     /// Quitting though the project could not be saved, for `error`. A
     /// close that cannot write the project keeps the window, and without
     /// this a disk unplugged, full or read-only made a window that would
     /// never close.
-    QuitWithoutSaving { error: String },
+    QuitWithoutSaving {
+        error: String,
+    },
     /// Restarting for a setting that is read only at launch: the project
     /// is saved, and opens again in the new window.
     Restart,
@@ -3090,6 +3106,7 @@ impl Studio {
             library: Default::default(),
             session: None,
             echo: None,
+            effect_preview: None,
             empty: Project::new(),
             dirty: false,
             autosave: slint::Timer::default(),

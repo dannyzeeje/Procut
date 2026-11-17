@@ -41,7 +41,8 @@ impl Studio {
         // frames of an unchanged document and handed over by pointer, so
         // playback and scrubbing neither flatten nor plan again. A gesture
         // in flight - the echo - is not the document, and flattens fresh.
-        let cached = self.echo.is_none()
+        let cacheable = self.echo.is_none() || self.effect_preview.is_some();
+        let cached = cacheable
             && self
                 .flat
                 .as_ref()
@@ -104,7 +105,7 @@ impl Studio {
             let clips = std::sync::Arc::new(clips);
             // Kept only once every title is in it, so the frame after the
             // painter is done flattens again and finds them.
-            if self.echo.is_none() && painted_all {
+            if cacheable && painted_all {
                 self.flat = Some((self.revision, width, height, std::sync::Arc::clone(&clips)));
             }
             clips
@@ -238,7 +239,15 @@ impl Studio {
                     {
                         let mut studio = shell.studio.borrow_mut();
                         let end = studio.duration();
-                        let position = studio.host.playback.position_now() as f32;
+                        let mut position = studio.host.playback.position_now() as f32;
+                        if let Some((start, end)) = studio.preview_loop_span()
+                            && end > start
+                            && (position >= end || position < start)
+                        {
+                            studio.seek(start);
+                            position = start;
+                            shown = None;
+                        }
                         let fps = studio.project().active().video.rate();
                         let frame = (f64::from(position) * fps + 1e-6).floor() as i64;
                         if position < end && shown == Some(frame) {

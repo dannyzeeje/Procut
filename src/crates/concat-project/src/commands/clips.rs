@@ -89,26 +89,32 @@ pub(super) fn apply(
             let start = start.max(0.0);
             let total: f64 = items.iter().map(clip_length).sum();
             let timeline = project.active_mut();
+            let typed = timeline
+                .tracks
+                .iter()
+                .any(|track| track.extra.contains_key("procutRole"));
             let track_id = match track_id {
                 Some(id) if timeline.track(&id).is_none() => return Err(CommandError::TrackGone),
-                Some(id) => id,
-                None => media_track(timeline, mint, start, total, items[0].kind),
+                Some(id) => Some(id),
+                // A mixed selection routes each item to its media kind.
+                None if typed => None,
+                None => Some(media_track(timeline, mint, start, total, items[0].kind)),
             };
             let mut at = start;
             let mut first = None;
             for media in &items {
+                let lane = track_id.clone().unwrap_or_else(|| {
+                    media_track(timeline, mint, at, clip_length(media), media.kind)
+                });
                 let place = if ripple {
-                    ripple_room_for(timeline, &track_id, at, media)
+                    ripple_room_for(timeline, &lane, at, media)
                 } else {
-                    timeline.nearest_free_start(&track_id, at, clip_length(media), &[])
+                    timeline.nearest_free_start(&lane, at, clip_length(media), &[])
                 };
                 let id = mint.next("c");
-                timeline.clips.push(Arc::new(default_clip(
-                    id.clone(),
-                    track_id.clone(),
-                    media,
-                    place,
-                )));
+                timeline
+                    .clips
+                    .push(Arc::new(default_clip(id.clone(), lane, media, place)));
                 first.get_or_insert(id);
                 at = place + clip_length(media);
             }
@@ -1031,14 +1037,20 @@ fn media_track(
     } else {
         "video"
     };
-    if let Some(track) = timeline.tracks.iter().find(|track| {
+    let free = |track: &&Track| {
         track
             .extra
             .get("procutRole")
             .and_then(serde_json::Value::as_str)
             == Some(role)
             && timeline.is_free(&track.id, start, duration, &[])
-    }) {
+    };
+    let existing = if role == "audio" {
+        timeline.tracks.iter().rev().find(free)
+    } else {
+        timeline.tracks.iter().find(free)
+    };
+    if let Some(track) = existing {
         return track.id.clone();
     }
     let id = mint.next("t");

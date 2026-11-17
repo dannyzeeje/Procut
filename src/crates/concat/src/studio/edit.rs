@@ -73,6 +73,17 @@ impl Studio {
     /// The confirmation sheet's answer: go ahead with what it asked about.
     pub fn confirm_accepted(&mut self) {
         match self.confirm.take() {
+            Some(Confirm::EraseProjects { paths }) => {
+                for path in paths {
+                    match concat_host::project_library::erase(&self.host.dirs.config, &path) {
+                        Ok(()) => self
+                            .start
+                            .trash_selected
+                            .retain(|selected| selected != &path),
+                        Err(error) => self.notify(&error, true),
+                    }
+                }
+            }
             Some(Confirm::EraseProject { path }) => {
                 if let Err(e) = concat_host::project_library::erase(&self.host.dirs.config, &path) {
                     self.notify(&e, true);
@@ -126,6 +137,13 @@ impl Studio {
             return crate::ui::ConfirmData::default();
         };
         match confirm {
+            Confirm::EraseProjects { paths } => crate::ui::ConfirmData {
+                open: true,
+                title: t("mobile.eraseTitle").into(),
+                message: tf("mobile.eraseSelectedMessage", &[&paths.len().to_string()]).into(),
+                action: t("mobile.erase").into(),
+                ..Default::default()
+            },
             Confirm::EraseProject { path } => crate::ui::ConfirmData {
                 open: true,
                 title: t("mobile.eraseTitle").into(),
@@ -416,6 +434,9 @@ impl Studio {
     }
 
     pub fn apply(&mut self, command: Command) -> Option<String> {
+        if self.effect_preview.is_some() {
+            return self.preview_command(command);
+        }
         // An edit ends whatever burst the view was in.
         self.end_burst();
         let words = command_words(&command);
@@ -515,6 +536,10 @@ impl Studio {
     }
 
     pub fn undo(&mut self) {
+        if self.effect_preview.is_some() {
+            self.finish_effect_preview(false);
+            return;
+        }
         self.flush_commit();
         self.echo = None;
         self.words = None;
@@ -530,6 +555,10 @@ impl Studio {
     }
 
     pub fn redo(&mut self) {
+        if self.effect_preview.is_some() {
+            self.finish_effect_preview(false);
+            return;
+        }
         self.flush_commit();
         self.echo = None;
         self.words = None;

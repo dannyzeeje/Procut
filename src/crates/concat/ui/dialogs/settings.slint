@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Jareer Abdullah and Concat contributors
 
+import { ToolItem } from "../phone/controls.slint";
 import { I18n } from "../i18n.slint";
 import { Theme } from "../theme/theme.slint";
 import { NumberField } from "../primitives/number-field.slint";
@@ -842,7 +843,7 @@ export component SettingsDialog inherits Sheet {
             property <length> pages: root.compact ? 0px : Math.max(root.min-pages,
                 Math.min(root.pages-w, self.width * 0.4));
             /// The row of tabs' height, when the pages are a row.
-            property <length> strip: root.compact ? 46px : 0px;
+            property <length> strip: root.compact ? 80px : 0px;
 
             // ── the pages, as a row of tabs across the top ───────────────
             if root.compact: Rectangle {
@@ -860,8 +861,8 @@ export component SettingsDialog inherits Sheet {
                         spacing: 4px;
                         alignment: start;
 
-                        for entry in root.page-list: PageTab {
-                            min-width: self.preferred-width;
+                        for entry in root.page-list: ToolItem {
+                            width: 90px;
                             label: entry.label;
                             glyph: entry.glyph;
                             current: root.data.tab == entry.page;

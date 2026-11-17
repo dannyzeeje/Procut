@@ -62,7 +62,7 @@ import java.util.List;
  */
 public class ConcatFiles extends Fragment {
     /** Full-screen video playback, with sensor landscape and a portrait return. */
-    public static void previewFullscreen(Activity activity, boolean on) {
+    public static void previewFullscreen(Activity activity, boolean on, boolean portrait) {
         activity.runOnUiThread(() -> {
             android.view.View decor = activity.getWindow().getDecorView();
             int flags = android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -72,7 +72,7 @@ public class ConcatFiles extends Fragment {
                     | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                     | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
             decor.setSystemUiVisibility(on ? flags : android.view.View.SYSTEM_UI_FLAG_VISIBLE);
-            activity.setRequestedOrientation(on
+            activity.setRequestedOrientation(on && !portrait
                     ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                     : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         });

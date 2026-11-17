@@ -11,7 +11,7 @@ export component MenuAction inherits Rectangle {
     in property <bool> current;
     callback clicked();
     height: 52px;
-    border-radius: 14px;
+    border-radius: 6px;
     background: touch.pressed || root.current ? Theme.field-active : Theme.field;
     opacity: root.enabled ? 1 : 0.4;
     HorizontalLayout {
@@ -25,15 +25,16 @@ export component MenuAction inherits Rectangle {
 export component PhoneMenu inherits Rectangle {
     in property <bool> open;
     in property <string> title;
+    in property <bool> popup;
     callback closed();
     visible: root.open;
     background: #00000099;
     TouchArea { clicked => { root.closed(); } }
     Rectangle {
-        x: 0; y: 0;
-        width: Math.min(320px, root.width - 32px); height: parent.height;
+        x: root.popup ? 8px : 0px; y: root.popup ? 48px : 0px;
+        width: Math.min(320px, root.width - 16px); height: root.popup ? Math.min(parent.height - 64px, content.preferred-height) : parent.height;
         background: Theme.panel;
-        border-top-right-radius: 24px; border-bottom-right-radius: 24px;
+        border-radius: root.popup ? 8px : 0px;
         TouchArea { }
         Flickable {
             content-width: self.width; content-height: content.preferred-height;
