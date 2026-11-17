@@ -61,6 +61,23 @@ import java.util.List;
  * from the dex inside the binary; see src/lib.rs.
  */
 public class ConcatFiles extends Fragment {
+    /** Full-screen video playback, with sensor landscape and a portrait return. */
+    public static void previewFullscreen(Activity activity, boolean on) {
+        activity.runOnUiThread(() -> {
+            android.view.View decor = activity.getWindow().getDecorView();
+            int flags = android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
+            decor.setSystemUiVisibility(on ? flags : android.view.View.SYSTEM_UI_FLAG_VISIBLE);
+            activity.setRequestedOrientation(on
+                    ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        });
+    }
+
     private static final int REQUEST_PICK = 0xC0C4;
     private static final int REQUEST_MICROPHONE = 0xC0C5;
     private static final String TAG = "concat-files";

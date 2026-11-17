@@ -25,7 +25,8 @@ use crate::panes::Msg;
 use crate::panes::export::ExportMsg;
 use crate::panes::media_bin::MediaMsg;
 use crate::panes::start::StartMsg;
-use crate::ui::ExportPhase;
+use crate::ui::{Editor, ExportPhase};
+use slint::ComponentHandle;
 
 /// How long one step may take before the run fails on it. An export of a
 /// short clip on an emulator in software is well under a minute.
@@ -38,6 +39,9 @@ enum Step {
     /// The project is open: waiting for the clip to be probed into the bin.
     Place,
     /// The clip is on its way to the timeline: Export once it is there.
+    Preview,
+    Landscape,
+    Portrait,
     Export,
     /// The export is running.
     Watch,
@@ -48,6 +52,9 @@ impl Step {
         match self {
             Step::Make => "the project to open",
             Step::Place => "the clip to reach the bin",
+            Step::Preview => "the full-screen player to open",
+            Step::Landscape => "landscape full-screen playback",
+            Step::Portrait => "portrait editing to return",
             Step::Export => "the clip to reach the timeline",
             Step::Watch => "the export to end",
         }
@@ -90,8 +97,29 @@ pub(crate) fn drive(clip: PathBuf) -> slint::Timer {
                             studio.media.selected.clear();
                             studio.media.selected.insert(id);
                             studio.handle(Msg::Media(MediaMsg::AddSelectedAtPlayhead));
-                            Step::Export
+                            if cfg!(target_os = "android") { Step::Preview } else { Step::Export }
                         })
+                    }
+                    Step::Preview => (!studio.timeline().clips.is_empty()).then(|| {
+                        app.global::<Editor>().set_preview_fullscreen(true);
+                        app.global::<Editor>().invoke_preview_fullscreen_changed(true);
+                        Step::Landscape
+                    }),
+                    Step::Landscape => {
+                        let size = app.window().size();
+                        if size.width > size.height && since.get().elapsed() > Duration::from_secs(1) {
+                            log::info!("smoke: full-screen preview entered landscape");
+                            app.global::<Editor>().set_preview_fullscreen(false);
+                            app.global::<Editor>().invoke_preview_fullscreen_changed(false);
+                            Some(Step::Portrait)
+                        } else { None }
+                    }
+                    Step::Portrait => {
+                        let size = app.window().size();
+                        if size.height > size.width && since.get().elapsed() > Duration::from_secs(1) {
+                            log::info!("smoke: full-screen preview returned to portrait editing");
+                            Some(Step::Export)
+                        } else { None }
                     }
                     Step::Export => (!studio.timeline().clips.is_empty()).then(|| {
                         studio.handle(Msg::Export(ExportMsg::Open));

@@ -1,6 +1,6 @@
 # Procut mobile fork
 
-[Procut Next 0.2.12 changes and installation notes](docs/PROCUT-NEXT.md). Built from [jub0t/Concat](https://github.com/jub0t/Concat), under AGPL-3.0-or-later.
+[Procut 0.2.13 Android interface and installation notes](docs/PROCUT-MOBILE.md). Built from [jub0t/Concat](https://github.com/jub0t/Concat), under AGPL-3.0-or-later.
 
 <p align="center">
   <img src="assets/procut-logo.png" alt="Procut" width="100" />

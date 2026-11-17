@@ -1964,7 +1964,7 @@ export component Lanes inherits Rectangle {
                 y: 0;
                 // Wide enough for the label it carries; the mark itself is the
                 // 1px child pinned at this cell's leading edge.
-                width: 64px;
+                width: root.finger ? 90px : 64px;
                 height: root.ruler-height;
                 background: Colors.transparent;
                 // And none before the cut starts; see the grid.
@@ -1983,9 +1983,9 @@ export component Lanes inherits Rectangle {
                     y: 0;
                     width: parent.width - 7px;
                     height: parent.height - 7px;
-                    text: Fmt.frames-timecode(parent.seconds, root.frame-rate);
-                    color: Theme.fg-dim;
-                    font-size: Theme.fs-xs;
+                    text: root.finger ? Fmt.short-duration(parent.seconds) : Fmt.frames-timecode(parent.seconds, root.frame-rate);
+                    color: root.finger ? Theme.fg : Theme.fg-dim;
+                    font-size: root.finger ? 12px : Theme.fs-xs;
                     vertical-alignment: center;
                 }
             }
@@ -2174,16 +2174,16 @@ export component Lanes inherits Rectangle {
         Rectangle {
             x: root.at(root.playhead);
             y: 0;
-            width: 1px;
+            width: root.finger ? 2px : 1px;
             height: root.height;
             background: Theme.playhead;
             visible: self.x >= -1px && self.x <= root.width;
 
             Rectangle {
-                x: -5px;
+                x: root.finger ? -8px : -5px;
                 y: 0;
-                width: 11px;
-                height: 9px;
+                width: root.finger ? 18px : 11px;
+                height: root.finger ? 14px : 9px;
 
                 Path {
                     width: parent.width;

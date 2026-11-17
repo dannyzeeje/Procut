@@ -421,38 +421,16 @@ export component PhoneTrackHeaders inherits Rectangle {
     in property <length> track-scroll;
     callback flag-changed(index: int, visible: bool, muted: bool, locked: bool);
     callback sized(index: int, size: TrackSize);
-    clip: true;
-    background: Theme.panel;
+    clip: true; background: Theme.panel;
     for track[index] in root.tracks: Rectangle {
-        y: 24px + track.top - root.track-scroll;
-        height: track.height;
-        width: root.width;
-        clip: true;
-        IconButton {
-            x: 2px; y: 2px; width: 32px; height: 30px;
-            glyph: track.visible ? Glyph.eye : Glyph.eye-off;
-            label: I18n.t("trackHeader.hideLane"); checked: !track.visible;
-            clicked => { root.flag-changed(index, !track.visible, track.muted, track.locked); }
-        }
-        IconButton {
-            x: 36px; y: 2px; width: 32px; height: 30px;
-            glyph: track.locked ? Glyph.lock : Glyph.unlock;
-            label: I18n.t("trackHeader.lockLane"); checked: track.locked;
-            clicked => { root.flag-changed(index, track.visible, track.muted, !track.locked); }
-        }
-        IconButton {
-            x: 2px; y: 34px; width: 32px; height: 30px;
-            glyph: track.muted ? Glyph.volume-off : Glyph.volume;
-            label: I18n.t("trackHeader.muteLane"); checked: track.muted;
-            clicked => { root.flag-changed(index, track.visible, !track.muted, track.locked); }
-        }
-        SizeMenu {
-            x: 38px; y: 36px;
-            current: track.size;
-            phone: true;
-            picked(size) => { root.sized(index, size); }
-        }
+        y: 32px + track.top - root.track-scroll;
+        height: track.height; width: root.width; clip: true;
+        Text { x: 6px; y: 3px; height: 16px; text: I18n.t1("mobile.layerNumber", index + 1); color: Theme.fg-muted; font-size: 10px; }
+        IconButton { x: 4px; y: 20px; width: 34px; height: 32px; glyph: track.visible ? Glyph.eye : Glyph.eye-off; label: I18n.t("trackHeader.hideLane"); checked: !track.visible; clicked => { root.flag-changed(index, !track.visible, track.muted, track.locked); } }
+        IconButton { x: 42px; y: 20px; width: 34px; height: 32px; glyph: track.muted ? Glyph.volume-off : Glyph.volume; label: I18n.t("trackHeader.muteLane"); checked: track.muted; clicked => { root.flag-changed(index, track.visible, !track.muted, track.locked); } }
+        IconButton { x: 4px; y: 54px; width: 34px; height: 32px; glyph: track.locked ? Glyph.lock : Glyph.unlock; label: I18n.t("trackHeader.lockLane"); checked: track.locked; clicked => { root.flag-changed(index, track.visible, track.muted, !track.locked); } }
+        SizeMenu { x: 46px; y: 57px; width: 28px; height: 28px; current: track.size; phone: true; picked(size) => { root.sized(index, size); } }
         Rectangle { y: parent.height - 1px; height: 1px; width: parent.width; background: Theme.line; }
     }
-    Rectangle { height: 24px; width: root.width; background: Theme.ruler; }
+    Rectangle { x: 0; y: 0; height: 32px; width: root.width; background: Theme.ruler; }
 }

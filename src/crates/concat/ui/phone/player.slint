@@ -1,0 +1,69 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Jareer Abdullah and Concat contributors
+import { RoundButton } from "controls.slint";
+import { Editor } from "../editor.slint";
+import { Fmt } from "../util.slint";
+import { Theme } from "../theme/theme.slint";
+import { I18n } from "../i18n.slint";
+import { Glyph } from "../icons.slint";
+export component PhoneTransport inherits Rectangle {
+    callback fullscreen();
+    background: Theme.page;
+
+        height: 96px;
+        HorizontalLayout {
+            x: 12px; y: 0; width: parent.width - 24px; height: 36px; spacing: 4px;
+            Text {
+                text: Fmt.frames-timecode(Editor.playhead, Editor.frame-rate) + " / " + Fmt.short-duration(Editor.preview-duration);
+                color: Theme.fg; font-size: 12px; font-family: Theme.font-technical; vertical-alignment: center; horizontal-stretch: 1;
+            }
+            RoundButton { glyph: Glyph.undo; label: I18n.t("phone.undo"); enabled: Editor.can-undo; size: 36px; clicked => { Editor.undo(); } }
+            RoundButton { glyph: Glyph.redo; label: I18n.t("phone.redo"); enabled: Editor.can-redo; size: 36px; clicked => { Editor.redo(); } }
+            RoundButton { glyph: Glyph.fit; label: I18n.t("mobile.fullscreen"); size: 36px; clicked => { root.fullscreen(); } }
+        }
+        HorizontalLayout {
+            y: 38px; width: parent.width; height: 56px; alignment: center; spacing: 16px;
+            RoundButton { glyph: Glyph.step-back; label: I18n.t("previewPane.previousFrame"); repeats: true; clicked => { Editor.step-frames(-1); } }
+            RoundButton { glyph: Editor.playing ? Glyph.pause : Glyph.play; label: Editor.playing ? I18n.t("previewPane.pause") : I18n.t("previewPane.play"); accent: true; size: 52px; clicked => { Editor.play-toggled(); } }
+            RoundButton { glyph: Glyph.step-forward; label: I18n.t("previewPane.nextFrame"); repeats: true; clicked => { Editor.step-frames(1); } }
+        }
+    
+}
+export component FullscreenPlayer inherits Rectangle {
+    in property <string> project-name;
+    callback closed();
+
+        background: #000;
+        TouchArea { }
+        Image { width: parent.width; height: parent.height; source: Editor.preview-frame; image-fit: contain; }
+        if !Editor.has-picture: Text { text: I18n.t("mobile.noPreview"); color: #fff; horizontal-alignment: center; vertical-alignment: center; }
+        Rectangle {
+            x: 0; y: 0; width: parent.width; height: 56px; background: #00000088;
+            HorizontalLayout {
+                padding-left: 8px; padding-right: 16px; spacing: 12px;
+                VerticalLayout { alignment: center; RoundButton { foreground: #fff; glyph: Glyph.chevron-left; label: I18n.t("mobile.exitFullscreen"); clicked => { root.closed(); } } }
+                Text { text: root.project-name; color: #fff; font-size: 16px; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
+            }
+        }
+        Rectangle {
+            y: parent.height - self.height; width: parent.width; height: 100px; background: #000000aa;
+            Rectangle {
+                x: 24px; y: 4px; width: parent.width - 48px; height: 24px;
+                Rectangle { y: 10px; width: parent.width; height: 4px; border-radius: 2px; background: #ffffff44; }
+                Rectangle { x: 0; y: 10px; width: parent.width * Math.clamp(Editor.playhead / Math.max(0.01, Editor.preview-duration), 0, 1); height: 4px; border-radius: 2px; background: Theme.accent; }
+                TouchArea {
+                    clicked => { Editor.seek(Math.clamp(self.mouse-x / self.width, 0, 1) * Editor.preview-duration); }
+                    moved => { if (self.pressed) { Editor.seek(Math.clamp(self.mouse-x / self.width, 0, 1) * Editor.preview-duration); } }
+                }
+            }
+            HorizontalLayout {
+                y: 30px; height: 64px; width: parent.width; alignment: center; spacing: 18px;
+                RoundButton { foreground: #fff; glyph: Glyph.step-back; label: I18n.t("previewPane.previousFrame"); size: 48px; repeats: true; clicked => { Editor.step-frames(-1); } }
+                RoundButton { foreground: #fff; glyph: Editor.playing ? Glyph.pause : Glyph.play; label: Editor.playing ? I18n.t("previewPane.pause") : I18n.t("previewPane.play"); size: 56px; accent: true; clicked => { Editor.play-toggled(); } }
+                RoundButton { foreground: #fff; glyph: Glyph.step-forward; label: I18n.t("previewPane.nextFrame"); size: 48px; repeats: true; clicked => { Editor.step-frames(1); } }
+            }
+            Text { x: 20px; y: 47px; text: Fmt.short-duration(Editor.playhead); color: #fff; font-size: 12px; }
+            Text { x: parent.width - self.width - 20px; y: 47px; text: Fmt.short-duration(Editor.preview-duration); color: #fff; font-size: 12px; }
+        }
+    
+}

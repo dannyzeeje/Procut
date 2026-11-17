@@ -398,6 +398,13 @@ impl StartPane {
                 };
             }
             StartMsg::Link(name) => {
+                if let Some(path) = name.strip_prefix("export-project:") {
+                    match studio.open_project_at(path) {
+                        Ok(()) => studio.export_project_package(),
+                        Err(e) => studio.notify(&e, true),
+                    }
+                    return;
+                }
                 if name == "trash" {
                     self.trash_view = !self.trash_view;
                     self.query.clear();

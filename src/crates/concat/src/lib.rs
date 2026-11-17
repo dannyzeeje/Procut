@@ -65,6 +65,7 @@ pub use platform::{LinkOpener, install_link_opener};
 pub use platform::{LogSharer, install_log_sharer, log_file_name, note_last_exit};
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub use platform::{MicrophoneAccess, install_microphone_access};
+pub use platform::{PreviewMode, install_preview_mode};
 #[cfg(test)]
 mod close_gate_tests;
 mod panes;
@@ -1133,6 +1134,7 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
         state.remove_imported_lut(&id);
     }));
     editor.on_replace_clip_media(Studio::replace_selected_media);
+    editor.on_preview_fullscreen_changed(crate::platform::set_preview_mode);
     editor.on_export_project_package(on_window!(|state| {
         state.export_project_package();
     }));

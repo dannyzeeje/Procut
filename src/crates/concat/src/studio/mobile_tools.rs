@@ -69,6 +69,7 @@ impl Studio {
             .as_nanos();
         let output = self.host.dirs.data.join(format!("Procut-{stamp}.procut"));
         let looks = Self::looks_dir(&self.host.dirs);
+        self.notify(&t("mobile.exportingProject"), false);
         crate::host::spawn_in_project(
             move || {
                 concat_host::project_package::export_with_looks(

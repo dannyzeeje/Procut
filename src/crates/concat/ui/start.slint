@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Jareer Abdullah
 
+import { PhoneNavigation, PhoneMenu, MenuAction } from "phone/navigation.slint";
+import { RoundButton } from "phone/controls.slint";
 import { I18n } from "i18n.slint";
 import { Theme } from "theme/theme.slint";
 import { CopyChip, Modal } from "primitives/modal.slint";
@@ -1851,154 +1853,78 @@ component NarrowHome inherits Rectangle {
     callback sort-changed(sort: int);
     callback link(name: string);
 
-    property <length> pad: 16px;
-    property <bool> searchable: root.recents-total > 0;
-
+    property <bool> export-mode;
+    Rectangle {
+        x: 0; y: 0;
+        height: 64px; width: root.width;
+        background: Theme.page;
+        HorizontalLayout {
+            padding-left: 8px; padding-right: 16px; spacing: 12px;
+            VerticalLayout { alignment: center; RoundButton { glyph: Glyph.menu; label: I18n.t("mobile.menu"); clicked => { PhoneNavigation.open = true; } } }
+            Text { text: I18n.t("mobile.brand"); font-size: 22px; font-weight: 600; color: Theme.fg; vertical-alignment: center; horizontal-stretch: 1; }
+            VerticalLayout { alignment: center; Image { source: @image-url("../../../../assets/procut-logo.png"); width: 40px; height: 40px; image-fit: contain; } }
+        }
+    }
     flick := Flickable {
-        content-width: self.width;
-        content-height: Math.max(self.height, stack.preferred-height);
-        interactive: stack.preferred-height > self.height;
-
+        y: 64px; width: root.width; height: root.height - 64px;
+        content-width: self.width; content-height: stack.preferred-height;
         stack := VerticalLayout {
-            x: 0;
-            y: 0;
-            width: flick.width;
-            height: self.preferred-height;
-            padding-left: root.pad;
-            padding-right: root.pad;
-            padding-top: 24px;
-            padding-bottom: 28px;
-            alignment: start;
-
-            HorizontalLayout {
-                spacing: 8px;
-
-                Image {
-                    source: @image-url("../../../../assets/procut-logo.png");
-                    width: 44px;
-                    height: 44px;
-                    image-fit: contain;
-                }
-
-                Text {
-                    horizontal-stretch: 1;
-                    text: root.recents-total == 0
-                        ? I18n.t("start.welcome")
-                        : I18n.t("start.welcomeBack");
-                    color: Theme.fg;
-                    font-size: 26px;
-                    font-weight: Theme.weight-display;
-                    letter-spacing: -0.6px;
-                    vertical-alignment: center;
-                    wrap: word-wrap;
-                }
-
-                if !root.phone: VerticalLayout {
-                    alignment: center;
-                    BarAction {
-                        glyph: Glyph.folder;
-                        label: I18n.t("start.openProject");
-                        enabled: !root.busy;
-                        clicked => { root.open(); }
-                    }
-                }
-
-                if root.capcut && !root.phone: VerticalLayout {
-                    alignment: center;
-                    BarAction {
-                        glyph: Glyph.import;
-                        label: I18n.t("start.importCapcut");
-                        enabled: !root.busy;
-                        clicked => { root.import-capcut(); }
-                    }
-                }
-
-                VerticalLayout {
-                    alignment: center;
-                    BarAction {
-                        glyph: Glyph.settings;
-                        label: I18n.t("common.settings");
-                        enabled: !root.busy;
-                        clicked => { root.open-settings(); }
-                    }
-                }
-            }
-
-            Rectangle { height: 6px; }
-
+            x: 0; y: 0;
+            width: flick.width; height: self.preferred-height;
+            padding-left: 16px; padding-right: 16px; padding-top: 16px; padding-bottom: 28px;
+            spacing: 16px; alignment: start;
             Text {
-                text: root.recents-total == 0
-                    ? I18n.t("start.welcomeNote")
-                    : I18n.t("start.welcomeBackNote");
-                color: Theme.fg-muted;
-                font-size: Theme.fs-lg;
-                wrap: word-wrap;
+                text: root.trash-view ? I18n.t("mobile.trash") : I18n.t("mobile.welcome");
+                color: Theme.fg; font-size: 28px; font-weight: 600; wrap: word-wrap;
             }
-
-            Rectangle { height: 20px; }
-
-            // New project across the width: the one thing on the screen
-            // that starts something, where a thumb reaches.
-            CreateTile {
-                height: 72px;
-                primary: true;
-                glyph: Glyph.plus;
-                title: I18n.t("start.newProject");
-                note: I18n.t("start.newProjectNote");
-                enabled: !root.busy;
-                clicked => { root.compose(); }
+            Text {
+                text: root.trash-view ? I18n.t("mobile.restoreHelp") : I18n.t("mobile.welcomeNote");
+                color: Theme.fg-muted; font-size: 14px; wrap: word-wrap;
             }
-
-            Rectangle { height: 32px; }
-
+            if !root.trash-view: CreateTile {
+                height: 80px; primary: true; glyph: Glyph.plus;
+                title: I18n.t("start.newProject"); note: I18n.t("mobile.newProjectNote");
+                enabled: !root.busy; clicked => { root.compose(); }
+            }
             SectionHead {
-                height: 28px;
-                text: root.trash-view ? I18n.t("mobile.trashHint") : I18n.t("start.recentProjects");
+                height: 32px;
+                text: root.export-mode ? I18n.t("mobile.chooseExport") : root.trash-view ? I18n.t("mobile.trash") : I18n.t("mobile.yourProjects");
                 count: root.recents-total > 0 ? "\{root.recents-total}" : "";
             }
-
-            if root.searchable: VerticalLayout {
-                padding-top: 12px;
-                SearchField {
-                    text: root.query;
-                    placeholder: I18n.t("start.searchProjects");
-                    edited(text) => { root.search-edited(text); }
-                }
-                Select {
-                    options: [I18n.t("start.sortRecent"), I18n.t("start.sortName")];
-                    current: root.sort;
-                    changed(index) => { root.sort-changed(index); }
-                }
+            if root.export-mode: PillButton { label: I18n.t("common.cancel"); clicked => { root.export-mode = false; } }
+            if root.recents-total > 0: VerticalLayout {
+                spacing: 10px;
+                SearchField { height: 44px; text: root.query; placeholder: I18n.t("start.searchProjects"); edited(text) => { root.search-edited(text); } }
+                Select { height: 44px; options: [I18n.t("start.sortRecent"), I18n.t("start.sortName")]; current: root.sort; changed(index) => { root.sort-changed(index); } }
             }
-
-            Rectangle { height: 10px; }
-
-            if root.recents-total == 0 && !root.trash-view: EmptyProjects {
-                first-edit => { root.compose(); }
+            if root.recents-total == 0: Text {
+                text: root.trash-view ? I18n.t("mobile.emptyTrash") : I18n.t("mobile.noProjects");
+                color: Theme.fg-muted; font-size: 15px; wrap: word-wrap;
             }
-
             if root.recents-total > 0 && root.recents.length == 0: Text {
-                text: I18n.t1("start.noMatches", root.query);
-                color: Theme.fg-muted;
-                font-size: Theme.fs-lg;
-                wrap: word-wrap;
-            }
-
-            HorizontalLayout {
-                spacing: 6px;
-                PillButton { label: I18n.t("mobile.projectLibrary"); glyph: Glyph.folder; clicked => { root.link("recover"); } }
-                PillButton { label: I18n.t("mobile.importProject"); glyph: Glyph.import; clicked => { root.link("import-project"); } }
-                PillButton { label: root.trash-view ? I18n.t("mobile.backToProjects") : I18n.t("mobile.trash"); glyph: Glyph.trash; clicked => { root.link("trash"); } }
+                text: I18n.t1("start.noMatches", root.query); color: Theme.fg-muted; font-size: 15px; wrap: word-wrap;
             }
             for project in root.recents: ProjectRow {
-                project: project;
-                enabled: !root.busy;
-                opened => { root.open-recent(project.path); }
-                forgotten => { root.forget-recent(project.path); }
+                project: project; enabled: !root.busy;
+                opened => {
+                    if (root.export-mode) { root.export-mode = false; root.link("export-project:" + project.path); }
+                    else { root.open-recent(project.path); }
+                }
+                forgotten => { if (!root.export-mode) { root.forget-recent(project.path); } }
             }
-
-
         }
+    }
+    PhoneMenu {
+        width: root.width; height: root.height; open: PhoneNavigation.open;
+        title: I18n.t("mobile.brand"); closed => { PhoneNavigation.open = false; }
+        MenuAction { glyph: Glyph.folder; label: I18n.t("mobile.yourProjects"); clicked => { PhoneNavigation.open = false; root.export-mode = false; if (root.trash-view) { root.link("trash"); } else { root.link("recover"); } } }
+        MenuAction { glyph: Glyph.import; label: I18n.t("mobile.importProjectMenu"); clicked => { PhoneNavigation.open = false; root.link("import-project"); } }
+        MenuAction { glyph: Glyph.export; label: I18n.t("mobile.exportProjectMenu"); enabled: root.recents-total > 0 && !root.trash-view; clicked => { PhoneNavigation.open = false; root.export-mode = true; } }
+        MenuAction { glyph: Glyph.folder; label: I18n.t("mobile.findProjects"); clicked => { PhoneNavigation.open = false; root.export-mode = false; root.link("recover"); } }
+        MenuAction { glyph: Glyph.trash; label: I18n.t("mobile.trash"); clicked => { PhoneNavigation.open = false; root.export-mode = false; if (!root.trash-view) { root.link("trash"); } } }
+        if !root.phone: MenuAction { glyph: Glyph.folder; label: I18n.t("start.openProject"); clicked => { PhoneNavigation.open = false; root.open(); } }
+        if root.capcut && !root.phone: MenuAction { glyph: Glyph.import; label: I18n.t("start.importCapcut"); clicked => { PhoneNavigation.open = false; root.import-capcut(); } }
+        MenuAction { glyph: Glyph.settings; label: I18n.t("common.settings"); clicked => { PhoneNavigation.open = false; root.open-settings(); } }
     }
 }
 

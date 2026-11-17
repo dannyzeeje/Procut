@@ -44,7 +44,7 @@
 # whole logcat from before the launch to the end, the app's lines alone,
 # a screenshot of the screen at the end, the window focus, and the
 # device's properties. CI uploads that folder. The package is
-# app.procut.editor.next unless --package names another.
+# app.procut.editor.mobile unless --package names another.
 #
 # --export CLIP needs an APK built with concat-android's `smoke` feature
 # (never the one that ships). The clip is pushed into the app's files
@@ -67,7 +67,7 @@ out=smoke-android
 wait_secs=45
 ready=""
 install=1
-package=app.procut.editor.next
+package=app.procut.editor.mobile
 export_clip=""
 wait_given=""
 

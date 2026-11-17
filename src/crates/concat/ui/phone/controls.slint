@@ -23,6 +23,7 @@ export component RoundButton inherits Rectangle {
     /// Filled with the accent: the one control on its row worth reaching
     /// for blind, which is Play.
     in property <bool> accent;
+    in property <color> foreground: Theme.fg;
     in property <length> size: 44px;
     in property <length> icon-size: 18px;
     /// Fires on the press rather than the release, and again and again
@@ -48,7 +49,7 @@ export component RoundButton inherits Rectangle {
         y: (parent.height - self.height) / 2;
         glyph: root.glyph;
         size: root.icon-size;
-        tint: root.accent ? Theme.on-accent : Theme.fg;
+        tint: root.accent ? Theme.on-accent : root.foreground;
     }
 
     touch := TouchArea {

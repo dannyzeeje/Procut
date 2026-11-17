@@ -232,6 +232,14 @@ impl Studio {
     /// thing on it, without the lanes having to be typed. An empty one takes
     /// the middle size.
     pub(super) fn lane_height(&self, lane: &Track) -> f32 {
+        if crate::platform::phone() {
+            return match self.lane_size(&lane.id) {
+                TrackSize::Small => 88.0,
+                TrackSize::Medium => 112.0,
+                TrackSize::Large => 144.0,
+                TrackSize::Auto => 112.0,
+            };
+        }
         match self.lane_size(&lane.id) {
             TrackSize::Small => LANE_SMALL,
             TrackSize::Medium => LANE_MEDIUM,
@@ -258,7 +266,6 @@ impl Studio {
                 if tallest > 0.0 { tallest } else { LANE_MEDIUM }
             }
         }
-        .max(if crate::platform::phone() { 68.0 } else { 0.0 })
     }
 
     /// Every lane's height, top-most first.

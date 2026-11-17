@@ -140,6 +140,8 @@ export global Editor {
     callback library-remove-lut(id: string);
     callback replace-clip-media();
     callback export-project-package();
+    in-out property <bool> preview-fullscreen;
+    callback preview-fullscreen-changed(on: bool);
     /// Adjustments page: lay an adjustment layer at the playhead - the
     /// colour panel's package at its defaults over everything beneath it -
     /// called `label`, in the interface's language.

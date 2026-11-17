@@ -657,6 +657,28 @@ mod awake {
     }
 }
 
+/// Native fullscreen and orientation changes run on Android's UI thread.
+#[cfg(target_os = "android")]
+mod preview_mode {
+    use jni::{jni_sig, jni_str};
+    pub fn install(app: &slint::android::AndroidApp) {
+        let app = app.clone();
+        concat::install_preview_mode(Box::new(move |on| {
+            if let Err(e) = super::java::with_class(&app, |env, activity, class| {
+                env.call_static_method(
+                    class,
+                    jni_str!("previewFullscreen"),
+                    jni_sig!("(Landroid/app/Activity;Z)V"),
+                    &[activity.into(), on.into()],
+                )?;
+                Ok(())
+            }) {
+                log::warn!("preview: native fullscreen change failed: {e}");
+            }
+        }));
+    }
+}
+
 /// Called by the activity's native glue; the name is the contract.
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
@@ -676,6 +698,7 @@ fn android_main(app: slint::android::AndroidApp) {
     microphone::install(&app);
     links::install(&app);
     awake::install(&app);
+    preview_mode::install(&app);
     log_file::install(&app);
     #[cfg(feature = "smoke")]
     if let Some(clip) = smoke_clip() {

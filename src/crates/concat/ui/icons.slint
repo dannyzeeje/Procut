@@ -46,6 +46,7 @@ export enum Glyph {
     close,
     /// three dots in a row: a menu of more
     more,
+    menu,
     check,
     /// an exclamation mark alone, for a mark that already sits in a
     /// disc of its own: a notice's warning
@@ -368,6 +369,11 @@ export component Icon inherits Rectangle {
     if root.glyph == Glyph.more: Filled {
         size: root.size; tint: root.tint;
         commands: "M3 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M10 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M17 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0";
+    }
+
+    if root.glyph == Glyph.menu: Stroked {
+        size: root.size; tint: root.tint; weight: root.weight;
+        commands: "M4 6h16 M4 12h16 M4 18h16";
     }
 
     // lucide/x
