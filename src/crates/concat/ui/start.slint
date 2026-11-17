@@ -1885,7 +1885,7 @@ component NarrowHome inherits Rectangle {
                     wrap: word-wrap;
                 }
 
-                VerticalLayout {
+                if !root.phone: VerticalLayout {
                     alignment: center;
                     BarAction {
                         glyph: Glyph.folder;
