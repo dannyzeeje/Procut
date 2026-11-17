@@ -637,7 +637,7 @@ mod awake {
 
     pub fn install(app: &AndroidApp) {
         let app = app.clone();
-        concat::install_awake(Box::new(move |on, portrait| {
+        concat::install_awake(Box::new(move |on| {
             log::debug!("display: the screen kept on while a job runs: {on}");
             let asked = super::java::with_class(&app, |env, activity, class| {
                 env.call_static_method(
