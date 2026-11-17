@@ -202,7 +202,8 @@ jobs:
             exit 1
           fi
           keystore=$RUNNER_TEMP/release.keystore
-          echo "$KEYSTORE_B64" | base64 --decode > "$keystore"
+          trap 'rm -f "$keystore"' EXIT
+          python3 scripts/ci/decode-android-keystore.py "$keystore"
           alias=$KEY_ALIAS
           if [ -z "$alias" ]; then
             alias=$(keytool -list -keystore "$keystore" -storepass:env KEYSTORE_PASSWORD 2>/dev/null \
