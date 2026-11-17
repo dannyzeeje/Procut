@@ -68,8 +68,9 @@ jobs:
           set -euo pipefail
           test "$(find release -name '*.apk' | wc -l)" = 1
           apk=$(find release -name '*.apk')
-          unzip -Z1 "$apk" | grep -q '^lib/arm64-v8a/libconcat_android.so$'
-          if unzip -Z1 "$apk" | grep -E '^lib/(x86|x86_64|armeabi-v7a)/'; then
+          unzip -Z1 "$apk" > "$RUNNER_TEMP/apk-files.txt"
+          grep -q '^lib/arm64-v8a/libconcat_android.so$' "$RUNNER_TEMP/apk-files.txt"
+          if grep -E '^lib/(x86|x86_64|armeabi-v7a)/' "$RUNNER_TEMP/apk-files.txt"; then
             echo 'Unexpected ABI in release APK' >&2
             exit 1
           fi
