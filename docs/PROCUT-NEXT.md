@@ -16,7 +16,7 @@ This mobile iteration adds:
 
 ## Install and existing projects
 
-The Android package is `app.procut.editor.next`, labelled **Procut Next**, so this preview installs beside the earlier Procut preview. The earlier build used a temporary signing key that is unavailable to this build. Keep the earlier installation: Android isolates its private projects from the new app. Library rediscovers projects in this installation's current and default project locations; it cannot recover another app's private files. Existing publicly accessible project folders can be opened using the folder button. Project packages can be moved between installations that support export/import.
+The Android package is `app.procut.editor.next`, labelled **Procut Next**, so this preview installs beside the earlier Procut preview. The earlier build used a temporary signing key that is unavailable to this build. Keep the earlier installation: Android isolates its private projects from the new app. Library rediscovers projects in this installation's current and default project locations; it cannot recover another app's private files. On desktop, existing project folders can be opened using the folder button. On mobile, use Library for this installation’s project folders and Import for portable `.procut` packages; raw folder browsing is not supported. Project packages can be moved between installations that support export/import.
 
 Preview builds use temporary CI signing keys. A permanent private release signing key must be configured before promising in-place updates across future builds.
 
