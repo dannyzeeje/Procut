@@ -21,6 +21,7 @@ use crate::ui::StartData;
 pub enum StartMsg {
     /// Put up the sheet a new project is described on.
     Compose,
+    PackagePicked(PathBuf),
     /// Take it down, keeping what was typed for next time.
     Dismiss,
     NameEdited(String),
@@ -151,6 +152,7 @@ pub struct StartPane {
     pub error: String,
     /// The projects' search, as typed; empty shows them all.
     pub query: String,
+    pub trash_view: bool,
     /// [`SORT_RECENT`] or [`SORT_NAME`].
     pub sort: i32,
     /// Media dropped on the launch screen, waiting for the project the
@@ -176,6 +178,7 @@ impl Default for StartPane {
             busy: false,
             error: String::new(),
             query: String::new(),
+            trash_view: false,
             sort: SORT_RECENT,
             dropped: Vec::new(),
         }
@@ -334,7 +337,35 @@ impl StartPane {
             // Both of the grid's verbs report through the toast, as Open
             // does: the sheet is down while a card is pressed, and a notice
             // inside it would go unseen.
+            StartMsg::PackagePicked(path) => {
+                let location = PathBuf::from(&self.location);
+                let looks = Studio::looks_dir(&studio.host.dirs);
+                crate::host::spawn(
+                    move || {
+                        concat_host::project_package::import_with_looks(&path, &location, &looks)
+                    },
+                    |studio, _, _, result| match result {
+                        Ok(info) => {
+                            studio.reload_packages(false);
+                            if let Err(e) = studio.open_project(info) {
+                                studio.notify(&e, true);
+                            }
+                        }
+                        Err(e) => studio.notify(&e, true),
+                    },
+                );
+            }
             StartMsg::OpenRecent(path) => {
+                if self.trash_view {
+                    match concat_host::project_library::restore(&studio.host.dirs.config, &path) {
+                        Ok(()) => {
+                            self.trash_view = false;
+                            studio.recents = projects::recents(&studio.host.dirs.config);
+                        }
+                        Err(e) => studio.notify(&e, true),
+                    }
+                    return;
+                }
                 // A folder that has gone says so in words, not as the
                 // manifest file it could not read.
                 if !projects::is_project(Path::new(&path)) {
@@ -347,7 +378,11 @@ impl StartPane {
                 }
             }
             StartMsg::ForgetRecent(path) => {
-                studio.confirm = Some(crate::studio::Confirm::RemoveRecent { path });
+                studio.confirm = Some(if self.trash_view {
+                    crate::studio::Confirm::EraseProject { path }
+                } else {
+                    crate::studio::Confirm::RemoveRecent { path }
+                });
             }
             StartMsg::RevealRecent(path) => {
                 if let Err(error) = platform::reveal(&path) {
@@ -363,6 +398,39 @@ impl StartPane {
                 };
             }
             StartMsg::Link(name) => {
+                if name == "trash" {
+                    self.trash_view = !self.trash_view;
+                    self.query.clear();
+                    return;
+                }
+                if name == "recover" {
+                    let roots = [
+                        PathBuf::from(&self.location),
+                        PathBuf::from(default_location()),
+                    ];
+                    if let Err(e) =
+                        concat_host::project_library::recover(&studio.host.dirs.config, &roots)
+                    {
+                        studio.notify(&e, true);
+                    }
+                    self.trash_view = false;
+                    studio.recents = projects::recents(&studio.host.dirs.config);
+                    return;
+                }
+                if name == "import-project" {
+                    crate::host::pick_files_then(
+                        t("mobile.importProject"),
+                        Some((t("mobile.projectPackage"), &["procut", "zip"])),
+                        |studio, _, _, paths| {
+                            if let Some(path) = paths.into_iter().next() {
+                                studio.handle(crate::panes::Msg::Start(StartMsg::PackagePicked(
+                                    path,
+                                )));
+                            }
+                        },
+                    );
+                    return;
+                }
                 if name == "shortcuts" {
                     use crate::panes::settings::{SHORTCUTS_PAGE, SettingsMsg};
                     studio.handle(crate::panes::Msg::Settings(SettingsMsg::Open));

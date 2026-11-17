@@ -5945,4 +5945,28 @@ mod tests {
             crate::delete_to_playhead(timeline, &gone, 5.0, PlayheadSide::Left, false).is_none()
         );
     }
+
+    #[test]
+    fn insert_drop_keeps_every_clip_and_undo_restores_positions() {
+        let (mut editor, media_id, _) = fixture();
+        let track = editor.project().active().tracks[1].id.clone();
+        let ids = lane(&mut editor, &media_id, &track, &[0.0, 5.0, 10.0]);
+        let original_start = start_of(&editor, &ids[2]);
+        let before = editor.project().active().clips.len();
+        let moves = crate::placement::insert_move(
+            editor.project().active(),
+            &ClipMove {
+                clip_id: ids[2].clone(),
+                track_id: track.clone(),
+                start: 1.0,
+            },
+        )
+        .unwrap();
+        editor.apply(Command::MoveClips { moves }).unwrap();
+        assert_eq!(editor.project().active().clips.len(), before);
+        assert_eq!(start_of(&editor, &ids[2]), 0.0);
+        assert!(start_of(&editor, &ids[0]) > 0.0);
+        assert!(editor.undo());
+        assert_eq!(start_of(&editor, &ids[2]), original_start);
+    }
 }

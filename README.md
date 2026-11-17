@@ -1,8 +1,12 @@
+# Procut mobile fork
+
+[Procut Next 0.2.12 changes and installation notes](docs/PROCUT-NEXT.md). Built from [jub0t/Concat](https://github.com/jub0t/Concat), under AGPL-3.0-or-later.
+
 <p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/jub0t/Concat@main/assets/concat-mark-dark.png" alt="Concat" width="100" />
+  <img src="assets/procut-logo.png" alt="Procut" width="100" />
 </p>
 
-<h1 align="center">Concat</h1>
+<h1 align="center">Procut</h1>
 <h3 align="center">The free, open-source, cross-platform video editor.</h3>
 
 <div align="center">

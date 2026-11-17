@@ -35,6 +35,7 @@ mod activity {
             // through the phone's file manager, falling back to the private
             // one when there is no external storage.
             let home = app.external_data_path().unwrap_or(internal);
+            let _ = std::fs::create_dir_all(&home);
             std::env::set_var("HOME", home);
         }
     }

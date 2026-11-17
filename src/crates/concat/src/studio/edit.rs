@@ -73,8 +73,15 @@ impl Studio {
     /// The confirmation sheet's answer: go ahead with what it asked about.
     pub fn confirm_accepted(&mut self) {
         match self.confirm.take() {
+            Some(Confirm::EraseProject { path }) => {
+                if let Err(e) = concat_host::project_library::erase(&self.host.dirs.config, &path) {
+                    self.notify(&e, true);
+                }
+            }
             Some(Confirm::RemoveRecent { path }) => {
-                if let Err(error) = concat_host::projects::forget(&self.host.dirs.config, &path) {
+                if let Err(error) =
+                    concat_host::project_library::trash(&self.host.dirs.config, &path)
+                {
                     self.notify(&error, true);
                 }
                 self.recents = concat_host::projects::recents(&self.host.dirs.config);
@@ -119,11 +126,18 @@ impl Studio {
             return crate::ui::ConfirmData::default();
         };
         match confirm {
+            Confirm::EraseProject { path } => crate::ui::ConfirmData {
+                open: true,
+                title: t("mobile.eraseTitle").into(),
+                message: tf("mobile.eraseMessage", &[path]).into(),
+                action: t("mobile.erase").into(),
+                ..Default::default()
+            },
             Confirm::RemoveRecent { path } => crate::ui::ConfirmData {
                 open: true,
                 title: t("start.removeProjectTitle").into(),
                 message: tf("start.removeProjectMessage", &[path]).into(),
-                action: t("start.removeFromList").into(),
+                action: t("mobile.moveToTrash").into(),
                 ..Default::default()
             },
             Confirm::RemoveTrack { track_id } => {
@@ -244,6 +258,7 @@ impl Studio {
                 if tallest > 0.0 { tallest } else { LANE_MEDIUM }
             }
         }
+        .max(if crate::platform::phone() { 68.0 } else { 0.0 })
     }
 
     /// Every lane's height, top-most first.

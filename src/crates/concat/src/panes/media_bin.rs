@@ -147,12 +147,38 @@ impl MediaBin {
                     .by_row(studio.project(), row)
                     .map(|item| item.id.clone())
                 {
+                    if studio
+                        .project()
+                        .timelines
+                        .iter()
+                        .any(|timeline| timeline.clips.iter().any(|clip| clip.media_id == id))
+                    {
+                        studio.notify(&t("mobile.mediaInUse"), true);
+                        return;
+                    }
                     self.selected.remove(&id);
                     studio.apply(Command::RemoveMedia { media_id: id });
                 }
             }
             MediaMsg::RemoveSelected => {
-                let doomed: Vec<String> = self.selected.drain().collect();
+                let in_use: HashSet<String> = studio
+                    .project()
+                    .timelines
+                    .iter()
+                    .flat_map(|timeline| timeline.clips.iter().map(|clip| clip.media_id.clone()))
+                    .collect();
+                let doomed: Vec<String> = self
+                    .selected
+                    .iter()
+                    .filter(|id| !in_use.contains(*id))
+                    .cloned()
+                    .collect();
+                for id in &doomed {
+                    self.selected.remove(id);
+                }
+                if !self.selected.is_empty() {
+                    studio.notify(&t("mobile.mediaInUse"), true);
+                }
                 if doomed.is_empty() {
                     return;
                 }

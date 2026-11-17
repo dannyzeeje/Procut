@@ -152,7 +152,18 @@ impl Studio {
                 // the drag: the echo shows where the clips will land, in the
                 // nearest gap rather than on top of a clip, or back where
                 // they started when they would cover each other.
-                let landed = self.timeline().resolve_moves(&moves).unwrap_or_else(|| {
+                let inserting = crate::platform::phone() && moves.len() == 1;
+                if inserting {
+                    if let Some(session) = &self.session {
+                        self.echo = Some(session.project().clone());
+                    }
+                }
+                let plan = if inserting {
+                    concat_project::placement::insert_move(self.timeline(), &moves[0])
+                } else {
+                    self.timeline().resolve_moves(&moves)
+                };
+                let landed = plan.unwrap_or_else(|| {
                     origins
                         .iter()
                         .filter_map(|origin| {
@@ -282,6 +293,28 @@ impl Studio {
                         })
                     })
                     .collect();
+                let moves = if crate::platform::phone() && origins.len() == 1 {
+                    let before = self
+                        .session
+                        .as_ref()
+                        .map(|session| session.project().active());
+                    echo.active()
+                        .clips
+                        .iter()
+                        .filter_map(|clip| {
+                            let original = before?.clip(&clip.id)?;
+                            ((clip.start - original.start).abs() > 1e-6
+                                || clip.track_id != original.track_id)
+                                .then(|| ClipMove {
+                                    clip_id: clip.id.clone(),
+                                    track_id: clip.track_id.clone(),
+                                    start: clip.start,
+                                })
+                        })
+                        .collect()
+                } else {
+                    moves
+                };
                 self.echo = None;
                 // A press and a release with no drag between them is a
                 // click: nothing moved, and a MoveClips of the clips onto

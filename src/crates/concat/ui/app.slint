@@ -778,6 +778,7 @@ export component App inherits Window {
                 vertical-stretch: 1;
 
                 recents: root.recents;
+                trash-view: root.trash-view;
                 recents-total: root.recents-total;
                 query: root.start.query;
                 sort: root.start.sort;
@@ -1145,6 +1146,7 @@ export component App inherits Window {
 
     // A question before something is thrown away, over the workspace;
     // nothing asks it while another sheet is up.
+    in property <bool> trash-view;
     in property <ConfirmData> confirm;
     callback confirm-accepted();
     callback confirm-dismissed();

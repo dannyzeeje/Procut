@@ -1290,6 +1290,8 @@ export component BackgroundRows inherits VerticalLayout {
 /// the clip, shaped on a graph or picked from a preset (see
 /// speed-ramp.slint). Whether the sound's pitch follows is the Audio tab's.
 export component SpeedPanel inherits VerticalLayout {
+    horizontal-stretch: 1;
+    max-width: 100000px;
     in property <SelectedClipData> selected;
     /// The panel's first section, with no hairline above it; false where
     /// it follows another, as it does under Basic.
@@ -1325,6 +1327,7 @@ export component SpeedPanel inherits VerticalLayout {
     changed slowest-truth => { root.slowest = root.slowest-truth; }
 
     Section {
+        horizontal-stretch: 1; max-width: 100000px;
         first: root.first || root.bare;
         padding-bottom: root.bare ? 0 : 8px;
         if !root.bare: SectionHeader {
@@ -1340,6 +1343,7 @@ export component SpeedPanel inherits VerticalLayout {
         }
 
         if root.bare || root.speed-open: SectionBody {
+            horizontal-stretch: 1; max-width: 100000px;
             padding-top: root.bare ? 0 : 4px;
             if root.selected.reverse-progress >= 0: ReverseRow {
                 progress: root.selected.reverse-progress;
@@ -1383,6 +1387,7 @@ export component SpeedPanel inherits VerticalLayout {
             }
 
             if root.curved: SpeedGraph {
+                horizontal-stretch: 1; max-width: 100000px;
                 padding-left: Theme.pad;
                 padding-right: Theme.pad;
                 point(index, x, y) => {

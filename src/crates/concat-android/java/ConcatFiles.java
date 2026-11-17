@@ -74,7 +74,7 @@ public class ConcatFiles extends Fragment {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             return null;
         }
-        return Environment.DIRECTORY_MOVIES + "/Concat";
+        return Environment.DIRECTORY_MOVIES + "/Procut";
     }
 
     /**
@@ -104,7 +104,7 @@ public class ConcatFiles extends Fragment {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             return new String[] {null, "this phone has no media store to put it in"};
         }
-        return publish(activity, path, mime, Environment.DIRECTORY_DOWNLOADS + "/Concat",
+        return publish(activity, path, mime, Environment.DIRECTORY_DOWNLOADS + "/Procut",
                 MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY));
     }
 
@@ -289,7 +289,7 @@ public class ConcatFiles extends Fragment {
     private static Uri logCopy(Activity activity, File file) throws IOException {
         ContentResolver resolver = activity.getContentResolver();
         Uri collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
-        String folder = Environment.DIRECTORY_DOWNLOADS + "/Concat/";
+        String folder = Environment.DIRECTORY_DOWNLOADS + "/Procut/";
         String name = file.getName().replaceFirst("\\.log$", "") + ".txt";
         Uri uri = null;
         // The copy an earlier share of this run made, which this one

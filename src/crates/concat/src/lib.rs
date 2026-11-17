@@ -1129,6 +1129,14 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     // Nothing borrowed: the dialog is asked on a turn of its own, and the
     // files it answers with are imported there; see `host::after_dialog`.
     editor.on_library_import_lut(Studio::import_lut);
+    editor.on_library_remove_lut(on_window!(|state, id: SharedString| {
+        state.remove_imported_lut(&id);
+    }));
+    editor.on_replace_clip_media(Studio::replace_selected_media);
+    editor.on_export_project_package(on_window!(|state| {
+        state.export_project_package();
+    }));
+
     editor.on_library_reload_packages(on_window!(|state| {
         state.reload_packages(true);
     }));

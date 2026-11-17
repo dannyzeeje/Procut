@@ -6,6 +6,8 @@ import { Theme } from "../theme/theme.slint";
 import { Fmt } from "../util.slint";
 import { Glyph, Icon } from "../icons.slint";
 import { Editor } from "../editor.slint";
+import { PhoneTrackHeaders } from "../timeline/track-header.slint";
+import { Select } from "../primitives/select.slint";
 import { Lanes } from "../timeline/lanes.slint";
 import { ClipField, ClipKind, SelectedClipData } from "../timeline/model.slint";
 import { Param, ParamFormat, SwitchRow } from "../inspector/controls.slint";
@@ -65,6 +67,7 @@ component PhoneMediaGrid inherits Rectangle {
     in property <[MediaItemData]> items;
 
     callback picked(id: int);
+    callback removed(id: int);
 
     property <length> gap: 8px;
     property <length> min-card: 100px;
@@ -82,7 +85,9 @@ component PhoneMediaGrid inherits Rectangle {
         width: root.card-w;
         height: root.card-h;
         item: entry;
-        removable: false;
+        removable: true;
+        touch-controls: true;
+        removed => { root.removed(entry.id); }
 
         // A second tap toggles back; a double tap is two taps, not a third
         // thing.
@@ -93,7 +98,7 @@ component PhoneMediaGrid inherits Rectangle {
     // it takes the tap. Empty for a card not picked, so it reads as
     // something to tap.
     for entry[index] in root.items: Rectangle {
-        x: Math.mod(index, root.cols) * (root.card-w + root.gap) + root.card-w - self.width - 6px;
+        x: Math.mod(index, root.cols) * (root.card-w + root.gap) + 6px;
         y: Math.floor(index / root.cols) * (root.card-h + root.gap) + 6px;
         width: 24px;
         height: 24px;
@@ -466,8 +471,9 @@ export component PhoneEditor inherits Rectangle {
     // the monitor is what is left between.
     property <length> top-h: 48px;
     property <length> transport-h: 60px;
-    /// A third of the screen, and never less than a ruler and two lanes.
-    property <length> lanes-h: Math.max(170px, root.height * 0.3);
+    /// A resizable timeline with room for the preview.
+    property <float> timeline-share: 0.48;
+    property <length> lanes-h: Math.max(170px, Math.min(root.height - root.top-h - root.transport-h - root.bar-h - 110px, root.height * root.timeline-share));
     property <length> bar-h: 74px;
     property <length> lanes-y: root.height - root.bar-h - root.lanes-h;
     property <length> transport-y: root.lanes-y - root.transport-h;
@@ -756,8 +762,7 @@ export component PhoneEditor inherits Rectangle {
 
     // ── the lanes ────────────────────────────────────────────────────
     //
-    // No lane headers: a lane is untyped and its switches are the desk's
-    // business; the clips are the whole of what a thumb needs here.
+    // Keep track switches aligned with the scrolling lanes.
     stack := Rectangle {
         x: 0;
         y: root.lanes-y;
@@ -791,10 +796,17 @@ export component PhoneEditor inherits Rectangle {
             border-radius: Theme.r-lg;
             clip: true;
 
+            PhoneTrackHeaders {
+                x: 0; y: 0; width: 70px; height: parent.height;
+                tracks: Editor.tracks;
+                track-scroll: stack.at;
+                flag-changed(index, visible, muted, locked) => { Editor.track-flag-changed(index, visible, muted, locked); }
+                sized(index, size) => { Editor.track-sized(index, size); }
+            }
             lanes := Lanes {
-                x: 0;
+                x: 70px;
                 y: 0;
-                width: parent.width;
+                width: parent.width - 70px;
                 height: parent.height;
 
                 finger: true;
@@ -920,6 +932,19 @@ export component PhoneEditor inherits Rectangle {
         }
     }
 
+    Rectangle {
+        x: 0; y: root.lanes-y - 10px;
+        width: root.width; height: 20px;
+        background: Theme.page;
+        Rectangle { x: (parent.width - 48px) / 2; y: 7px; width: 48px; height: 4px; border-radius: 2px; background: Theme.fg-muted; }
+        TouchArea {
+            property <length> origin;
+            property <float> initial;
+            pointer-event(e) => { if (e.kind == PointerEventKind.down) { self.origin = self.absolute-position.y + self.mouse-y; self.initial = root.timeline-share; } }
+            moved => { if (self.pressed) { root.timeline-share = Math.clamp(self.initial - (self.absolute-position.y + self.mouse-y - self.origin) / root.height, 0.25, 0.7); } }
+        }
+    }
+
     // ── the bar ──────────────────────────────────────────────────────
     Rectangle {
         x: 0;
@@ -1016,6 +1041,14 @@ export component PhoneEditor inherits Rectangle {
                 label: I18n.t("phone.canvas");
                 current: root.sheet == "canvas";
                 clicked => { root.show("canvas", false); }
+            }
+            ToolItem {
+                glyph: Glyph.magnet; label: I18n.t("common.snapToEdges"); current: Editor.snap;
+                clicked => { Editor.snap-changed(!Editor.snap); }
+            }
+            ToolItem {
+                glyph: Glyph.magnet; label: I18n.t("mobile.ripple"); current: Editor.magnetic;
+                clicked => { Editor.magnetic-changed(!Editor.magnetic); }
             }
             ToolItem {
                 glyph: Glyph.info;
@@ -1160,6 +1193,11 @@ export component PhoneEditor inherits Rectangle {
                 current: root.sheet == "transitions";
                 clicked => { root.show("transitions", true); }
             }
+            if root.is-picture || root.is-audio: ToolItem {
+                glyph: Glyph.import;
+                label: I18n.t("mobile.replaceClip");
+                clicked => { Editor.replace-clip-media(); }
+            }
             ToolItem {
                 glyph: Glyph.copy;
                 label: I18n.t("phone.duplicate");
@@ -1246,9 +1284,19 @@ export component PhoneEditor inherits Rectangle {
                     : root.media-at-end ? I18n.t("phone.pickToAddAtEnd")
                     : I18n.t("phone.pickToAdd");
             }
+            if Editor.media-selected-count > 0: SheetButton {
+                glyph: Glyph.trash;
+                label: I18n.t("common.delete");
+                clicked => { Editor.media-remove-selected(); }
+            }
+            Select {
+                options: [I18n.t("mediaPane.sortAdded"), I18n.t("mediaPane.sortName"), I18n.t("mediaPane.sortType")];
+                changed(index) => { Editor.media-sort-changed(index); }
+            }
             PhoneMediaGrid {
                 items: Editor.media;
                 picked(id) => { Editor.media-select(id, true); }
+                removed(id) => { Editor.media-remove(id); }
             }
             // Room under the last row for the Add bar over it.
             if Editor.media-selected-count > 0: Rectangle {
@@ -1491,6 +1539,12 @@ export component PhoneEditor inherits Rectangle {
                     root.hide();
                 }
             }
+            for lut in Editor.catalogue-luts: SheetButton {
+                visible: lut.category == "Imported";
+                label: I18n.t("mobile.removeLut") + " · " + lut.name; glyph: Glyph.trash;
+                clicked => { Editor.library-remove-lut(lut.id); }
+            }
+
         }
 
         // ── transitions: onto the cut into the selected clip ──
@@ -1565,6 +1619,8 @@ export component PhoneEditor inherits Rectangle {
         }
 
         if root.sheet == "clip-speed": SpeedPanel {
+            width: root.width;
+            horizontal-stretch: 1;
             selected: Editor.selected-clip;
             set(field, value) => { Editor.clip-set(field, value); }
             commit => { Editor.clip-commit(); }
@@ -1659,6 +1715,10 @@ export component PhoneEditor inherits Rectangle {
 
         // ── the project's facts, and the sheet that changes them ──
         if root.sheet == "project": VerticalLayout {
+            SheetButton {
+                label: I18n.t("mobile.exportProject"); glyph: Glyph.export;
+                clicked => { Editor.export-project-package(); }
+            }
             padding: 16px;
             spacing: 0px;
 

@@ -1612,6 +1612,7 @@ component NewsCard inherits Pressable {
 // so it is in view without a scroll and the projects keep the width.
 component WideHome inherits Rectangle {
     in property <[RecentProjectData]> recents;
+    in property <bool> trash-view;
     in property <int> recents-total;
     in property <string> query;
     in property <int> sort;
@@ -1746,7 +1747,7 @@ component WideHome inherits Rectangle {
                 // ── the projects ─────────────────────────────────────
                 SectionHead {
                     height: 34px;
-                    text: I18n.t("start.recentProjects");
+                    text: root.trash-view ? I18n.t("mobile.trashHint") : I18n.t("start.recentProjects");
                     count: root.recents-total > 0 ? "\{root.recents-total}" : "";
 
                     // Past a page of them: by the time there are more
@@ -1772,7 +1773,7 @@ component WideHome inherits Rectangle {
 
                 Rectangle { height: 16px; }
 
-                if root.recents-total == 0: EmptyProjects {
+                if root.recents-total == 0 && !root.trash-view: EmptyProjects {
                     first-edit => { root.compose(); }
                 }
 
@@ -1783,6 +1784,12 @@ component WideHome inherits Rectangle {
                     wrap: word-wrap;
                 }
 
+            HorizontalLayout {
+                spacing: 6px;
+                PillButton { label: I18n.t("mobile.projectLibrary"); glyph: Glyph.folder; clicked => { root.link("recover"); } }
+                PillButton { label: I18n.t("mobile.importProject"); glyph: Glyph.import; clicked => { root.link("import-project"); } }
+                PillButton { label: root.trash-view ? I18n.t("mobile.backToProjects") : I18n.t("mobile.trash"); glyph: Glyph.trash; clicked => { root.link("trash"); } }
+            }
                 ProjectsGrid {
                     recents: root.recents;
                     enabled: !root.busy;
@@ -1822,6 +1829,7 @@ component WideHome inherits Rectangle {
 // a list, and the learn cards as one grouped list at the foot.
 component NarrowHome inherits Rectangle {
     in property <[RecentProjectData]> recents;
+    in property <bool> trash-view;
     in property <int> recents-total;
     in property <string> query;
     in property <int> sort;
@@ -1945,7 +1953,7 @@ component NarrowHome inherits Rectangle {
 
             SectionHead {
                 height: 28px;
-                text: I18n.t("start.recentProjects");
+                text: root.trash-view ? I18n.t("mobile.trashHint") : I18n.t("start.recentProjects");
                 count: root.recents-total > 0 ? "\{root.recents-total}" : "";
             }
 
@@ -1965,7 +1973,7 @@ component NarrowHome inherits Rectangle {
 
             Rectangle { height: 10px; }
 
-            if root.recents-total == 0: EmptyProjects {
+            if root.recents-total == 0 && !root.trash-view: EmptyProjects {
                 first-edit => { root.compose(); }
             }
 
@@ -1976,6 +1984,12 @@ component NarrowHome inherits Rectangle {
                 wrap: word-wrap;
             }
 
+            HorizontalLayout {
+                spacing: 6px;
+                PillButton { label: I18n.t("mobile.projectLibrary"); glyph: Glyph.folder; clicked => { root.link("recover"); } }
+                PillButton { label: I18n.t("mobile.importProject"); glyph: Glyph.import; clicked => { root.link("import-project"); } }
+                PillButton { label: root.trash-view ? I18n.t("mobile.backToProjects") : I18n.t("mobile.trash"); glyph: Glyph.trash; clicked => { root.link("trash"); } }
+            }
             for project in root.recents: ProjectRow {
                 project: project;
                 enabled: !root.busy;
@@ -1995,6 +2009,7 @@ component NarrowHome inherits Rectangle {
 export component StartScreen inherits Rectangle {
     /// The projects the grid shows: the search applied and the sort.
     in property <[RecentProjectData]> recents;
+    in property <bool> trash-view;
     /// How many there are before the search.
     in property <int> recents-total;
     in property <string> query;
@@ -2033,6 +2048,7 @@ export component StartScreen inherits Rectangle {
         width: root.width;
         height: root.height;
         recents: root.recents;
+        trash-view: root.trash-view;
         recents-total: root.recents-total;
         query: root.query;
         sort: root.sort;
@@ -2055,6 +2071,7 @@ export component StartScreen inherits Rectangle {
         width: root.width;
         height: root.height;
         recents: root.recents;
+        trash-view: root.trash-view;
         recents-total: root.recents-total;
         query: root.query;
         sort: root.sort;

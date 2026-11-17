@@ -73,6 +73,7 @@ mod stage;
 mod text;
 mod toast;
 pub use toast::ToastState;
+mod mobile_tools;
 mod vision;
 mod voice;
 use slint::{Model, ModelRc, SharedString, VecModel};
@@ -2822,6 +2823,8 @@ fn few(names: &[String]) -> String {
 /// What the confirmation sheet can ask about.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Confirm {
+    /// Erase a project already in the journaled trash.
+    EraseProject { path: String },
     /// Remove a project from the recent list after confirmation.
     RemoveRecent { path: String },
     /// Deleting a whole track, and every clip on it.

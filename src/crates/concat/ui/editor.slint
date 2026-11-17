@@ -137,6 +137,9 @@ export global Editor {
     /// Adjustments page: import `.cube` tables as looks of the user's own,
     /// which its LUTs shelf lists.
     callback library-import-lut();
+    callback library-remove-lut(id: string);
+    callback replace-clip-media();
+    callback export-project-package();
     /// Adjustments page: lay an adjustment layer at the playhead - the
     /// colour panel's package at its defaults over everything beneath it -
     /// called `label`, in the interface's language.

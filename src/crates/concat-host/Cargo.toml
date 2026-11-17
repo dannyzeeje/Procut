@@ -15,6 +15,7 @@ gpu = ["concat-export/gpu", "concat-render/gpu"]
 schema = ["dep:schemars", "concat-project/schema"]
 
 [dependencies]
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
 concat-core.workspace = true
 # The run's log: the file, the console, and operations timed step by step.
 concat-log.workspace = true

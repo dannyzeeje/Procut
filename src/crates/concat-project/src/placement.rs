@@ -194,3 +194,51 @@ impl Timeline {
         Some((before, after))
     }
 }
+
+/// Plan a touch insert edit. Nearby clips move to make room; none is removed or shortened.
+/// The source gap remains, so this works consistently across tracks without disturbing sync elsewhere.
+pub fn insert_move(timeline: &Timeline, wanted: &ClipMove) -> Option<Vec<ClipMove>> {
+    let moving = timeline.clip(&wanted.clip_id)?;
+    if timeline.track(&wanted.track_id).is_none() || !wanted.start.is_finite() {
+        return None;
+    }
+    let mut at = wanted.start.max(0.0);
+    let mut others: Vec<_> = timeline
+        .clips
+        .iter()
+        .filter(|c| c.track_id == wanted.track_id && c.id != wanted.clip_id)
+        .collect();
+    others.sort_by(|a, b| a.start.total_cmp(&b.start));
+    // Do not split a neighbour. Choose its nearer cut edge.
+    if let Some(hit) = others
+        .iter()
+        .find(|c| c.start < at && at < c.start + c.duration)
+    {
+        at = if at - hit.start < hit.duration / 2.0 {
+            hit.start
+        } else {
+            hit.start + hit.duration
+        };
+    }
+    let mut out = vec![ClipMove {
+        clip_id: wanted.clip_id.clone(),
+        track_id: wanted.track_id.clone(),
+        start: at,
+    }];
+    let mut end = at + moving.duration;
+    for clip in others {
+        if clip.start + clip.duration <= at + TOUCH {
+            continue;
+        }
+        let start = clip.start.max(end);
+        if (start - clip.start).abs() > TOUCH {
+            out.push(ClipMove {
+                clip_id: clip.id.clone(),
+                track_id: clip.track_id.clone(),
+                start,
+            });
+        }
+        end = start + clip.duration;
+    }
+    Some(out)
+}

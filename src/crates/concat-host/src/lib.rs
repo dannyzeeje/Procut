@@ -83,3 +83,9 @@ pub fn scheduler() -> &'static std::sync::Arc<concat_media::Prefetcher> {
         ))
     })
 }
+
+/// Recoverable project library management.
+pub mod project_library;
+
+/// Portable project archives.
+pub mod project_package;

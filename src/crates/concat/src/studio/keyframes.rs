@@ -1850,10 +1850,30 @@ impl Studio {
         set_changed(app.get_start(), self.start.data(), same_start, |data| {
             app.set_start(data)
         });
-        app.set_recents_total(self.recents.len() as i32);
+        app.set_trash_view(self.start.trash_view);
+        let trashed: Vec<concat_host::projects::Recent> = if self.start.trash_view {
+            concat_host::project_library::entries(&self.host.dirs.config)
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|entry| concat_host::projects::open(&entry.stored).ok())
+                .map(|info| concat_host::projects::Recent {
+                    info,
+                    present: true,
+                    edited_at: None,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let library = if self.start.trash_view {
+            &trashed
+        } else {
+            &self.recents
+        };
+        app.set_recents_total(library.len() as i32);
         sync(
             &models.recents,
-            crate::panes::start::shown(&self.recents, &self.start.query, self.start.sort)
+            crate::panes::start::shown(library, &self.start.query, self.start.sort)
                 .into_iter()
                 .map(|recent| {
                     let project = &recent.info;

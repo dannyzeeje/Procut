@@ -419,6 +419,7 @@ export component MediaCard inherits Rectangle {
     /// is under the pointer. Off on a phone, where a finger on a card is a
     /// hover for as long as it presses and the cross would sit under it.
     in property <bool> removable: true;
+    in property <bool> touch-controls: false;
 
     /// Faded while it is in the air, so the ghost on the timeline reads as
     /// this card moved rather than as a second copy of it.
@@ -604,7 +605,7 @@ export component MediaCard inherits Rectangle {
 
                 // Hover-only: a permanent delete button on every card in a
                 // full bin is one bin's worth of invitations to lose work.
-                if card.has-hover && root.removable: Rectangle {
+                if (card.has-hover || root.touch-controls) && root.removable: Rectangle {
                     x: parent.width - self.width - 4px;
                     y: 4px;
                     width: 18px;

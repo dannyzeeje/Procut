@@ -576,6 +576,16 @@ component Clip inherits Rectangle {
     // local delta is measured against its own moving origin and cancels
     // itself out; the drag stalls after the first frame. Same reasoning, and
     // the same fix, as the workspace splitters.
+    if root.item.selected && root.width >= 28px: Rectangle {
+        x: 3px; y: Math.max(4px, (parent.height - 24px) / 2);
+        width: 4px; height: Math.min(24px, parent.height - 8px);
+        border-radius: 2px; background: Theme.accent;
+    }
+    if root.item.selected && root.width >= 28px: Rectangle {
+        x: parent.width - 7px; y: Math.max(4px, (parent.height - 24px) / 2);
+        width: 4px; height: Math.min(24px, parent.height - 8px);
+        border-radius: 2px; background: Theme.accent;
+    }
     touch := TouchArea {
         enabled: !root.locked;
         mouse-cursor: root.tool == TimelineTool.split ? MouseCursor.crosshair
