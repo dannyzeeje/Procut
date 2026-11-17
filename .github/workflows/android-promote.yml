@@ -1,0 +1,135 @@
+name: Sign and release validated Android APK
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful Procut phone build containing the arm64 APK
+        required: true
+        default: '44140140759'
+      tag:
+        description: Release tag matching the source version
+        required: true
+        default: v0.2.15
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: procut-android-release-${{ inputs.tag }}
+  cancel-in-progress: false
+jobs:
+  sign:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+      version: ${{ steps.source.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Verify the source build and runtime files
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$GITHUB_REF_NAME" = main
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > "$RUNNER_TEMP/source-run.json"
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          run = json.loads((Path(os.environ['RUNNER_TEMP']) / 'source-run.json').read_text())
+          assert run['conclusion'] == 'success', 'Source build did not succeed'
+          assert run['head_repository']['full_name'] == os.environ['GITHUB_REPOSITORY'], 'Unexpected source repository'
+          assert run['path'].split('@')[0] == '.github/workflows/mobile.yml', 'Unexpected build workflow'
+          subprocess.run(['git', 'diff', '--exit-code', run['head_sha'], 'HEAD', '--', 'src', 'assets'], check=True)
+          PY
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' src/Cargo.toml | head -1)
+          test "$TAG" = "v$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Check the keystore decoder
+        run: python3 scripts/ci/test-decode-android-keystore.py
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: Procut-android-arm64
+          path: validated
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Sign and verify the APK
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
+          VERSION: ${{ steps.source.outputs.version }}
+        run: |
+          set -euo pipefail
+          keystore=$RUNNER_TEMP/release.keystore
+          trap 'rm -f "$keystore"' EXIT
+          python3 scripts/ci/decode-android-keystore.py "$keystore"
+          alias=$KEY_ALIAS
+          if [ -z "$alias" ]; then
+            listing=$(keytool -list -keystore "$keystore" -storepass:env KEYSTORE_PASSWORD 2>/dev/null)
+            alias=$(awk -F, '/PrivateKeyEntry/ { print $1; exit }' <<< "$listing")
+            test -n "$alias" || { echo '::error::No private key found; check the keystore password and key alias'; exit 1; }
+          fi
+          sdk=${ANDROID_HOME:-$ANDROID_SDK_ROOT}
+          tools=$(find "$sdk/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          test -x "$tools/apksigner"
+          test "$(find validated -name '*.apk' | wc -l)" = 1
+          apk=$(find validated -name '*.apk')
+          mkdir release
+          output="release/Procut-$VERSION-android-arm64.apk"
+          "$tools/apksigner" sign --ks "$keystore" --ks-pass env:KEYSTORE_PASSWORD \
+            --ks-key-alias "$alias" --key-pass env:KEY_PASSWORD --out "$output" "$apk" < /dev/null
+          "$tools/apksigner" verify --verbose --print-certs "$output"
+          python3 scripts/ci/check-16k-pages.py "$output"
+          python3 - "$output" <<'PY'
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as apk:
+              names = apk.namelist()
+              assert 'lib/arm64-v8a/libconcat_android.so' in names, 'Editor library missing'
+              assert {name.split('/')[1] for name in names if name.startswith('lib/') and name.endswith('.so')} == {'arm64-v8a'}, 'Unexpected ABI'
+          PY
+          (cd release && sha256sum *.apk > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Procut-signed-android-arm64
+          path: release/*
+          if-no-files-found: error
+  publish:
+    needs: sign
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.sign.outputs.sha }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: Procut-signed-android-arm64
+          path: release
+      - name: Release notes and provenance
+        env:
+          VERSION: ${{ needs.sign.outputs.version }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          cp "docs/releases/$VERSION.md" "$RUNNER_TEMP/notes.md"
+          printf '\nAPK promoted from successful validation run https://github.com/%s/actions/runs/%s; runtime source files match this release commit.\n' "$GITHUB_REPOSITORY" "$RUN_ID" >> "$RUNNER_TEMP/notes.md"
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3
+        with:
+          tag_name: ${{ inputs.tag }}
+          target_commitish: ${{ needs.sign.outputs.sha }}
+          name: Procut ${{ inputs.tag }}
+          draft: false
+          prerelease: false
+          body_path: ${{ runner.temp }}/notes.md
+          fail_on_unmatched_files: true
+          files: release/*
