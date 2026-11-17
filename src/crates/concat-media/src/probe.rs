@@ -118,7 +118,14 @@ pub fn probe(path: impl AsRef<Path>) -> Result<MediaInfo> {
         (duration > 0).then(|| Rational::new(duration, i64::from(ffmpeg::sys::AV_TIME_BASE)));
 
     let origin = ffi::origin(&input);
-    let video = match input.streams().best(ffmpeg::media::Type::Video) {
+    let video = match input
+        .streams()
+        .best(ffmpeg::media::Type::Video)
+        .filter(|stream| {
+            !stream
+                .disposition()
+                .contains(ffmpeg::format::stream::Disposition::ATTACHED_PIC)
+        }) {
         Some(stream) => Some(video_stream(&stream, path, origin)?),
         None => None,
     };
@@ -335,6 +342,18 @@ fn pick_cadence(rate: Rational, grid: Option<Rational>) -> Rational {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_audio_files_cover_art_is_not_a_video_stream() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/audio-with-cover.mp3");
+        let info = probe(path).expect("probes");
+        assert!(info.audio.is_some(), "the sound is still available");
+        assert!(
+            info.video.is_none(),
+            "cover art must not become a video clip"
+        );
+        assert!(info.require_video().is_err());
+    }
 
     /// A variable-rate stream's frames are indexed at the grid they come
     /// on, not its average; a grid that is a clock's denominator, or a

@@ -433,6 +433,9 @@ pub struct JobStatus {
     pub output: String,
     /// Running, or how it ended.
     pub state: JobState,
+    /// The written file's size in bytes, once done and readable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes: Option<u64>,
     /// What it is doing: "cutout" while masks are found, "stabilize" while
     /// shake is measured, then "rendering", "mixing audio" and "muxing";
     /// "rendering in software" when the hardware encoder stopped part way
@@ -465,6 +468,7 @@ impl JobStatus {
             path: path.to_owned(),
             output: output.to_owned(),
             state: JobState::Running,
+            bytes: None,
             stage: None,
             frame: 0,
             total: 0,

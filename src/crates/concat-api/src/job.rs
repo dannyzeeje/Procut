@@ -94,6 +94,7 @@ impl Book {
             } => {
                 status.state = JobState::Done;
                 status.output = output.clone();
+                status.bytes = std::fs::metadata(output).ok().map(|file| file.len());
                 status.width = Some(*width);
                 status.height = Some(*height);
                 // Progress is said at most so often, so the last frame
@@ -195,6 +196,30 @@ mod tests {
         assert_eq!((done.width, done.height), (Some(16), Some(9)));
         assert_eq!(book.cancel_all(), 0, "a finished job has no flag to raise");
         assert!(book.status("j2").is_none());
+    }
+
+    #[test]
+    fn a_finished_job_remembers_the_written_file_size() {
+        let file = tempfile::NamedTempFile::new().expect("an output file");
+        std::fs::write(file.path(), [0_u8; 137]).expect("writes");
+        let book = Book::default();
+        begun(&book, "j1");
+        assert_eq!(book.status("j1").expect("known").bytes, None);
+        book.record(&Event::ExportDone {
+            job: "j1".to_owned(),
+            path: "/p".to_owned(),
+            output: file.path().to_string_lossy().into_owned(),
+            width: 16,
+            height: 9,
+        });
+        // The result describes what was written even after it is moved away.
+        file.close().expect("removes the file");
+        let done = book.status("j1").expect("known");
+        assert_eq!(done.bytes, Some(137));
+        assert_eq!(
+            serde_json::to_value(done).expect("serializes")["bytes"],
+            137
+        );
     }
 
     #[test]
