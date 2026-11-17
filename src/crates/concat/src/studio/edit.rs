@@ -536,6 +536,10 @@ impl Studio {
     }
 
     pub fn undo(&mut self) {
+        if self.effect_preview.is_some() {
+            self.finish_effect_preview(false);
+            return;
+        }
         self.flush_commit();
         self.echo = None;
         self.words = None;
@@ -551,6 +555,10 @@ impl Studio {
     }
 
     pub fn redo(&mut self) {
+        if self.effect_preview.is_some() {
+            self.finish_effect_preview(false);
+            return;
+        }
         self.flush_commit();
         self.echo = None;
         self.words = None;

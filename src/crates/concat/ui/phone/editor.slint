@@ -521,11 +521,12 @@ export component PhoneEditor inherits Rectangle {
 
     // Fixed side slots keep the project name centred at every width.
     Rectangle {
+        x: 0px; y: 0px;
         width: root.width; height: root.top-h;
         RoundButton { x: 2px; y: 2px; glyph: Glyph.chevron-left; label: I18n.t("studio.closeProject"); clicked => { root.hide(); root.close-project(); } }
-        RoundButton { x: 46px; y: 2px; glyph: Glyph.more; label: I18n.t("mobile.menu"); clicked => { project-menu.open-state = !project-menu.open-state; } }
+        RoundButton { x: 46px; y: 2px; glyph: Glyph.more; label: I18n.t("mobile.menu"); clicked => { root.hide(); project-menu.open-state = !project-menu.open-state; } }
         Text { x: 96px; width: Math.max(0px, parent.width - 192px); height: parent.height; text: root.project-name; color: Theme.fg; font-size: Theme.fs-lg; font-weight: Theme.weight-title; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
-        RoundButton { x: parent.width - 46px; y: 2px; glyph: Glyph.export; accent: true; label: I18n.t("common.export"); clicked => { root.export-clicked(); } }
+        RoundButton { x: parent.width - 46px; y: 2px; glyph: Glyph.export; accent: true; label: I18n.t("common.export"); clicked => { root.hide(); root.export-clicked(); } }
     }
 
     // ── the monitor ──────────────────────────────────────────────────
@@ -1205,6 +1206,7 @@ export component PhoneEditor inherits Rectangle {
         }
 
         if root.sheet == "clip-text": TextPanel {
+            width: root.width - 2px;
             selected: Editor.selected-clip;
             families: Editor.font-families;
             set(field, value) => { Editor.clip-set(field, value); }

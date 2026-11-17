@@ -1168,10 +1168,13 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     editor.on_effect_preview_finish(on_window!(|state, apply: bool| {
         state.finish_effect_preview(apply);
     }));
-    editor.on_preview_fullscreen_changed(on_window!(|state, on: bool| {
-        let video = &state.timeline().video;
-        crate::platform::set_preview_mode(on, video.height >= video.width);
-    }));
+    editor.on_preview_fullscreen_changed(|on| {
+        Shell::with(|shell, _| {
+            let state = shell.studio.borrow();
+            let video = &state.timeline().video;
+            crate::platform::set_preview_mode(on, video.height >= video.width);
+        });
+    });
     editor.on_export_project_package(on_window!(|state| {
         state.export_project_package();
     }));

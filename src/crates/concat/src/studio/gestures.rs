@@ -125,7 +125,18 @@ impl Studio {
                 let rows = nearest_row(lanes, row_top(lanes, anchor.row) + pixels) - anchor.row;
                 // Dragging beyond the media's stack opens a typed lane. The
                 // ghost lives only on the echo until the finger is released.
-                if crate::platform::phone() && origins.len() == 1 {
+                if crate::platform::phone()
+                    && origins.len() == 1
+                    && self.clip(primary).is_some_and(|clip| {
+                        matches!(
+                            clip.kind,
+                            model::ClipKind::Video
+                                | model::ClipKind::Image
+                                | model::ClipKind::Audio
+                                | model::ClipKind::SoundLayer
+                        )
+                    })
+                {
                     let original = self.session.as_ref().unwrap().project().clone();
                     let clip = original.active().clip(primary).unwrap();
                     let audio = matches!(

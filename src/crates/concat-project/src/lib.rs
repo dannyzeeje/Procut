@@ -4990,6 +4990,44 @@ mod tests {
     }
 
     #[test]
+    fn mixed_imports_use_typed_lanes_and_prefer_a1() {
+        let mut doc = Editor::new().to_document(&settings());
+        let tracks = json!([
+            {"id":"A2","procutRole":"audio","visible":true,"muted":false},
+            {"id":"A1","procutRole":"audio","visible":true,"muted":false},
+            {"id":"V1","procutRole":"video","visible":true,"muted":false}
+        ]);
+        doc["timelines"][0]["tracks"] = tracks.clone();
+        doc["tracks"] = tracks;
+        let mut editor = Editor::from_document(&doc).unwrap();
+        let video = editor
+            .apply(media("/video.mp4", 5.0, true))
+            .unwrap()
+            .created_id
+            .unwrap();
+        let Command::AddMedia { mut item } = media("/audio.wav", 5.0, true) else {
+            unreachable!()
+        };
+        item.kind = MediaKind::Audio;
+        let audio = editor
+            .apply(Command::AddMedia { item })
+            .unwrap()
+            .created_id
+            .unwrap();
+        editor
+            .apply(Command::AddClipsInSequence {
+                media_ids: vec![video, audio],
+                track_id: None,
+                start: 2.5,
+                ripple: false,
+            })
+            .unwrap();
+        let clips = &editor.project().active().clips;
+        assert_eq!((clips[0].track_id.as_str(), clips[0].start), ("V1", 2.5));
+        assert_eq!((clips[1].track_id.as_str(), clips[1].start), ("A1", 7.5));
+    }
+
+    #[test]
     fn mobile_media_routes_by_kind_creates_tracks_and_deletes_with_undo() {
         let mut doc = Editor::new().to_document(&settings());
         let tracks = json!([
