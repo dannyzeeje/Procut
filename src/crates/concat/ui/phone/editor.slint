@@ -776,7 +776,7 @@ export component PhoneEditor inherits Rectangle {
         width: root.width;
         height: root.height;
         sheet-height: root.sheet-h;
-        footer: root.sheet != "media" && !Editor.effect-preview-active;
+        footer: root.sheet != "media" && root.sheet != "tools" && root.sheet != "customize-tools" && !Editor.effect-preview-active;
         preview-footer: Editor.effect-preview-active;
         open: root.sheet != "";
         title: root.sheet-title(root.sheet);
@@ -1260,16 +1260,16 @@ export component PhoneEditor inherits Rectangle {
             Text { text: I18n.t1("atlas.trackOptions", Editor.tracks[root.track-index].label); color: Theme.accent; font-size: 16px; }
             HorizontalLayout {
                 height: 80px; spacing: 8px;
-                ToolItem { horizontal-stretch: 1; glyph: Editor.tracks[root.track-index].visible ? Glyph.eye : Glyph.eye-off; label: I18n.t("atlas.visible"); current: Editor.tracks[root.track-index].visible; clicked => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, !tr.visible, tr.muted, tr.locked); } }
-                ToolItem { horizontal-stretch: 1; glyph: Editor.tracks[root.track-index].muted ? Glyph.volume-off : Glyph.volume; label: I18n.t("atlas.muteAudio"); current: Editor.tracks[root.track-index].muted; clicked => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, tr.visible, !tr.muted, tr.locked); } }
-                ToolItem { horizontal-stretch: 1; glyph: Glyph.lock; label: I18n.t("atlas.lockTrack"); current: Editor.tracks[root.track-index].locked; clicked => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, tr.visible, tr.muted, !tr.locked); } }
-                ToolItem { horizontal-stretch: 1; glyph: Glyph.fold; label: Editor.tracks[root.track-index].minimized ? I18n.t("atlas.expandTrack") : I18n.t("atlas.minimizeTrack"); clicked => { Editor.track-minimized(root.track-index, !Editor.tracks[root.track-index].minimized); } }
+                ToolItem { width: (root.width - 56px) / 4; glyph: Editor.tracks[root.track-index].visible ? Glyph.eye : Glyph.eye-off; label: I18n.t("atlas.visible"); current: Editor.tracks[root.track-index].visible; clicked => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, !tr.visible, tr.muted, tr.locked); } }
+                ToolItem { width: (root.width - 56px) / 4; glyph: Editor.tracks[root.track-index].muted ? Glyph.volume-off : Glyph.volume; label: I18n.t("atlas.muteAudio"); current: Editor.tracks[root.track-index].muted; clicked => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, tr.visible, !tr.muted, tr.locked); } }
+                ToolItem { width: (root.width - 56px) / 4; glyph: Glyph.lock; label: I18n.t("atlas.lockTrack"); current: Editor.tracks[root.track-index].locked; clicked => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, tr.visible, tr.muted, !tr.locked); } }
+                ToolItem { width: (root.width - 56px) / 4; glyph: Glyph.fold; label: Editor.tracks[root.track-index].minimized ? I18n.t("atlas.expandTrack") : I18n.t("atlas.minimizeTrack"); clicked => { Editor.track-minimized(root.track-index, !Editor.tracks[root.track-index].minimized); } }
             }
             Text { text: I18n.t("atlas.trackHeight"); color: Theme.fg; font-size: 14px; }
-            HorizontalLayout { spacing: 8px;
-                AtlasChip { label: I18n.t("common.small"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.small); } }
-                AtlasChip { label: I18n.t("common.medium"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.medium); } }
-                AtlasChip { label: I18n.t("common.large"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.large); } }
+            HorizontalLayout { spacing: 8px; height: 76px;
+                ToolItem { width: (root.width - 48px) / 3; glyph: Glyph.minus; label: I18n.t("common.small"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.small); } }
+                ToolItem { width: (root.width - 48px) / 3; glyph: Glyph.frame; label: I18n.t("common.medium"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.medium); } }
+                ToolItem { width: (root.width - 48px) / 3; glyph: Glyph.fit; label: I18n.t("common.large"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.large); } }
             }
         }
         if root.sheet == "timeline-controls": VerticalLayout {
