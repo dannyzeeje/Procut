@@ -178,10 +178,32 @@ impl Studio {
             })
             .collect()
     }
+    fn mobile_layout_tools(&self) -> Vec<MobileToolData> {
+        let section = self.mobile_tool_section();
+        // Clip sections have a fixed action bar and the shared actions menu.
+        // Customize only the additional tools shown in the More sheet.
+        self.mobile_tool_data()
+            .into_iter()
+            .filter(|tool| {
+                section == "project"
+                    || (!(section == "audio" && tool.id == "clip-audio-effects")
+                        && !matches!(
+                            tool.id.as_str(),
+                            "split"
+                                | "delete"
+                                | "clip-canvas"
+                                | "clip-effects"
+                                | "duplicate"
+                                | "freeze"
+                                | "clip-enhance"
+                        ))
+            })
+            .collect()
+    }
     /// Update and persist one tool layout preference for this section.
     pub fn customize_mobile_tool(&mut self, id: &str, action: &str) {
         let section = self.mobile_tool_section().to_owned();
-        let data = self.mobile_tool_data();
+        let data = self.mobile_layout_tools();
         let Some(index) = data.iter().position(|tool| tool.id == id) else {
             return;
         };
@@ -228,26 +250,7 @@ impl Studio {
     pub(super) fn publish_mobile_tools(&self, app: &App) {
         let editor = app.global::<Editor>();
         let section = self.mobile_tool_section();
-        // Clip sections have a fixed action bar and the shared actions menu.
-        // Customize only the additional tools shown in the More sheet.
-        let all: Vec<_> = self
-            .mobile_tool_data()
-            .into_iter()
-            .filter(|tool| {
-                section == "project"
-                    || (!(section == "audio" && tool.id == "clip-audio-effects")
-                        && !matches!(
-                            tool.id.as_str(),
-                            "split"
-                                | "delete"
-                                | "clip-canvas"
-                                | "clip-effects"
-                                | "duplicate"
-                                | "freeze"
-                                | "clip-enhance"
-                        ))
-            })
-            .collect();
+        let all = self.mobile_layout_tools();
         let quick: Vec<_> = all
             .iter()
             .filter(|tool| tool.pinned && !tool.hidden)
