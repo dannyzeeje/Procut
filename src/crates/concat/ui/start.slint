@@ -1922,7 +1922,7 @@ component NarrowHome inherits Rectangle {
                 text: root.export-mode ? I18n.t("mobile.chooseExport") : root.trash-view ? I18n.t("mobile.trash") : I18n.t("mobile.yourProjects");
                 count: root.trash-view || root.recents-total > 0 ? "\{root.recents-total}" : "";
                 if root.trash-view: LibraryAction {
-                    width: root.width < 350px ? 108px : 126px; quiet: true;
+                    width: root.width < 350px ? 136px : 144px; quiet: true;
                     destructive: !root.choosing;
                     glyph: root.choosing ? Glyph.none : Glyph.trash;
                     label: root.choosing ? I18n.t("mobile.selectAll") : I18n.t("mobile.emptyTrashButton");
