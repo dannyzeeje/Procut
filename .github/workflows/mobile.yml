@@ -97,7 +97,31 @@ jobs:
       # whisper.cpp, Skia and Slint's backend each read it by their own
       # name from what mobile-env.sh exports.
       - name: System libraries
-        run: sudo apt-get update && sudo apt-get install -y cmake libclang-dev
+        run: |
+          set -euo pipefail
+          # Hosted images usually already include both. Avoid downloading
+          # another CMake/LLVM toolchain when the installed one is usable.
+          clang_dir=$(python3 - <<'PYTHON'
+          import ctypes, glob
+          from pathlib import Path
+          for pattern in ('/usr/lib/llvm-*/lib/libclang.so*', '/usr/lib/x86_64-linux-gnu/libclang-[0-9]*.so*'):
+              for path in sorted(glob.glob(pattern), reverse=True):
+                  try:
+                      library = ctypes.CDLL(path)
+                      library.clang_getClangVersion
+                  except (OSError, AttributeError):
+                      continue
+                  print(Path(path).parent)
+                  raise SystemExit(0)
+          PYTHON
+          )
+          if command -v cmake >/dev/null && [ -n "$clang_dir" ]; then
+            echo "Using installed CMake and libclang"
+            echo "LIBCLANG_PATH=$clang_dir" >> "$GITHUB_ENV"
+          else
+            sudo apt-get update
+            sudo apt-get install -y cmake libclang-dev
+          fi
 
       # Restored and saved as two steps rather than one, so the FFmpeg
       # build is kept the moment it finishes, whatever happens to the Rust
