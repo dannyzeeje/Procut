@@ -30,24 +30,24 @@ impl Studio {
         let shape = section == "shape";
         let mut tools = Vec::new();
         if !clip {
-            tools.push(("media", "common.media", Glyph::Film, true));
+            tools.push(("media", t("common.media"), Glyph::Film, true));
         }
         if !clip {
-            tools.push(("audio", "common.audio", Glyph::Music, true));
+            tools.push(("audio", t("common.audio"), Glyph::Music, true));
         }
         if !clip {
-            tools.push(("text", "common.text", Glyph::TextMark, true));
+            tools.push(("text", t("common.text"), Glyph::TextMark, true));
         }
         if !clip {
-            tools.push(("effects", "common.effects", Glyph::Sparkle, false));
+            tools.push(("effects", t("common.effects"), Glyph::Sparkle, false));
         }
         if !clip {
-            tools.push(("filters", "mediaPane.filters", Glyph::Filter, false));
+            tools.push(("filters", t("mediaPane.filters"), Glyph::Filter, false));
         }
         if !clip {
             tools.push((
                 "adjustments",
-                "mediaPane.adjustments",
+                t("mediaPane.adjustments"),
                 Glyph::Sliders,
                 false,
             ));
@@ -55,98 +55,101 @@ impl Studio {
         if !clip {
             tools.push((
                 "transitions",
-                "mediaPane.transitions",
+                t("mediaPane.transitions"),
                 Glyph::Transition,
                 false,
             ));
         }
         if !clip {
-            tools.push(("captions", "phone.captions", Glyph::TextMark, false));
+            tools.push(("captions", t("phone.captions"), Glyph::TextMark, false));
         }
         if !clip {
-            tools.push(("speak", "phone.speak", Glyph::Volume, false));
+            tools.push(("speak", t("phone.speak"), Glyph::Volume, false));
+        }
+        if section == "text" {
+            tools.push(("speak", t("phone.speak"), Glyph::Volume, false));
         }
         if !clip {
-            tools.push(("voiceover", "phone.voiceover", Glyph::Mic, false));
+            tools.push(("voiceover", t("phone.voiceover"), Glyph::Mic, false));
         }
         if !clip {
-            tools.push(("canvas", "phone.canvas", Glyph::Frame, false));
+            tools.push(("canvas", t("phone.canvas"), Glyph::Frame, false));
         }
         if !clip {
-            tools.push(("project", "phone.project", Glyph::Settings, false));
+            tools.push(("project", t("phone.project"), Glyph::Settings, false));
         }
         if clip {
-            tools.push(("split", "phone.split", Glyph::Split, true));
+            tools.push(("split", t("phone.split"), Glyph::Split, true));
         }
         if clip {
-            tools.push(("delete", "common.delete", Glyph::Trash, true));
+            tools.push(("delete", t("common.delete"), Glyph::Trash, true));
         }
         if clip {
-            tools.push(("edit", "phone.edit", Glyph::Frame, true));
+            tools.push(("edit", t("phone.edit"), Glyph::Frame, true));
         }
         if picture {
-            tools.push(("clip-canvas", "phone.canvas", Glyph::Frame, false));
+            tools.push(("clip-canvas", t("phone.canvas"), Glyph::Frame, false));
         }
         if visual {
-            tools.push(("clip-adjust", "common.adjust", Glyph::Sliders, false));
+            tools.push(("clip-adjust", t("common.adjust"), Glyph::Sliders, false));
         }
         if picture {
-            tools.push(("clip-enhance", "common.enhance", Glyph::Sparkle, false));
+            tools.push(("clip-enhance", t("common.enhance"), Glyph::Sparkle, false));
         }
         if visual {
-            tools.push(("clip-effects", "common.effects", Glyph::Sparkle, false));
+            tools.push(("clip-effects", t("common.effects"), Glyph::Sparkle, false));
         }
         if av {
-            tools.push(("clip-speed", "common.speed", Glyph::Clock, false));
+            tools.push(("clip-speed", t("common.speed"), Glyph::Clock, false));
         }
         if av {
-            tools.push(("clip-audio", "common.audio", Glyph::Volume, false));
+            tools.push(("clip-audio", t("common.audio"), Glyph::Volume, false));
         }
         if av {
             tools.push((
                 "clip-audio-effects",
-                "configPane.audioEffects",
+                t("configPane.audioEffects"),
                 Glyph::Waveform,
                 false,
             ));
         }
         if visual {
-            tools.push(("clip-animate", "motion.animate", Glyph::Play, false));
+            tools.push(("clip-animate", t("motion.animate"), Glyph::Play, false));
         }
         if picture {
-            tools.push(("clip-mask", "mask.title", Glyph::MaskCircle, false));
+            tools.push(("clip-mask", t("mask.title"), Glyph::MaskCircle, false));
         }
         if picture {
             tools.push((
                 "transitions",
-                "mediaPane.transitions",
+                t("mediaPane.transitions"),
                 Glyph::Transition,
                 false,
             ));
         }
         if av || picture {
-            tools.push(("replace", "mobile.replaceClip", Glyph::Import, false));
+            tools.push(("replace", t("mobile.replaceClip"), Glyph::Import, false));
         }
         if clip {
-            tools.push(("duplicate", "phone.duplicate", Glyph::Copy, false));
+            tools.push(("duplicate", t("phone.duplicate"), Glyph::Copy, false));
         }
         if picture {
-            tools.push(("freeze", "timelinePane.freeze", Glyph::Image, false));
+            tools.push(("freeze", t("timelinePane.freeze"), Glyph::Image, false));
         }
         if av {
-            tools.push(("reverse", "common.reverse", Glyph::StepBack, false));
+            tools.push(("reverse", t("common.reverse"), Glyph::StepBack, false));
         }
         if picture {
-            tools.push(("mirror", "timelinePane.mirror", Glyph::FlipH, false));
+            tools.push(("mirror", t("timelinePane.mirror"), Glyph::FlipH, false));
         }
         if picture {
-            tools.push(("rotate", "timelinePane.rotate", Glyph::Rotate, false));
+            tools.push(("rotate", t("timelinePane.rotate"), Glyph::Rotate, false));
         }
         if layer {
-            tools.push(("clip-layer", "configPane.filter", Glyph::Filter, false));
+            tools.push(("clip-layer", t("configPane.filter"), Glyph::Filter, false));
         }
         if shape {
-            tools.push(("clip-shape", "shapePanel.shape", Glyph::Shapes, false));
+            tools.push(("clip-shape", t("shapePanel.shape"), Glyph::Shapes, false));
         }
         if let Some(order) = self.prefs.mobile_tool_order.get(section) {
             tools.sort_by_key(|tool| {
@@ -160,7 +163,7 @@ impl Studio {
             .into_iter()
             .map(|(id, label, glyph, default_pin)| MobileToolData {
                 id: id.into(),
-                label: t(label).into(),
+                label: label.into(),
                 glyph,
                 pinned: self
                     .prefs
@@ -175,10 +178,32 @@ impl Studio {
             })
             .collect()
     }
+    fn mobile_layout_tools(&self) -> Vec<MobileToolData> {
+        let section = self.mobile_tool_section();
+        // Clip sections have a fixed action bar and the shared actions menu.
+        // Customize only the additional tools shown in the More sheet.
+        self.mobile_tool_data()
+            .into_iter()
+            .filter(|tool| {
+                section == "project"
+                    || (!(section == "audio" && tool.id == "clip-audio-effects")
+                        && !matches!(
+                            tool.id.as_str(),
+                            "split"
+                                | "delete"
+                                | "clip-canvas"
+                                | "clip-effects"
+                                | "duplicate"
+                                | "freeze"
+                                | "clip-enhance"
+                        ))
+            })
+            .collect()
+    }
     /// Update and persist one tool layout preference for this section.
     pub fn customize_mobile_tool(&mut self, id: &str, action: &str) {
         let section = self.mobile_tool_section().to_owned();
-        let data = self.mobile_tool_data();
+        let data = self.mobile_layout_tools();
         let Some(index) = data.iter().position(|tool| tool.id == id) else {
             return;
         };
@@ -224,7 +249,8 @@ impl Studio {
     }
     pub(super) fn publish_mobile_tools(&self, app: &App) {
         let editor = app.global::<Editor>();
-        let all = self.mobile_tool_data();
+        let section = self.mobile_tool_section();
+        let all = self.mobile_layout_tools();
         let quick: Vec<_> = all
             .iter()
             .filter(|tool| tool.pinned && !tool.hidden)
@@ -232,7 +258,7 @@ impl Studio {
             .collect();
         let more: Vec<_> = all
             .iter()
-            .filter(|tool| !tool.pinned && !tool.hidden)
+            .filter(|tool| !tool.hidden && (section != "project" || !tool.pinned))
             .cloned()
             .collect();
         if editor.get_mobile_all_tools().iter().collect::<Vec<_>>() != all {

@@ -26,6 +26,7 @@ export component RoundButton inherits Rectangle {
     in property <color> foreground: Theme.fg;
     in property <length> size: 44px;
     in property <length> icon-size: 18px;
+    in property <length> corner-radius: root.size / 2;
     /// Fires on the press rather than the release, and again and again
     /// while held - after a beat, then a dozen times a second - the way
     /// a step button or a keyboard's arrow does.
@@ -37,7 +38,7 @@ export component RoundButton inherits Rectangle {
     accessible-label: root.label;
     width: root.size;
     height: root.size;
-    border-radius: root.size / 2;
+    border-radius: root.corner-radius;
     opacity: root.enabled ? 1.0 : 0.35;
     background: root.accent
         ? (touch.pressed ? Theme.accent-hover : Theme.accent)
