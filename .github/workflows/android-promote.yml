@@ -5,11 +5,10 @@ on:
       run_id:
         description: Successful Procut phone build containing the arm64 APK
         required: true
-        default: '44140140759'
       tag:
         description: Release tag matching the source version
         required: true
-        default: v0.2.15
+        default: v0.2.16
 permissions:
   contents: read
   actions: read

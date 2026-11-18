@@ -1052,6 +1052,34 @@ component ProjectsGrid inherits Rectangle {
     }
 }
 
+component LibraryAction inherits Rectangle {
+    in property <string> label;
+    in property <Glyph> glyph: Glyph.none;
+    in property <bool> primary;
+    in property <bool> destructive;
+    in property <bool> quiet;
+    in property <bool> enabled: true;
+    callback clicked();
+    height: 46px; min-width: 0px;
+    border-radius: 10px;
+    background: root.primary ? Theme.accent.mix(Theme.fg, 0.6)
+        : root.quiet ? (touch.pressed ? Theme.field : Colors.transparent) : Theme.panel;
+    border-width: root.destructive && !root.quiet ? 1px : 0px;
+    border-color: Theme.line-strong;
+    opacity: root.enabled ? 1 : 0.4;
+    property <color> ink: root.primary ? Theme.on-accent : root.destructive ? Theme.danger.mix(Theme.fg, 0.55) : Theme.fg;
+    accessible-role: button; accessible-label: root.label;
+    HorizontalLayout {
+        padding-left: root.quiet ? 4px : 12px; padding-right: root.quiet ? 4px : 12px;
+        spacing: 6px; alignment: center;
+        if root.glyph != Glyph.none: VerticalLayout { alignment: center;
+            Icon { glyph: root.glyph; size: 18px; tint: root.ink; }
+        }
+        Text { text: root.label; color: root.ink; font-size: 14px; font-weight: root.primary ? 600 : 400; vertical-alignment: center; overflow: elide; }
+    }
+    touch := TouchArea { enabled: root.enabled; clicked => { root.clicked(); } }
+}
+
 // One project as a row of a list: the narrow page's shape, where a grid of
 // posters a thumb wide is a column of stamps. The poster small at the
 // start, the name and what it is beside it, Remove at the end.
@@ -1067,7 +1095,9 @@ component ProjectRow inherits Pressable {
     clicked => { root.opened(); }
     deleted => { root.forgotten(); }
     height: 68px;
-    background: root.project.selected ? Theme.accent-soft : root.lit || root.down ? Theme.launch-raised : Colors.transparent;
+    background: root.project.selected ? Theme.accent.with-alpha(0.2) : root.selectable ? Theme.launch-panel : root.lit || root.down ? Theme.launch-raised : Colors.transparent;
+    border-width: root.project.selected ? 1px : 0px;
+    border-color: Theme.accent.mix(Theme.fg, 0.4);
 
     HorizontalLayout {
         padding-left: 8px;
@@ -1144,12 +1174,17 @@ component ProjectRow inherits Pressable {
         Rectangle {
             width: 44px;
 
-            Icon {
-                x: (parent.width - self.width) / 2;
-                y: (parent.height - self.height) / 2;
-                glyph: root.selectable ? (root.project.selected ? Glyph.check : Glyph.mask-rectangle) : Glyph.close;
-                size: 14px;
-                tint: forget.pressed || forget.has-hover ? Theme.fg : Theme.fg-dim;
+            Rectangle {
+                x: (parent.width - 20px) / 2; y: (parent.height - 20px) / 2;
+                width: 20px; height: 20px; border-radius: 4px;
+                background: root.selectable && root.project.selected ? Theme.accent.mix(Theme.fg, 0.6) : Colors.transparent;
+                border-width: root.selectable && !root.project.selected ? 1.5px : 0px;
+                border-color: Theme.fg-muted;
+                if !root.selectable || root.project.selected: Icon {
+                    x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+                    glyph: root.selectable ? Glyph.check : Glyph.close; size: 15px;
+                    tint: root.selectable ? Theme.on-accent : Theme.fg-dim;
+                }
             }
 
             forget := TouchArea {
@@ -1870,50 +1905,53 @@ component NarrowHome inherits Rectangle {
             Text { text: I18n.t("mobile.brand"); font-size: 22px; font-weight: 600; color: Theme.fg; vertical-alignment: center; horizontal-stretch: 1; }
         }
     }
+    property <bool> choosing: root.trash-view && ProjectTrash.selected-count > 0;
     flick := Flickable {
-        y: 64px; width: root.width; height: root.height - 64px;
+        y: 64px; width: root.width; height: root.height - 64px - (root.choosing ? 134px : 0px);
         content-width: self.width; content-height: stack.preferred-height;
         stack := VerticalLayout {
-            x: 0; y: 0;
-            width: flick.width; height: self.preferred-height;
-            padding-left: 16px; padding-right: 16px; padding-top: 16px; padding-bottom: 28px;
-            spacing: 16px; alignment: start;
-            if !root.trash-view: PillButton { primary: true; block: true; glyph: Glyph.plus; enabled: !root.busy; label: I18n.t("start.newProject"); clicked => { root.compose(); } }
+            x: 0; y: 0; width: flick.width; height: self.preferred-height;
+            padding-left: 16px; padding-right: 16px; padding-top: 16px; padding-bottom: 24px;
+            spacing: 18px; alignment: start;
+            if !root.trash-view: LibraryAction {
+                primary: true; glyph: Glyph.plus; enabled: !root.busy;
+                label: I18n.t("start.newProject"); clicked => { root.compose(); }
+            }
             SectionHead {
-                height: 32px;
+                height: 44px;
                 text: root.export-mode ? I18n.t("mobile.chooseExport") : root.trash-view ? I18n.t("mobile.trash") : I18n.t("mobile.yourProjects");
-                count: root.recents-total > 0 ? "\{root.recents-total}" : "";
-            }
-            if root.trash-view && ProjectTrash.selected-count == 0: PillButton {
-                label: I18n.t("mobile.emptyTrashButton"); glyph: Glyph.trash;
-                enabled: root.recents-total > 0 && !root.busy;
-                clicked => { root.link("trash-empty"); }
-            }
-            if root.trash-view && ProjectTrash.selected-count > 0: VerticalLayout {
-                spacing: 8px;
-                Text { text: I18n.t1("mobile.projectsSelected", ProjectTrash.selected-count); color: Theme.fg-muted; }
-                HorizontalLayout { spacing: 8px;
-                    AtlasChip { label: I18n.t("mobile.restoreSelected"); clicked => { root.link("trash-restore-selected"); } }
-                    AtlasChip { label: I18n.t("common.delete"); clicked => { root.link("trash-delete-selected"); } }
-                }
-                HorizontalLayout { spacing: 8px;
-                    AtlasChip { label: I18n.t("mobile.selectAll"); clicked => { root.link("trash-select-all"); } }
-                    AtlasChip { label: I18n.t("common.cancel"); clicked => { root.link("trash-clear-selection"); } }
+                count: root.trash-view || root.recents-total > 0 ? "\{root.recents-total}" : "";
+                if root.trash-view: LibraryAction {
+                    width: root.width < 350px ? 108px : 126px; quiet: true;
+                    destructive: !root.choosing;
+                    glyph: root.choosing ? Glyph.none : Glyph.trash;
+                    label: root.choosing ? I18n.t("mobile.selectAll") : I18n.t("mobile.emptyTrashButton");
+                    enabled: !root.busy && root.recents-total > 0;
+                    clicked => { root.link(root.choosing ? "trash-select-all" : "trash-empty"); }
                 }
             }
-            if root.export-mode: PillButton { label: I18n.t("common.cancel"); clicked => { root.export-mode = false; } }
-            if root.recents-total > 0: VerticalLayout {
-                spacing: 10px;
-                SearchField { height: 44px; text: root.query; placeholder: I18n.t("start.searchProjects"); edited(text) => { root.search-edited(text); } }
-                Select { height: 44px; options: [I18n.t("start.sortRecent"), I18n.t("start.sortName")]; current: root.sort; changed(index) => { root.sort-changed(index); } }
+            if !root.trash-view: Rectangle { height: 1px; background: Theme.line; }
+            if root.export-mode: LibraryAction { label: I18n.t("common.cancel"); clicked => { root.export-mode = false; } }
+            if root.recents-total > 0: HorizontalLayout {
+                height: 44px; spacing: 8px;
+                SearchField { horizontal-stretch: 1; min-width: 0px; height: 44px; text: root.query; placeholder: I18n.t("start.searchProjects"); edited(text) => { root.search-edited(text); } }
+                Select { width: root.width < 350px ? 98px : 112px; height: 44px; options: [I18n.t("start.sortRecent"), I18n.t("start.sortName")]; current: root.sort; changed(index) => { root.sort-changed(index); } }
             }
-            if root.recents-total == 0: Text {
-                text: root.trash-view ? I18n.t("mobile.emptyTrash") : I18n.t("mobile.noProjects");
-                color: Theme.fg-muted; font-size: 15px; wrap: word-wrap;
+            if root.recents-total == 0 && !root.trash-view: Rectangle {
+                height: 230px;
+                VerticalLayout {
+                    alignment: center; spacing: 12px;
+                    HorizontalLayout { alignment: center;
+                        Rectangle { width: 60px; height: 60px; border-radius: 16px; background: Theme.accent.with-alpha(0.08);
+                            Icon { x: 14px; y: 14px; glyph: Glyph.film; size: 32px; tint: Theme.accent; }
+                        }
+                    }
+                    Text { text: I18n.t("mobile.noProjectsTitle"); color: Theme.fg; font-size: 19px; font-weight: 600; horizontal-alignment: center; }
+                    Text { text: I18n.t("mobile.noProjectsHint"); color: Theme.fg-muted; font-size: 14px; horizontal-alignment: center; wrap: word-wrap; }
+                }
             }
-            if root.recents-total > 0 && root.recents.length == 0: Text {
-                text: I18n.t1("start.noMatches", root.query); color: Theme.fg-muted; font-size: 15px; wrap: word-wrap;
-            }
+            if root.recents-total == 0 && root.trash-view: Text { text: I18n.t("mobile.emptyTrash"); color: Theme.fg-muted; font-size: 15px; horizontal-alignment: center; }
+            if root.recents-total > 0 && root.recents.length == 0: Text { text: I18n.t1("start.noMatches", root.query); color: Theme.fg-muted; font-size: 15px; wrap: word-wrap; }
             for project in root.recents: ProjectRow {
                 project: project; enabled: !root.busy; selectable: root.trash-view;
                 opened => {
@@ -1922,6 +1960,20 @@ component NarrowHome inherits Rectangle {
                     else { root.open-recent(project.path); }
                 }
                 forgotten => { if (!root.export-mode && !root.trash-view) { root.forget-recent(project.path); } }
+            }
+        }
+    }
+    if root.choosing: Rectangle {
+        x: 0; y: root.height - 134px; width: root.width; height: 134px; background: Theme.panel;
+        Rectangle { x: 0; y: 0; width: parent.width; height: 1px; background: Theme.line-strong; }
+        VerticalLayout { padding: 16px; spacing: 10px;
+            HorizontalLayout { height: 38px;
+                LibraryAction { width: 100px; height: 38px; quiet: true; glyph: Glyph.close; label: I18n.t("common.cancel"); clicked => { root.link("trash-clear-selection"); } }
+                Text { text: I18n.t1("mobile.selectedCount", ProjectTrash.selected-count); color: Theme.fg-muted; font-size: 13px; horizontal-alignment: right; vertical-alignment: center; horizontal-stretch: 1; }
+            }
+            HorizontalLayout { height: 46px; spacing: 12px;
+                LibraryAction { horizontal-stretch: 1; primary: true; glyph: Glyph.undo; label: I18n.t("mobile.restoreSelected"); clicked => { root.link("trash-restore-selected"); } }
+                LibraryAction { horizontal-stretch: 1; destructive: true; glyph: Glyph.trash; label: I18n.t("common.delete"); clicked => { root.link("trash-delete-selected"); } }
             }
         }
     }

@@ -394,9 +394,8 @@ export component PhoneEditor inherits Rectangle {
     /// "adjustments", "transitions" - the project's own, and a "clip-" page
     /// of the inspector for the selected clip.
     property <string> sheet;
-    property <bool> sidebar-collapsed;
     property <int> track-index: 0;
-    property <length> sidebar-width: root.sidebar-collapsed ? 0px : 56px;
+    property <length> sidebar-width: 56px;
     // Back closes the sheet on top before it leaves the editor; the window
     // hears the key, so the sheet's state is told it through PhoneSheets.
     changed sheet => { PhoneSheets.open = root.sheet != ""; }
@@ -466,7 +465,6 @@ export component PhoneEditor inherits Rectangle {
     pure function sheet-title(name: string) -> string {
         return name == "customize-tools" ? I18n.t("mobile.customizeTools")
             : name == "track-controls" ? I18n.t("atlas.trackControls")
-            : name == "timeline-controls" ? I18n.t("atlas.timelineControls")
             : name == "tools" ? I18n.t("mobile.allTools")
             : name == "media" ? I18n.t("common.media")
             : name == "audio" ? I18n.t("common.audio")
@@ -526,7 +524,7 @@ export component PhoneEditor inherits Rectangle {
         RoundButton { x: 2px; y: 2px; glyph: Glyph.chevron-left; label: I18n.t("studio.closeProject"); clicked => { root.hide(); root.close-project(); } }
         RoundButton { x: 46px; y: 2px; glyph: Glyph.more; label: I18n.t("mobile.menu"); clicked => { root.hide(); project-menu.open-state = !project-menu.open-state; } }
         Text { x: 96px; width: Math.max(0px, parent.width - 192px); height: parent.height; text: root.project-name; color: Theme.fg; font-size: Theme.fs-lg; font-weight: Theme.weight-title; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
-        RoundButton { x: parent.width - 46px; y: 2px; glyph: Glyph.export; accent: true; label: I18n.t("common.export"); clicked => { root.hide(); root.export-clicked(); } }
+        RoundButton { x: parent.width - 46px; y: 2px; glyph: Glyph.export; accent: true; corner-radius: 13px; label: I18n.t("common.export"); clicked => { root.hide(); root.export-clicked(); } }
     }
 
     // ── the monitor ──────────────────────────────────────────────────
@@ -647,7 +645,7 @@ export component PhoneEditor inherits Rectangle {
 
             PhoneTrackHeaders {
                 x: 0; y: 44px; width: root.sidebar-width; height: parent.height - 44px;
-                visible: !root.sidebar-collapsed;
+                visible: true;
                 tracks: Editor.tracks; track-scroll: stack.at;
                 selected(index) => { root.track-index = index; root.show("track-controls", false); }
                 scrolled(pixels) => { stack.lift = Math.clamp(stack.overflow - stack.at - pixels, 0px, stack.overflow); }
@@ -720,9 +718,9 @@ export component PhoneEditor inherits Rectangle {
             // An empty cut says where to start. Takes no presses, so the
             // lanes under it still do.
             if Editor.clips.length == 0: Text {
-                x: 16px;
+                x: root.sidebar-width + 12px;
                 y: 44px + lanes.ruler-height + 14px;
-                width: parent.width - 32px;
+                width: parent.width - root.sidebar-width - 24px;
                 text: I18n.t("phone.emptyLanes");
                 color: Theme.fg-dim;
                 font-size: Theme.fs;
@@ -732,12 +730,14 @@ export component PhoneEditor inherits Rectangle {
 
             Rectangle {
                 x: 0; y: 0; width: parent.width; height: 44px; background: Theme.panel;
-                HorizontalLayout { padding-left: 4px; padding-right: 4px; spacing: 0px;
-                    RoundButton { glyph: root.sidebar-collapsed ? Glyph.chevron-right : Glyph.chevron-left; label: I18n.t("atlas.toggleSidebar"); size: 40px; clicked => { root.sidebar-collapsed = !root.sidebar-collapsed; } }
-                    Text { text: I18n.t("atlas.timeline"); color: Theme.fg; font-size: 14px; font-weight: 600; vertical-alignment: center; horizontal-stretch: 1; }
-                    RoundButton { glyph: Glyph.magnet; label: I18n.t("common.snapToEdges"); foreground: Editor.snap ? Theme.accent : Theme.fg; size: 40px; clicked => { Editor.snap-changed(!Editor.snap); } }
-                    RoundButton { glyph: Glyph.settings; label: I18n.t("atlas.timelineControls"); size: 40px; clicked => { root.show("timeline-controls", false); } }
-                    RoundButton { glyph: Glyph.plus; label: I18n.t("common.media"); size: 40px; clicked => { root.show-media(true); } }
+                HorizontalLayout { padding-left: 2px; padding-right: 2px; spacing: 0px;
+                    RoundButton { glyph: Glyph.chevron-left; label: I18n.t("studio.closeProject"); size: 32px; clicked => { root.hide(); root.close-project(); } }
+                    Text { text: I18n.t("atlas.timeline"); color: Theme.fg; font-size: 13px; font-weight: 600; min-width: 0px; overflow: elide; vertical-alignment: center; horizontal-stretch: 1; }
+                    RoundButton { glyph: Glyph.magnet; label: I18n.t("common.snapToEdges"); foreground: Editor.snap ? Theme.accent : Theme.fg; size: 38px; clicked => { Editor.snap-changed(!Editor.snap); } }
+                    RoundButton { glyph: Glyph.ripple-trim; label: I18n.t("mobile.rippleTrim"); foreground: Editor.magnetic ? Theme.accent : Theme.fg; size: 38px; clicked => { Editor.magnetic-changed(!Editor.magnetic); } }
+                    RoundButton { glyph: Glyph.zoom-out; label: I18n.t("common.zoomOut"); size: 38px; clicked => { Editor.zoom(1.4, Editor.playhead); } }
+                    RoundButton { glyph: Glyph.zoom-in; label: I18n.t("common.zoomIn"); size: 38px; clicked => { Editor.zoom(1 / 1.4, Editor.playhead); } }
+                    RoundButton { glyph: Glyph.plus; label: I18n.t("common.media"); size: 38px; clicked => { root.show-media(false); } }
                 }
             }
 
@@ -757,9 +757,23 @@ export component PhoneEditor inherits Rectangle {
         }
     }
 
-    ToolStrip {
+    function show-clip-actions() {
+        root.hide();
+        more-menu.request-x = Math.max(0px, (root.width - 280px) / 2);
+        more-menu.request-y = root.height - root.bar-h;
+        Editor.clip-context(Editor.selected-clip.id);
+    }
+    if root.has-clip: HorizontalLayout {
+        x: 0; y: root.height - root.bar-h; width: root.width; height: root.bar-h;
+        padding-left: 6px; padding-right: 6px; spacing: 0px;
+        ToolItem { width: (root.width - 12px) / 5; glyph: Glyph.split; label: I18n.t("phone.split"); clicked => { Editor.shortcut("split-selected"); } }
+        ToolItem { width: (root.width - 12px) / 5; glyph: Glyph.trash; label: I18n.t("common.delete"); clicked => { Editor.delete-selected(); } }
+        ToolItem { width: (root.width - 12px) / 5; glyph: Glyph.frame; label: I18n.t("phone.canvas"); enabled: Editor.picture-selected; clicked => { root.show("clip-canvas", true); } }
+        ToolItem { width: (root.width - 12px) / 5; glyph: Glyph.sparkle; label: I18n.t("common.effects"); clicked => { root.show(root.is-audio ? "clip-audio-effects" : "clip-effects", true); } }
+        ToolItem { width: (root.width - 12px) / 5; glyph: Glyph.more; label: I18n.t("phone.more"); clicked => { root.show-clip-actions(); } }
+    }
+    if !root.has-clip: ToolStrip {
         y: root.height - root.bar-h; width: root.width; height: root.bar-h;
-        if root.has-clip: ToolItem { glyph: Glyph.chevron-left; label: I18n.t("mobile.done"); clicked => { root.hide(); Editor.shortcut("deselect"); } }
         for tool in Editor.mobile-quick-tools: ToolItem { glyph: tool.glyph; label: tool.label; clicked => { root.activate-tool(tool.id); } }
         ToolItem { glyph: Glyph.more; label: I18n.t("mobile.allTools"); clicked => { root.show("tools", false); } }
     }
@@ -1251,7 +1265,7 @@ export component PhoneEditor inherits Rectangle {
                     RoundButton { glyph: Glyph.chevron-down; label: I18n.t("mobile.moveToolDown"); clicked => { Editor.mobile-tool-customize(tool.id, "down"); } }
                 }
                 SwitchRow { label: I18n.t("mobile.showTool"); checked: !tool.hidden; toggled(on) => { Editor.mobile-tool-customize(tool.id, "hide"); } }
-                SwitchRow { label: I18n.t("mobile.pinTool"); checked: tool.pinned; toggled(on) => { Editor.mobile-tool-customize(tool.id, "pin"); } }
+                if !root.has-clip: SwitchRow { label: I18n.t("mobile.pinTool"); checked: tool.pinned; toggled(on) => { Editor.mobile-tool-customize(tool.id, "pin"); } }
             }
         }
 
@@ -1270,17 +1284,6 @@ export component PhoneEditor inherits Rectangle {
                 ToolItem { width: (root.width - 48px) / 3; glyph: Glyph.minus; label: I18n.t("common.small"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.small); } }
                 ToolItem { width: (root.width - 48px) / 3; glyph: Glyph.frame; label: I18n.t("common.medium"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.medium); } }
                 ToolItem { width: (root.width - 48px) / 3; glyph: Glyph.fit; label: I18n.t("common.large"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.large); } }
-            }
-        }
-        if root.sheet == "timeline-controls": VerticalLayout {
-            padding: 16px; spacing: 12px;
-            SwitchRow { label: I18n.t("common.snapToEdges"); checked: Editor.snap; toggled(on) => { Editor.snap-changed(on); } }
-            SwitchRow { label: I18n.t("mobile.ripple"); checked: Editor.magnetic; toggled(on) => { Editor.magnetic-changed(on); } }
-            AtlasChip { label: root.sidebar-collapsed ? I18n.t("atlas.showSidebar") : I18n.t("atlas.hideSidebar"); clicked => { root.sidebar-collapsed = !root.sidebar-collapsed; } }
-            HorizontalLayout { spacing: 8px;
-                AtlasChip { label: I18n.t("common.zoomOut"); clicked => { Editor.zoom(1.4, Editor.playhead); } }
-                AtlasChip { label: I18n.t("atlas.fitTimeline"); clicked => { Editor.zoom(Math.max(0.001, Editor.duration-seconds / Math.max(1, lanes.width / 1px)) / Editor.seconds-per-pixel, Editor.playhead); Editor.scrolled(0); } }
-                AtlasChip { label: I18n.t("common.zoomIn"); clicked => { Editor.zoom(1 / 1.4, Editor.playhead); } }
             }
         }
         // ── the project's facts, and the sheet that changes them ──
@@ -1379,7 +1382,7 @@ export component PhoneEditor inherits Rectangle {
         items: Editor.menu-items;
         menu-height: Editor.menu-height;
         token: Editor.menu-token;
-        selected(id) => { Editor.menu-selected(id); }
+        selected(id) => { if (id == "mobile-more-tools") { root.show("tools", true); } else { Editor.menu-selected(id); if (id == "enhance") { root.show("clip-enhance", true); } } }
     }
     project-menu := PhoneMenu {
         property <bool> open-state;
