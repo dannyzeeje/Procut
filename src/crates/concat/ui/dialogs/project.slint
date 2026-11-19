@@ -195,8 +195,13 @@ export component ProjectDialog inherits Modal {
             // What shows where no picture covers the frame: the gaps, the
             // space around a title. The timeline's, like the frame above;
             // see CanvasPicker.
+            if Theme.mobile: Text {
+                text: I18n.t("start.background");
+                color: Theme.fg-muted;
+                font-size: Theme.fs;
+            }
             DialogRow {
-                label: I18n.t("start.background");
+                label: Theme.mobile ? "" : I18n.t("start.background");
                 CanvasPicker {
                     value: root.data.canvas;
                     changed(value) => { root.canvas-changed(value); }

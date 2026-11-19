@@ -698,7 +698,7 @@ export component DialogSection inherits VerticalLayout {
     // together were reading as a break between groups rather than as a title
     // sitting on the thing it names.
     Rectangle {
-        height: 30px;
+        height: Theme.mobile ? 40px : 30px;
         background: !root.collapsible ? Colors.transparent
             : head.has-hover ? Theme.field
             : Theme.raised;
@@ -730,6 +730,8 @@ export component DialogSection inherits VerticalLayout {
 
             Text {
                 text: root.title;
+                min-width: 0px; overflow: elide;
+                horizontal-stretch: Theme.mobile ? 1 : 0;
                 color: Theme.fg;
                 font-size: Theme.fs-lg;
                 font-weight: Theme.weight-title;
@@ -755,7 +757,7 @@ export component DialogSection inherits VerticalLayout {
                 }
             }
 
-            Rectangle { horizontal-stretch: 1; }
+            if !Theme.mobile: Rectangle { horizontal-stretch: 1; }
 
             if root.collapsible && !root.open && root.summary != "": Text {
                 text: root.summary;
@@ -766,7 +768,7 @@ export component DialogSection inherits VerticalLayout {
                 overflow: elide;
             }
 
-            if root.choices.length > 0: VerticalLayout {
+            if !Theme.mobile && root.choices.length > 0: VerticalLayout {
                 alignment: center;
 
                 Select {
@@ -808,6 +810,18 @@ export component DialogSection inherits VerticalLayout {
                     }
                 }
             }
+        }
+    }
+
+    if Theme.mobile && root.choices.length > 0: HorizontalLayout {
+        padding-left: 14px; padding-right: 14px; padding-bottom: 6px;
+        Select {
+            min-width: 0px;
+            horizontal-stretch: 1;
+            options: root.choices;
+            details: root.choice-details;
+            current: root.choice;
+            changed(index) => { root.chose(index); }
         }
     }
 

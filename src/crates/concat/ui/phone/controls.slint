@@ -163,13 +163,14 @@ export component ToolStrip inherits Flickable {
 /// only the axis it can move on, so a slider dragged sideways keeps its
 /// drag and a column dragged up and down scrolls.
 export component PhoneScroll inherits Flickable {
+    in property <length> gutter;
     content-width: self.width;
     content-height: column.height;
 
     column := VerticalLayout {
-        x: 0;
         y: 0;
-        width: root.width;
+        x: root.gutter;
+        width: root.width - 2 * root.gutter;
         height: self.preferred-height;
         alignment: start;
 

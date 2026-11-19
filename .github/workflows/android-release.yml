@@ -9,7 +9,7 @@ on:
       tag:
         description: Release tag matching the source version
         required: true
-        default: v0.2.16
+        default: v0.2.17
 permissions:
   contents: read
 concurrency:

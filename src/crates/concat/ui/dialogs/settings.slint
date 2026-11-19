@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Jareer Abdullah and Concat contributors
 
+import { MenuAction } from "../phone/navigation.slint";
 import { ToolItem } from "../phone/controls.slint";
 import { I18n } from "../i18n.slint";
 import { Theme } from "../theme/theme.slint";
@@ -733,7 +734,7 @@ export component SettingsDialog inherits Sheet {
     /// held upright in a small window, a narrow desk window. The pages are
     /// a row of tabs across the top instead, the page has the whole width,
     /// and a model's row puts its controls under its name.
-    property <bool> compact: root.width < 600px;
+    property <bool> compact: root.phone || root.width < 600px;
 
     /// Every page, in order; the column and the row of tabs are drawn from
     /// the same list. A phone's list leaves out the pages a phone does not
@@ -799,8 +800,8 @@ export component SettingsDialog inherits Sheet {
     HorizontalLayout {
         vertical-stretch: 1;
         padding-top: root.compact ? 0px : 12px;
-        padding-left: Math.max(0px, (root.width - root.column) / 2);
-        padding-right: Math.max(0px, (root.width - root.column) / 2);
+        padding-left: Math.max(root.phone ? 12px : 0px, (root.width - root.column) / 2);
+        padding-right: Math.max(root.phone ? 12px : 0px, (root.width - root.column) / 2);
         // The clipboard takes text, so there has to be a TextInput holding
         // the report: Slint copies from a text element's own selection and
         // has no other way in. It is never read — it is zero wide and clipped
@@ -843,10 +844,26 @@ export component SettingsDialog inherits Sheet {
             property <length> pages: root.compact ? 0px : Math.max(root.min-pages,
                 Math.min(root.pages-w, self.width * 0.4));
             /// The row of tabs' height, when the pages are a row.
-            property <length> strip: root.compact ? 80px : 0px;
+            property <length> strip: root.phone ? 108px : root.compact ? 80px : 0px;
 
             // ── the pages, as a row of tabs across the top ───────────────
-            if root.compact: Rectangle {
+            if root.phone: VerticalLayout {
+                x: 0; y: 0; width: parent.width; height: body.strip;
+                padding-top: 6px; padding-bottom: 6px; spacing: 0px;
+                for row in [0, 1]: HorizontalLayout {
+                    spacing: 4px;
+                    for col in [0, 1]: MenuAction {
+                        property <int> index: row * 2 + col;
+                        horizontal-stretch: 1;
+                        compact: true;
+                        label: root.page-list[self.index].label;
+                        glyph: root.page-list[self.index].glyph;
+                        current: root.data.tab == root.page-list[self.index].page;
+                        clicked => { root.page-changed(root.page-list[self.index].page); }
+                    }
+                }
+            }
+            if root.compact && !root.phone: Rectangle {
                 x: 0;
                 y: 0;
                 width: parent.width;
@@ -921,6 +938,8 @@ export component SettingsDialog inherits Sheet {
 
             if root.data.tab == 0: VerticalLayout {
                 padding-top: 10px;
+                padding-bottom: 16px;
+                spacing: root.phone ? 8px : 0px;
 
                 DialogSection {
                     ruled: false;
@@ -1068,6 +1087,8 @@ export component SettingsDialog inherits Sheet {
             // stays the one place a remembered preference will be written.
             if root.data.tab == 1: VerticalLayout {
                 padding-top: 10px;
+                padding-bottom: 16px;
+                spacing: root.phone ? 8px : 0px;
 
                 // The interface scale: how much larger than the display's own
                 // scale the window is drawn. Most of Concat was built on a
@@ -1152,7 +1173,7 @@ export component SettingsDialog inherits Sheet {
                             }
 
                             picker := PopupWindow {
-                                x: 0;
+                                x: root.phone ? self.width * -0.82 : 0px;
                                 y: parent.height + 4px;
                                 width: 236px;
                                 close-policy: close-on-click-outside;
@@ -1228,7 +1249,7 @@ export component SettingsDialog inherits Sheet {
                             }
 
                             playhead-picker := PopupWindow {
-                                x: 0;
+                                x: root.phone ? self.width * -0.82 : 0px;
                                 y: parent.height + 4px;
                                 width: 236px;
                                 close-policy: close-on-click-outside;
@@ -1270,6 +1291,8 @@ export component SettingsDialog inherits Sheet {
 
             if root.data.tab == 2: VerticalLayout {
                 padding-top: 10px;
+                padding-bottom: 16px;
+                spacing: root.phone ? 8px : 0px;
 
                 DialogSection {
                     ruled: false;
@@ -1317,6 +1340,8 @@ export component SettingsDialog inherits Sheet {
 
             if root.data.tab == 3: VerticalLayout {
                 padding-top: 10px;
+                padding-bottom: 16px;
+                spacing: root.phone ? 8px : 0px;
 
                 DialogSection {
                     ruled: false;
