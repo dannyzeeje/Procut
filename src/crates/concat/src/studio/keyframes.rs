@@ -2409,19 +2409,6 @@ impl Studio {
             checkable: false,
             checked: false,
         });
-        if crate::platform::phone() {
-            rows.insert(
-                0,
-                action(
-                    "mobile-more-tools",
-                    t("mobile.allTools"),
-                    Glyph::More,
-                    "",
-                    !locked,
-                ),
-            );
-            rows.insert(1, rule());
-        }
         // One Delete, not a Delete and a Ripple Delete: whether a delete
         // closes the gap is the tray's magnetic switch, a setting of the
         // timeline rather than a choice to make at every clip.

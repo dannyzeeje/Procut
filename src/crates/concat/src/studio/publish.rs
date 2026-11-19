@@ -503,6 +503,15 @@ impl Studio {
         editor.set_preview_axis(self.prefs.preview_axis);
         editor.set_preview_axis_audio(self.prefs.preview_axis_audio);
         editor.set_pan_mode(self.lanes.pan_mode);
+        let at = f64::from(self.playhead);
+        let edge = f64::from(MIN_DURATION);
+        editor.set_can_trim_selection(self.selection.iter().filter_map(|id| self.clip(id)).any(
+            |clip| {
+                clip.start + edge < at
+                    && at < clip.start + clip.duration - edge
+                    && !self.locked(&clip.track_id)
+            },
+        ));
         editor.set_selected_count(self.selection.len() as i32);
         // The tray's undo and redo buttons grey out on these; the Edit menu
         // asks the session itself when it opens.

@@ -1979,7 +1979,7 @@ component NarrowHome inherits Rectangle {
     }
     PhoneMenu {
         width: root.width; height: root.height; open: PhoneNavigation.open;
-        title: I18n.t("mobile.brand"); closed => { PhoneNavigation.open = false; }
+        closed => { PhoneNavigation.open = false; }
         MenuAction { glyph: Glyph.folder; label: I18n.t("mobile.yourProjects"); clicked => { PhoneNavigation.open = false; root.export-mode = false; if (root.trash-view) { root.link("trash"); } else { root.link("recover"); } } }
         MenuAction { glyph: Glyph.import; label: I18n.t("mobile.importProjectMenu"); clicked => { PhoneNavigation.open = false; root.link("import-project"); } }
         MenuAction { glyph: Glyph.export; label: I18n.t("mobile.exportProjectMenu"); enabled: root.recents-total > 0 && !root.trash-view; clicked => { PhoneNavigation.open = false; root.export-mode = true; } }

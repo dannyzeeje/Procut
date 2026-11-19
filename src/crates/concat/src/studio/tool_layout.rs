@@ -84,7 +84,7 @@ impl Studio {
         if clip {
             tools.push(("delete", t("common.delete"), Glyph::Trash, true));
         }
-        if clip {
+        if picture || section == "text" {
             tools.push(("edit", t("phone.edit"), Glyph::Frame, true));
         }
         if picture {

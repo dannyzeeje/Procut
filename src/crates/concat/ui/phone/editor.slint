@@ -19,7 +19,7 @@ import { Lanes } from "../timeline/lanes.slint";
 import { ClipField, ClipKind, SelectedClipData } from "../timeline/model.slint";
 import { Param, ParamFormat, SwitchRow } from "../inspector/controls.slint";
 import { PreviewPane } from "../workspace/preview-pane.slint";
-import { ContextMenu } from "../primitives/context-menu.slint";
+import { MenuRow } from "../primitives/context-menu.slint";
 import {
     CategoryPillBar, GroupPillBar, MediaCard, MediaItemData, PresetGrid, ShelfGrid, ShelfSearch,
 } from "../workspace/media-pane.slint";
@@ -160,6 +160,7 @@ component SheetButton inherits Rectangle {
 
         Text {
             text: root.label;
+            min-width: 0px; overflow: elide;
             color: root.primary ? Theme.on-accent : Theme.fg;
             font-size: Theme.fs-lg;
             font-weight: Theme.weight-title;
@@ -500,10 +501,11 @@ export component PhoneEditor inherits Rectangle {
     property <length> transport-h: 96px;
     /// A resizable timeline with room for the preview.
     property <float> timeline-share: 0.42;
-    property <length> lanes-h: Math.max(170px, Math.min(root.height - root.top-h - root.transport-h - root.bar-h - 130px, root.height * root.timeline-share));
+    property <length> lanes-h: Math.max(170px, Math.min(root.height - root.top-h - root.transport-h - root.bar-h - root.timeline-gap - 110px, root.height * root.timeline-share));
     property <length> bar-h: 74px;
     property <length> lanes-y: root.height - root.bar-h - root.lanes-h;
-    property <length> transport-y: root.lanes-y - root.transport-h - 20px;
+    property <length> timeline-gap: root.has-clip ? 60px : 20px;
+    property <length> transport-y: root.lanes-y - root.transport-h - root.timeline-gap;
     /// How tall the sheet is when one is up. The bin's is lower: it is a
     /// grid to pick from, and the picture is what the picks are judged in.
     property <length> sheet-h: root.height * 0.5;
@@ -521,10 +523,10 @@ export component PhoneEditor inherits Rectangle {
     Rectangle {
         x: 0px; y: 0px;
         width: root.width; height: root.top-h;
-        RoundButton { x: 2px; y: 2px; glyph: Glyph.chevron-left; label: I18n.t("studio.closeProject"); clicked => { root.hide(); root.close-project(); } }
-        RoundButton { x: 46px; y: 2px; glyph: Glyph.more; label: I18n.t("mobile.menu"); clicked => { root.hide(); project-menu.open-state = !project-menu.open-state; } }
+        RoundButton { x: 12px; y: 2px; glyph: Glyph.chevron-left; label: I18n.t("studio.closeProject"); clicked => { root.hide(); root.close-project(); } }
+        RoundButton { x: 56px; y: 2px; glyph: Glyph.more; label: I18n.t("mobile.menu"); clicked => { root.hide(); project-menu.open-state = !project-menu.open-state; } }
         Text { x: 96px; width: Math.max(0px, parent.width - 192px); height: parent.height; text: root.project-name; color: Theme.fg; font-size: Theme.fs-lg; font-weight: Theme.weight-title; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
-        RoundButton { x: parent.width - 46px; y: 2px; glyph: Glyph.export; accent: true; corner-radius: 13px; label: I18n.t("common.export"); clicked => { root.hide(); root.export-clicked(); } }
+        RoundButton { x: parent.width - 56px; y: 2px; glyph: Glyph.export; accent: true; corner-radius: 13px; label: I18n.t("common.export"); clicked => { root.hide(); root.export-clicked(); } }
     }
 
     // ── the monitor ──────────────────────────────────────────────────
@@ -745,7 +747,7 @@ export component PhoneEditor inherits Rectangle {
     }
 
     Rectangle {
-        x: 0; y: root.lanes-y - 20px;
+        x: 0; y: root.lanes-y - root.timeline-gap;
         width: root.width; height: 20px;
         background: Theme.page;
         Rectangle { x: (parent.width - 48px) / 2; y: 7px; width: 48px; height: 4px; border-radius: 2px; background: Theme.fg-muted; }
@@ -757,20 +759,34 @@ export component PhoneEditor inherits Rectangle {
         }
     }
 
+    if root.has-clip: HorizontalLayout {
+        x: 12px; y: root.lanes-y - 46px;
+        width: root.width - 24px; height: 44px;
+        spacing: 8px;
+        SheetButton {
+            glyph: Glyph.step-back; label: I18n.t("shortcuts.deleteLeft");
+            enabled: Editor.can-trim-selection;
+            clicked => { Editor.shortcut("delete-left"); }
+        }
+        SheetButton {
+            glyph: Glyph.step-forward; label: I18n.t("shortcuts.deleteRight");
+            enabled: Editor.can-trim-selection;
+            clicked => { Editor.shortcut("delete-right"); }
+        }
+    }
+
     function show-clip-actions() {
-        root.hide();
-        more-menu.request-x = Math.max(0px, (root.width - 280px) / 2);
-        more-menu.request-y = root.height - root.bar-h;
         Editor.clip-context(Editor.selected-clip.id);
+        root.show("tools", true);
     }
     if root.has-clip: HorizontalLayout {
         x: 0; y: root.height - root.bar-h; width: root.width; height: root.bar-h;
-        padding-left: 6px; padding-right: 6px; spacing: 0px;
-        ToolItem { width: (root.width - 12px) / 5; glyph: Glyph.split; label: I18n.t("phone.split"); clicked => { Editor.shortcut("split-selected"); } }
-        ToolItem { width: (root.width - 12px) / 5; glyph: Glyph.trash; label: I18n.t("common.delete"); clicked => { Editor.delete-selected(); } }
-        ToolItem { width: (root.width - 12px) / 5; glyph: Glyph.frame; label: I18n.t("phone.canvas"); enabled: Editor.picture-selected; clicked => { root.show("clip-canvas", true); } }
-        ToolItem { width: (root.width - 12px) / 5; glyph: Glyph.sparkle; label: I18n.t("common.effects"); clicked => { root.show(root.is-audio ? "clip-audio-effects" : "clip-effects", true); } }
-        ToolItem { width: (root.width - 12px) / 5; glyph: Glyph.more; label: I18n.t("phone.more"); clicked => { root.show-clip-actions(); } }
+        padding-left: 12px; padding-right: 12px; spacing: 0px;
+        ToolItem { width: (root.width - 24px) / 5; glyph: Glyph.split; label: I18n.t("phone.split"); clicked => { Editor.shortcut("split-selected"); } }
+        ToolItem { width: (root.width - 24px) / 5; glyph: Glyph.trash; label: I18n.t("common.delete"); clicked => { Editor.delete-selected(); } }
+        ToolItem { width: (root.width - 24px) / 5; glyph: Glyph.frame; label: I18n.t("phone.canvas"); enabled: Editor.picture-selected; clicked => { root.show("clip-canvas", true); } }
+        ToolItem { width: (root.width - 24px) / 5; glyph: Glyph.sparkle; label: I18n.t("common.effects"); clicked => { root.show(root.is-audio ? "clip-audio-effects" : "clip-effects", true); } }
+        ToolItem { width: (root.width - 24px) / 5; glyph: Glyph.more; label: I18n.t("phone.more"); clicked => { root.show-clip-actions(); } }
     }
     if !root.has-clip: ToolStrip {
         y: root.height - root.bar-h; width: root.width; height: root.bar-h;
@@ -1147,7 +1163,6 @@ export component PhoneEditor inherits Rectangle {
         }
 
         if root.sheet == "clip-speed": SpeedPanel {
-            width: root.width;
             horizontal-stretch: 1;
             selected: Editor.selected-clip;
             set(field, value) => { Editor.clip-set(field, value); }
@@ -1220,7 +1235,6 @@ export component PhoneEditor inherits Rectangle {
         }
 
         if root.sheet == "clip-text": TextPanel {
-            width: root.width - 2px;
             selected: Editor.selected-clip;
             families: Editor.font-families;
             set(field, value) => { Editor.clip-set(field, value); }
@@ -1248,9 +1262,35 @@ export component PhoneEditor inherits Rectangle {
         }
 
         if root.sheet == "tools": VerticalLayout {
-            padding: 12px; spacing: 10px;
-            SheetButton { glyph: Glyph.sliders; label: I18n.t("mobile.customizeTools"); clicked => { root.show("customize-tools", false); } }
-            ToolGrid { tools: Editor.mobile-more-tools; activated(id) => { root.activate-tool(id); } }
+            padding: 4px; spacing: 4px;
+            if Editor.mobile-more-tools.length > 0: ToolGrid {
+                tools: Editor.mobile-more-tools;
+                activated(id) => { root.hide(); root.activate-tool(id); }
+            }
+            if root.sheet-needs-clip && Editor.mobile-more-tools.length > 0: Rectangle {
+                height: 1px;
+                background: Theme.line;
+            }
+            for item in root.sheet-needs-clip ? Editor.menu-items : []: Rectangle {
+                property <bool> included: item.kind == MenuRow.action && item.id != "split"
+                    && item.id != "delete" && item.id != "delete-left" && item.id != "delete-right";
+                height: self.included ? 48px : 0px;
+                if self.included: MenuAction {
+                    label: item.label;
+                    glyph: item.checkable && item.checked ? Glyph.check : item.glyph;
+                    enabled: item.enabled; compact: true;
+                    clicked => {
+                        root.hide();
+                        Editor.menu-selected(item.id);
+                        if (item.id == "enhance") { root.show("clip-enhance", true); }
+                    }
+                }
+            }
+            Rectangle { height: 1px; background: Theme.line; }
+            MenuAction {
+                glyph: Glyph.sliders; label: I18n.t("mobile.customizeTools"); compact: true;
+                clicked => { root.show("customize-tools", root.has-clip); }
+            }
         }
         if root.sheet == "customize-tools": VerticalLayout {
             padding: 12px; spacing: 8px;
@@ -1274,16 +1314,16 @@ export component PhoneEditor inherits Rectangle {
             Text { text: I18n.t1("atlas.trackOptions", Editor.tracks[root.track-index].label); color: Theme.accent; font-size: 16px; }
             HorizontalLayout {
                 height: 80px; spacing: 8px;
-                ToolItem { width: (root.width - 56px) / 4; glyph: Editor.tracks[root.track-index].visible ? Glyph.eye : Glyph.eye-off; label: I18n.t("atlas.visible"); current: Editor.tracks[root.track-index].visible; clicked => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, !tr.visible, tr.muted, tr.locked); } }
-                ToolItem { width: (root.width - 56px) / 4; glyph: Editor.tracks[root.track-index].muted ? Glyph.volume-off : Glyph.volume; label: I18n.t("atlas.muteAudio"); current: Editor.tracks[root.track-index].muted; clicked => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, tr.visible, !tr.muted, tr.locked); } }
-                ToolItem { width: (root.width - 56px) / 4; glyph: Glyph.lock; label: I18n.t("atlas.lockTrack"); current: Editor.tracks[root.track-index].locked; clicked => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, tr.visible, tr.muted, !tr.locked); } }
-                ToolItem { width: (root.width - 56px) / 4; glyph: Glyph.fold; label: Editor.tracks[root.track-index].minimized ? I18n.t("atlas.expandTrack") : I18n.t("atlas.minimizeTrack"); clicked => { Editor.track-minimized(root.track-index, !Editor.tracks[root.track-index].minimized); } }
+                ToolItem { width: (root.width - 80px) / 4; glyph: Editor.tracks[root.track-index].visible ? Glyph.eye : Glyph.eye-off; label: I18n.t("atlas.visible"); current: Editor.tracks[root.track-index].visible; clicked => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, !tr.visible, tr.muted, tr.locked); } }
+                ToolItem { width: (root.width - 80px) / 4; glyph: Editor.tracks[root.track-index].muted ? Glyph.volume-off : Glyph.volume; label: I18n.t("atlas.muteAudio"); current: Editor.tracks[root.track-index].muted; clicked => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, tr.visible, !tr.muted, tr.locked); } }
+                ToolItem { width: (root.width - 80px) / 4; glyph: Glyph.lock; label: I18n.t("atlas.lockTrack"); current: Editor.tracks[root.track-index].locked; clicked => { let tr = Editor.tracks[root.track-index]; Editor.track-flag-changed(root.track-index, tr.visible, tr.muted, !tr.locked); } }
+                ToolItem { width: (root.width - 80px) / 4; glyph: Glyph.fold; label: Editor.tracks[root.track-index].minimized ? I18n.t("atlas.expandTrack") : I18n.t("atlas.minimizeTrack"); clicked => { Editor.track-minimized(root.track-index, !Editor.tracks[root.track-index].minimized); } }
             }
             Text { text: I18n.t("atlas.trackHeight"); color: Theme.fg; font-size: 14px; }
             HorizontalLayout { spacing: 8px; height: 76px;
-                ToolItem { width: (root.width - 48px) / 3; glyph: Glyph.minus; label: I18n.t("common.small"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.small); } }
-                ToolItem { width: (root.width - 48px) / 3; glyph: Glyph.frame; label: I18n.t("common.medium"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.medium); } }
-                ToolItem { width: (root.width - 48px) / 3; glyph: Glyph.fit; label: I18n.t("common.large"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.large); } }
+                ToolItem { width: (root.width - 72px) / 3; glyph: Glyph.minus; label: I18n.t("common.small"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.small); } }
+                ToolItem { width: (root.width - 72px) / 3; glyph: Glyph.frame; label: I18n.t("common.medium"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.medium); } }
+                ToolItem { width: (root.width - 72px) / 3; glyph: Glyph.fit; label: I18n.t("common.large"); clicked => { Editor.track-minimized(root.track-index, false); Editor.track-sized(root.track-index, TrackSize.large); } }
             }
         }
         // ── the project's facts, and the sheet that changes them ──
@@ -1369,31 +1409,13 @@ export component PhoneEditor inherits Rectangle {
         }
     }
 
-    // ── the clip's menu ──────────────────────────────────────────────────
-    //
-    // Over everything, so it can hang above the bar. Opened by the token
-    // Rust bumps once it has filled the rows; the lanes' own copy of this
-    // menu stays shut, since it opens only for a request it made itself.
-    more-menu := ContextMenu {
-        x: 0;
-        y: 0;
-        width: root.width;
-        height: root.height;
-        items: Editor.menu-items;
-        menu-height: Editor.menu-height;
-        token: Editor.menu-token;
-        selected(id) => { if (id == "mobile-more-tools") { root.show("tools", true); } else { Editor.menu-selected(id); if (id == "enhance") { root.show("clip-enhance", true); } } }
-    }
     project-menu := PhoneMenu {
         property <bool> open-state;
-        width: root.width; height: root.height; popup: true; open: self.open-state;
-        title: I18n.t("mobile.brand"); closed => { project-menu.open-state = false; }
-        MenuAction { glyph: Glyph.export; label: I18n.t("mobile.exportVideo"); clicked => { project-menu.open-state = false; root.export-clicked(); } }
+        width: root.width; height: root.height; open: self.open-state;
+        anchor-x: 56px; closed => { project-menu.open-state = false; }
         MenuAction { glyph: Glyph.folder; label: I18n.t("mobile.exportProjectMenu"); clicked => { project-menu.open-state = false; Editor.export-project-package(); } }
         MenuAction { glyph: Glyph.sliders; label: I18n.t("mobile.projectSettings"); clicked => { project-menu.open-state = false; Editor.modify-project(); } }
         MenuAction { glyph: Glyph.info; label: I18n.t("phone.project"); clicked => { project-menu.open-state = false; root.show("project", false); } }
-        MenuAction { glyph: Glyph.more; label: I18n.t("mobile.allTools"); clicked => { project-menu.open-state = false; root.show("tools", false); } }
-        MenuAction { glyph: Glyph.chevron-left; label: I18n.t("mobile.yourProjects"); clicked => { project-menu.open-state = false; root.hide(); root.close-project(); } }
     }
     if Editor.preview-fullscreen: FullscreenPlayer {
         width: root.width; height: root.height; project-name: root.project-name;
