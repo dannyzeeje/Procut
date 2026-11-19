@@ -380,7 +380,25 @@ component ModelRow inherits Rectangle {
                 wrap: word-wrap;
             }
 
-            if root.model.manual: HorizontalLayout {
+            if root.model.manual && !root.compact: HorizontalLayout {
+                spacing: 6px;
+                alignment: start;
+
+                Button {
+                    label: I18n.t("settings.downloadInBrowser");
+                    glyph: Glyph.arrow-up-right;
+                    ghost: true;
+                    clicked => { root.open-link(); }
+                }
+
+                Button {
+                    label: I18n.t("settings.chooseFile");
+                    glyph: Glyph.folder;
+                    ghost: true;
+                    clicked => { root.choose-file(); }
+                }
+            }
+            if root.model.manual && root.compact: VerticalLayout {
                 spacing: 6px;
                 alignment: start;
 
@@ -854,7 +872,7 @@ export component SettingsDialog inherits Sheet {
                     spacing: 4px;
                     for col in [0, 1]: MenuAction {
                         property <int> index: row * 2 + col;
-                        horizontal-stretch: 1;
+                        width: (body.width - 4px) / 2;
                         compact: true;
                         label: root.page-list[self.index].label;
                         glyph: root.page-list[self.index].glyph;
