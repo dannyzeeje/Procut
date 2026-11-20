@@ -1,0 +1,13 @@
+[[case]]
+name = "default"
+chain = "lowpass=f=1200:p=2"
+
+[[case]]
+name = "minimum"
+at = "min"
+chain = "lowpass=f=20:p=2"
+
+[[case]]
+name = "maximum"
+at = "max"
+chain = "lowpass=f=20000:p=2"

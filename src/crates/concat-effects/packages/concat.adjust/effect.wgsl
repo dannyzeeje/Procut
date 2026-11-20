@@ -82,7 +82,7 @@ fn effect(uv: vec2<f32>) -> vec4<f32> {
     let gain_rgb = vec3<f32>(params.gain_red, params.gain_green, params.gain_blue);
     if (any(gamma_rgb != vec3<f32>(0.0)) || any(gain_rgb != vec3<f32>(0.0))) {
         let below = min(d, vec3<f32>(1.0));
-        d = (sign(below) * pow(abs(below), exp2(-gamma_rgb)) + (d - below)) * exp2(gain_rgb);
+        d = (sign(below) * pow(abs(below), exp2(-gamma_rgb)) + (d - below)) * exp2(gain_rgb / 2.4);
     }
     d = grade_curves(d, params.luma, params.red, params.green, params.blue);
 

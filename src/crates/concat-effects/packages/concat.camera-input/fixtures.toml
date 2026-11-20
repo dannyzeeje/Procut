@@ -1,0 +1,22 @@
+[[probe]]
+name = "default"
+input = [0.3, 0.2, 0.12, 1]
+expect = [0.3, 0.2, 0.12, 1]
+
+[[probe]]
+name = "minimum"
+at = "min"
+input = [0.3, 0.2, 0.12, 1]
+expect = [0.3, 0.2, 0.12, 1]
+
+[[probe]]
+name = "maximum, Panasonic middle grey with expanded levels"
+at = "max"
+input = [0.125599499, 0.125599499, 0.125599499, 1]
+expect = [0.18, 0.18, 0.18, 1]
+
+[[probe]]
+name = "Sony middle grey with full-range code values"
+params = { profile = 1 }
+input = [0.118058368, 0.118058368, 0.118058368, 1]
+expect = [0.18, 0.18, 0.18, 1]
