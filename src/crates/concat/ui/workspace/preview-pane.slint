@@ -237,7 +237,7 @@ component Grip inherits Rectangle {
     callback released();
 
     in property <length> target-size: root.size + 6px;
-    property <length> size: root.turn ? 12px : 9px;
+    in property <length> size: root.turn ? 12px : 9px;
 
     x: root.at-x - self.width / 2;
     y: root.at-y - self.height / 2;
