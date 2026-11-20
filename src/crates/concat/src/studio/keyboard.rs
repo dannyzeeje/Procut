@@ -61,6 +61,11 @@ impl Studio {
             // is not a key someone might press by accident.
             "mirror" => self.toggle_flip_h(),
             "rotate" => self.rotate_selected(),
+            "optical-flow" => {
+                if let Some(id) = self.sole_selection() {
+                    self.optical_flow(&id);
+                }
+            }
             "reverse" => {
                 if let Some(id) = self.sole_selection() {
                     self.reverse_clip(&id);

@@ -347,6 +347,8 @@ impl Titles {
                     masks: clip.masks.clone(),
                     fade_in: clip.fade_in,
                     fade_out: clip.fade_out,
+                    smooth_fade_in: clip.smooth_fade_in,
+                    smooth_fade_out: clip.smooth_fade_out,
                     flip_h: clip.flip_h,
                     flip_v: clip.flip_v,
                     blend: clip.blend.clone(),

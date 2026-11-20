@@ -346,6 +346,8 @@ mod tests {
             volume_curve: Default::default(),
             fade_in: 0.0,
             fade_out: 0.0,
+            smooth_fade_in: false,
+            smooth_fade_out: false,
             filter_chain: String::new(),
         };
         super::super::mix_to_file(&[clip], 6.0, &m4a).expect("mixes");

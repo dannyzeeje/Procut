@@ -1,3 +1,4 @@
+import { SpeedRamp } from "../inspector/speed-ramp.slint";
 import { ToolGrid } from "tool-grid.slint";
 import { PhoneQuickActions } from "quick-actions.slint";
 // SPDX-License-Identifier: AGPL-3.0-or-later
@@ -409,10 +410,12 @@ export component PhoneEditor inherits Rectangle {
     /// The sheet up is one of the clip's, and goes with the clip.
     property <bool> sheet-needs-clip;
 
+    property <bool> multi-select;
+    property <bool> editing-clips: Editor.selected-count > 0;
     property <bool> has-clip: Editor.selected-clip.present;
     property <ClipKind> kind: Editor.selected-clip.kind;
     property <bool> is-video: !Editor.selected-clip.batch-volume && root.kind == ClipKind.video;
-    property <bool> is-audio: Editor.selected-clip.batch-volume || root.kind == ClipKind.audio;
+    property <bool> is-audio: Editor.selected-clip.batch-volume || root.kind == ClipKind.audio || root.kind == ClipKind.sound-layer;
     property <bool> is-image: root.kind == ClipKind.image;
     property <bool> is-text: root.kind == ClipKind.text;
     property <bool> is-layer: root.kind == ClipKind.filter || root.kind == ClipKind.effect
@@ -426,8 +429,8 @@ export component PhoneEditor inherits Rectangle {
     // A clip's sheet closes with the clip - deleted, or let go of by a tap
     // on the floor - rather than staying up over a selection it no longer
     // describes.
-    changed has-clip => {
-        if (!root.has-clip && root.sheet-needs-clip) {
+    changed editing-clips => {
+        if (!root.editing-clips && root.sheet-needs-clip) {
             root.hide();
         }
     }
@@ -504,7 +507,7 @@ export component PhoneEditor inherits Rectangle {
     property <length> lanes-h: Math.max(170px, Math.min(root.height - root.top-h - root.transport-h - root.bar-h - root.timeline-gap - 110px, root.height * root.timeline-share));
     property <length> bar-h: 74px;
     property <length> lanes-y: root.height - root.bar-h - root.lanes-h;
-    property <length> timeline-gap: root.has-clip ? 60px : 20px;
+    property <length> timeline-gap: 20px;
     property <length> transport-y: root.lanes-y - root.transport-h - root.timeline-gap;
     /// How tall the sheet is when one is up. The bin's is lower: it is a
     /// grid to pick from, and the picture is what the picks are judged in.
@@ -533,8 +536,7 @@ export component PhoneEditor inherits Rectangle {
     //
     // The pane's stage alone, with 8px of the ground either side so it
     // reads as a card on the page like the lanes under it. The stage
-    // keeps its gestures: a drag moves the selected picture, a press
-    // on the well pans the view, a double tap fits it again.
+    // keeps its gestures: a drag on the picture moves the selected clip. The fitted viewport stays fixed.
     Rectangle {
         visible: !Editor.preview-fullscreen;
         x: 0;
@@ -548,6 +550,7 @@ export component PhoneEditor inherits Rectangle {
             width: parent.width - 16px;
             height: parent.height;
             bare: true;
+            view-gestures: false;
 
             output-width: Editor.output-width;
             output-height: Editor.output-height;
@@ -689,10 +692,10 @@ export component PhoneEditor inherits Rectangle {
                 key-mark-opened => { Editor.key-mark-opened(); }
                 hovered(seconds) => { Editor.hovered(seconds); }
                 hover-ended => { Editor.hover-ended(); }
-                floor-pressed => { Editor.blur(); }
+                floor-pressed => { Editor.blur(); if (!root.multi-select && root.editing-clips) { Editor.shortcut("deselect"); } }
                 clip-pressed(id, additive, edge) => {
                     Editor.blur();
-                    Editor.clip-pressed(id, additive, edge);
+                    Editor.clip-pressed(id, additive || root.multi-select, root.multi-select ? -3 : edge);
                 }
                 clip-dragged(seconds, pixels) => { Editor.clip-dragged(seconds, pixels); }
                 clip-released => { Editor.clip-released(); }
@@ -732,11 +735,40 @@ export component PhoneEditor inherits Rectangle {
 
             Rectangle {
                 x: 0; y: 0; width: parent.width; height: 44px; background: Theme.panel;
-                HorizontalLayout { padding-left: 2px; padding-right: 2px; spacing: 0px;
-                    RoundButton { glyph: Glyph.chevron-left; label: I18n.t("studio.closeProject"); size: 32px; clicked => { root.hide(); root.close-project(); } }
-                    Text { text: I18n.t("atlas.timeline"); color: Theme.fg; font-size: 13px; font-weight: 600; min-width: 0px; overflow: elide; vertical-alignment: center; horizontal-stretch: 1; }
-                    RoundButton { glyph: Glyph.magnet; label: I18n.t("common.snapToEdges"); foreground: Editor.snap ? Theme.accent : Theme.fg; size: 38px; clicked => { Editor.snap-changed(!Editor.snap); } }
-                    RoundButton { glyph: Glyph.ripple-trim; label: I18n.t("mobile.rippleTrim"); foreground: Editor.magnetic ? Theme.accent : Theme.fg; size: 38px; clicked => { Editor.magnetic-changed(!Editor.magnetic); } }
+                HorizontalLayout {
+                    padding-left: 2px; padding-right: 2px; spacing: 0px;
+                    Rectangle {
+                        horizontal-stretch: 1; min-width: 0px;
+                        Text {
+                            text: I18n.t("atlas.timeline");
+                            visible: !root.multi-select && parent.width >= 64px;
+                            x: 8px; width: Math.max(0px, parent.width - 12px); height: parent.height;
+                            color: Theme.fg; font-size: 13px; font-weight: 600;
+                            overflow: elide; vertical-alignment: center;
+                        }
+                        Text {
+                            text: I18n.t1("mobile.selectedCount", Editor.selected-count);
+                            visible: root.multi-select && parent.width >= 72px;
+                            x: 8px; width: Math.max(0px, parent.width - 12px); height: parent.height;
+                            color: Theme.accent; font-size: 12px;
+                            overflow: elide; vertical-alignment: center;
+                        }
+                    }
+                    RoundButton {
+                        glyph: root.multi-select ? Glyph.check : Glyph.copy;
+                        label: I18n.t("mobile.selectClips"); size: 38px;
+                        foreground: root.multi-select ? Theme.accent : Theme.fg;
+                        clicked => { root.multi-select = !root.multi-select; }
+                    }
+                    if !root.editing-clips: RoundButton { glyph: Glyph.magnet; label: I18n.t("common.snapToEdges"); foreground: Editor.snap ? Theme.accent : Theme.fg; size: 38px; clicked => { Editor.snap-changed(!Editor.snap); } }
+                    if !root.editing-clips: RoundButton { glyph: Glyph.ripple-trim; label: I18n.t("mobile.rippleTrim"); foreground: Editor.magnetic ? Theme.accent : Theme.fg; size: 38px; clicked => { Editor.magnetic-changed(!Editor.magnetic); } }
+                    if root.editing-clips: HorizontalLayout {
+                        opacity: root.cut-reveal;
+                        RoundButton { glyph: Glyph.split; label: I18n.t("phone.split"); size: 38px; clicked => { Editor.shortcut("split-selected"); } }
+                        RoundButton { glyph: Glyph.trash; label: I18n.t("common.delete"); size: 38px; clicked => { Editor.delete-selected(); } }
+                        RoundButton { glyph: Glyph.step-back; label: I18n.t("shortcuts.deleteLeft"); size: 38px; enabled: Editor.can-trim-selection; clicked => { Editor.shortcut("delete-left"); } }
+                        RoundButton { glyph: Glyph.step-forward; label: I18n.t("shortcuts.deleteRight"); size: 38px; enabled: Editor.can-trim-selection; clicked => { Editor.shortcut("delete-right"); } }
+                    }
                     RoundButton { glyph: Glyph.zoom-out; label: I18n.t("common.zoomOut"); size: 38px; clicked => { Editor.zoom(1.4, Editor.playhead); } }
                     RoundButton { glyph: Glyph.zoom-in; label: I18n.t("common.zoomIn"); size: 38px; clicked => { Editor.zoom(1 / 1.4, Editor.playhead); } }
                     RoundButton { glyph: Glyph.plus; label: I18n.t("common.media"); size: 38px; clicked => { root.show-media(false); } }
@@ -759,36 +791,35 @@ export component PhoneEditor inherits Rectangle {
         }
     }
 
-    if root.has-clip: HorizontalLayout {
-        x: 12px; y: root.lanes-y - 46px;
-        width: root.width - 24px; height: 44px;
-        spacing: 8px;
-        SheetButton {
-            glyph: Glyph.step-back; label: I18n.t("shortcuts.deleteLeft");
-            enabled: Editor.can-trim-selection;
-            clicked => { Editor.shortcut("delete-left"); }
-        }
-        SheetButton {
-            glyph: Glyph.step-forward; label: I18n.t("shortcuts.deleteRight");
-            enabled: Editor.can-trim-selection;
-            clicked => { Editor.shortcut("delete-right"); }
-        }
-    }
+    property <float> cut-reveal: root.editing-clips ? 1 : 0;
+    animate cut-reveal { duration: 160ms; }
 
     function show-clip-actions() {
-        Editor.clip-context(Editor.selected-clip.id);
+        Editor.clip-context(Editor.primary-selected-id);
         root.show("tools", true);
     }
-    if root.has-clip: HorizontalLayout {
+    if root.editing-clips: HorizontalLayout {
         x: 0; y: root.height - root.bar-h; width: root.width; height: root.bar-h;
         padding-left: 12px; padding-right: 12px; spacing: 0px;
-        ToolItem { width: (root.width - 24px) / 5; glyph: Glyph.split; label: I18n.t("phone.split"); clicked => { Editor.shortcut("split-selected"); } }
-        ToolItem { width: (root.width - 24px) / 5; glyph: Glyph.trash; label: I18n.t("common.delete"); clicked => { Editor.delete-selected(); } }
-        ToolItem { width: (root.width - 24px) / 5; glyph: Glyph.frame; label: I18n.t("phone.canvas"); enabled: Editor.picture-selected; clicked => { root.show("clip-canvas", true); } }
-        ToolItem { width: (root.width - 24px) / 5; glyph: Glyph.sparkle; label: I18n.t("common.effects"); clicked => { root.show(root.is-audio ? "clip-audio-effects" : "clip-effects", true); } }
-        ToolItem { width: (root.width - 24px) / 5; glyph: Glyph.more; label: I18n.t("phone.more"); clicked => { root.show-clip-actions(); } }
+        property <bool> single: Editor.selected-count == 1 && root.has-clip;
+        property <int> slots: self.single && root.is-video ? 5 : self.single && root.is-picture ? 4 : self.single ? 3 : 2;
+        property <length> slot: (root.width - 24px) / self.slots;
+        if self.single: ToolItem {
+            width: parent.slot;
+            glyph: root.is-audio ? Glyph.volume : root.is-text ? Glyph.text-mark : Glyph.sliders;
+            label: root.is-audio ? I18n.t("common.audio") : root.is-text ? I18n.t("common.text") : I18n.t("phone.edit");
+            clicked => { root.activate-tool("edit"); }
+        }
+        if self.single && root.is-picture: ToolItem { width: parent.slot; glyph: Glyph.frame; label: I18n.t("phone.canvas"); clicked => { root.show("clip-canvas", true); } }
+        if self.single && root.is-video: ToolItem { width: parent.slot; glyph: Glyph.clock; label: I18n.t("common.speed"); enabled: root.is-video; clicked => { root.show("clip-speed", true); } }
+        if self.single: ToolItem {
+            width: parent.slot; glyph: root.is-audio ? Glyph.waveform : Glyph.sparkle; label: I18n.t("common.effects");
+            clicked => { root.show(root.is-audio ? "clip-audio-effects" : "clip-effects", true); }
+        }
+        if !self.single: ToolItem { width: parent.slot; glyph: Glyph.merge; label: Editor.merge-label; enabled: Editor.merge-blocked-because == ""; clicked => { Editor.shortcut("merge"); } }
+        ToolItem { width: parent.slot; glyph: Glyph.more; label: I18n.t("phone.more"); clicked => { root.show-clip-actions(); } }
     }
-    if !root.has-clip: ToolStrip {
+    if !root.editing-clips: ToolStrip {
         y: root.height - root.bar-h; width: root.width; height: root.bar-h;
         for tool in Editor.mobile-quick-tools: ToolItem { glyph: tool.glyph; label: tool.label; clicked => { root.activate-tool(tool.id); } }
         ToolItem { glyph: Glyph.more; label: I18n.t("mobile.allTools"); clicked => { root.show("tools", false); } }
@@ -1162,11 +1193,20 @@ export component PhoneEditor inherits Rectangle {
             commit => { Editor.clip-commit(); }
         }
 
-        if root.sheet == "clip-speed": SpeedPanel {
-            horizontal-stretch: 1;
-            selected: Editor.selected-clip;
-            set(field, value) => { Editor.clip-set(field, value); }
-            commit => { Editor.clip-commit(); }
+        if root.sheet == "clip-speed": VerticalLayout {
+            spacing: 8px;
+            SpeedPanel {
+                horizontal-stretch: 1;
+                selected: Editor.selected-clip;
+                set(field, value) => { Editor.clip-set(field, value); }
+                commit => { Editor.clip-commit(); }
+            }
+            if root.is-video && (SpeedRamp.has-curve ? SpeedRamp.trough-speed > 0 && SpeedRamp.trough-speed < 1 : Editor.selected-clip.speed < 1): SheetButton {
+                glyph: Glyph.sparkle;
+                label: I18n.t("mobile.opticalFlow");
+                enabled: Editor.selected-clip.reverse-progress < 0;
+                clicked => { Editor.shortcut("optical-flow"); }
+            }
         }
 
         if root.sheet == "clip-audio": VerticalLayout {
@@ -1176,6 +1216,7 @@ export component PhoneEditor inherits Rectangle {
                 committed => { Editor.clip-commit(); }
             }
             AudioPanel {
+                with-speed: root.kind == ClipKind.audio;
                 selected: Editor.selected-clip;
                 audio-tracks: Editor.audio-tracks;
                 set(field, value) => { Editor.clip-set(field, value); }
@@ -1273,7 +1314,8 @@ export component PhoneEditor inherits Rectangle {
             }
             for item in root.sheet-needs-clip ? Editor.menu-items : []: Rectangle {
                 property <bool> included: item.kind == MenuRow.action && item.id != "split"
-                    && item.id != "delete" && item.id != "delete-left" && item.id != "delete-right";
+                    && item.id != "delete" && item.id != "delete-left" && item.id != "delete-right"
+                    && (Editor.selected-count <= 1 || item.id != "merge");
                 height: self.included ? 48px : 0px;
                 if self.included: MenuAction {
                     label: item.label;

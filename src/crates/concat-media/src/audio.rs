@@ -84,6 +84,10 @@ pub struct AudioClip {
     pub fade_in: f64,
     /// Fade out over this many seconds into the clip's end.
     pub fade_out: f64,
+    /// Use a smooth ease at both ends of the fade-in.
+    pub smooth_fade_in: bool,
+    /// Use a smooth ease at both ends of the fade-out.
+    pub smooth_fade_out: bool,
     /// Extra FFmpeg audio filters, or empty. Validated, not trusted.
     pub filter_chain: String,
 }
@@ -508,22 +512,18 @@ fn mix_graph_from(
             }
             None => {}
         }
-        // A clip's fades are curved: the gain is the square of how far
-        // through the fade it is (`qua`), not a straight line. Loudness
-        // goes as about the 0.6 power of the sound's amplitude (Stevens),
-        // so a straight line in gain is heard as a fade-out that hangs on
-        // and then drops off a cliff at the very end, and a fade-in that
-        // leaps up at once and then barely moves; amplitude as the square
-        // of the time is loudness as nearly a straight line in time - an
-        // even fade. The preview's mixer (`concat_host::playback`) uses
-        // the same square, and the inspector and timeline draw it.
         if clip.fade_in > 0.0 {
-            stage.push_str(&format!(",afade=t=in:st=0:d={:.4}:curve=qua", clip.fade_in));
+            let curve = if clip.smooth_fade_in { "hsin" } else { "qua" };
+            stage.push_str(&format!(
+                ",afade=t=in:st=0:d={:.4}:curve={curve}",
+                clip.fade_in
+            ));
         }
         if clip.fade_out > 0.0 {
             let start = (clip.duration - clip.fade_out).max(0.0);
+            let curve = if clip.smooth_fade_out { "hsin" } else { "qua" };
             stage.push_str(&format!(
-                ",afade=t=out:st={start:.4}:d={:.4}:curve=qua",
+                ",afade=t=out:st={start:.4}:d={:.4}:curve={curve}",
                 clip.fade_out
             ));
         }
@@ -1371,6 +1371,8 @@ mod tests {
             volume_curve: Track::default(),
             fade_in: 0.0,
             fade_out: 0.0,
+            smooth_fade_in: false,
+            smooth_fade_out: false,
             filter_chain: String::new(),
         }
     }
@@ -1416,6 +1418,8 @@ mod tests {
             volume_curve: Track::default(),
             fade_in: 0.0,
             fade_out: 0.0,
+            smooth_fade_in: false,
+            smooth_fade_out: false,
             filter_chain: String::new(),
         };
         // 1 s at 1x, 1 s at 2x, then a quarter.
@@ -1748,6 +1752,8 @@ mod tests {
             volume_curve: Track::default(),
             fade_in: 0.0,
             fade_out: 0.0,
+            smooth_fade_in: false,
+            smooth_fade_out: false,
             filter_chain: String::new(),
         };
         let clips = [piece(0.0, 0.0, 2.0), piece(2.0, 2.0, 4.0)];
@@ -1828,6 +1834,20 @@ mod tests {
             mix_graph_with(&[clip("a.mp4")], &[bus(0.0, 1.0, "anull[x]")]),
             Err(Error::InvalidFilterChain { .. })
         ));
+    }
+
+    #[test]
+    fn audio_fades_can_ease_independently() {
+        let mut shaped = clip("a.mp4");
+        shaped.fade_in = 0.5;
+        shaped.fade_out = 0.25;
+        shaped.smooth_fade_in = true;
+        let graph = mix_graph(&[shaped.clone()]).expect("valid");
+        assert!(graph.contains("afade=t=in:st=0:d=0.5000:curve=hsin"));
+        assert!(graph.contains("d=0.2500:curve=qua"));
+        shaped.smooth_fade_out = true;
+        let graph = mix_graph(&[shaped]).expect("valid");
+        assert!(graph.contains("d=0.2500:curve=hsin"));
     }
 
     /// A clip a window cuts into keeps its own clock: its fades are read

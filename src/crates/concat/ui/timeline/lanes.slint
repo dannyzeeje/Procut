@@ -87,6 +87,8 @@ component Ramps inherits Rectangle {
     /// through, as the mixer plays it - where a layer's strength ramps on a
     /// line.
     in property <bool> curved;
+    in property <bool> smooth-in;
+    in property <bool> smooth-out;
 
     if root.fade-in > 0: Rectangle {
         x: 0;
@@ -101,7 +103,7 @@ component Ramps inherits Rectangle {
             viewbox-height: 1;
             fit: fill;
             fill: Theme.fade-shade;
-            commands: root.curved ? "M 0 0 L 1 0 Q 0.5 1 0 1 Z" : "M 0 0 L 1 0 L 0 1 Z";
+            commands: root.smooth-in ? "M 0 0 L 1 0 C 0.5 0 0.5 1 0 1 Z" : root.curved ? "M 0 0 L 1 0 Q 0.5 1 0 1 Z" : "M 0 0 L 1 0 L 0 1 Z";
         }
         Path {
             width: parent.width;
@@ -111,7 +113,7 @@ component Ramps inherits Rectangle {
             fit: fill;
             stroke: Theme.fade-edge;
             stroke-width: 1px;
-            commands: root.curved ? "M 0 1 Q 0.5 1 1 0" : "M 0 1 L 1 0";
+            commands: root.smooth-in ? "M 0 1 C 0.5 1 0.5 0 1 0" : root.curved ? "M 0 1 Q 0.5 1 1 0" : "M 0 1 L 1 0";
         }
     }
 
@@ -128,7 +130,7 @@ component Ramps inherits Rectangle {
             viewbox-height: 1;
             fit: fill;
             fill: Theme.fade-shade;
-            commands: root.curved ? "M 0 0 L 1 0 L 1 1 Q 0.5 1 0 0 Z" : "M 0 0 L 1 0 L 1 1 Z";
+            commands: root.smooth-out ? "M 0 0 L 1 0 L 1 1 C 0.5 1 0.5 0 0 0 Z" : root.curved ? "M 0 0 L 1 0 L 1 1 Q 0.5 1 0 0 Z" : "M 0 0 L 1 0 L 1 1 Z";
         }
         Path {
             width: parent.width;
@@ -138,7 +140,7 @@ component Ramps inherits Rectangle {
             fit: fill;
             stroke: Theme.fade-edge;
             stroke-width: 1px;
-            commands: root.curved ? "M 0 0 Q 0.5 1 1 1" : "M 0 0 L 1 1";
+            commands: root.smooth-out ? "M 0 0 C 0.5 0 0.5 1 1 1" : root.curved ? "M 0 0 Q 0.5 1 1 1" : "M 0 0 L 1 1";
         }
     }
 }
@@ -452,6 +454,8 @@ component Clip inherits Rectangle {
             fade-in: root.shown-fade-in;
             fade-out: root.shown-fade-out;
             curved: true;
+            smooth-in: root.item.smooth-fade-in;
+            smooth-out: root.item.smooth-fade-out;
             px-per-second: root.px-per-second;
             ramp-h: root.fade-h;
         }

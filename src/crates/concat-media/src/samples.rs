@@ -681,6 +681,8 @@ mod tests {
                         volume_curve: concat_core::animate::Track::default(),
                         fade_in: 0.0,
                         fade_out: 0.0,
+                        smooth_fade_in: false,
+                        smooth_fade_out: false,
                         filter_chain: String::new(),
                     };
                     let options = AudioOptions {

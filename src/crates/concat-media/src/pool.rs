@@ -429,6 +429,17 @@ impl Reader {
             .in_range(range)
             .deep(deep)
             .threaded(READER_THREADS);
+        // Android MediaCodec may accept a generated stream and then return
+        // no frame after a seek. These editor-owned copies have a software
+        // decoder and don't need the hardware pool for reliable scrubbing.
+        if cfg!(target_os = "android")
+            && path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("reverse-") || name.starts_with("flow-"))
+        {
+            options = options.in_software();
+        }
         if keyframes {
             options = options.nearest_keyframes();
         }

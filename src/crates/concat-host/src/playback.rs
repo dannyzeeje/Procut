@@ -131,6 +131,12 @@ pub struct ClipSpec {
     pub fade_in: f64,
     /// Fade-out length in seconds.
     pub fade_out: f64,
+    /// Use a smooth ease at both ends of the fade-in.
+    #[serde(default)]
+    pub smooth_fade_in: bool,
+    /// Use a smooth ease at both ends of the fade-out.
+    #[serde(default)]
+    pub smooth_fade_out: bool,
     /// Playback speed; 1.0 is the source's own. With `tempo`, its mean.
     pub speed: f64,
     /// A rate that changes over the clip, as `(at, speed)` steps; see
@@ -208,6 +214,8 @@ impl ClipSpec {
             volume_curve: track_of(&self.volume_curve),
             fade_in: self.fade_in,
             fade_out: self.fade_out,
+            smooth_fade_in: self.smooth_fade_in,
+            smooth_fade_out: self.smooth_fade_out,
             filter_chain: self.chain.clone(),
         }
     }
@@ -247,6 +255,8 @@ pub fn audible(clips: &[concat_export::ExportClip]) -> Vec<ClipSpec> {
                 .collect(),
             fade_in: piece.fade_in,
             fade_out: piece.fade_out,
+            smooth_fade_in: piece.smooth_fade_in,
+            smooth_fade_out: piece.smooth_fade_out,
             speed: piece.speed,
             tempo: piece.tempo,
             preserve_pitch: piece.preserve_pitch,
@@ -322,6 +332,8 @@ pub fn with_sound_layers(
                 volume_curve: Vec::new(),
                 fade_in: 0.0,
                 fade_out: 0.0,
+                smooth_fade_in: false,
+                smooth_fade_out: false,
                 speed: 1.0,
                 tempo: Vec::new(),
                 preserve_pitch: true,
@@ -450,6 +462,8 @@ struct ActiveClip {
     volume_curve: Track,
     fade_in: f64,
     fade_out: f64,
+    smooth_fade_in: bool,
+    smooth_fade_out: bool,
     pcm: Arc<Pcm>,
     /// The frame of `pcm` the clip's first instant is: zero for the clip's
     /// own decode, and where the clip falls inside a span that stands in
@@ -499,16 +513,22 @@ fn gain_at(clip: &ActiveClip, local: f64) -> f32 {
         };
         clip.volume_curve.value_at(x, f64::from(clip.volume))
     };
-    // A fade's gain is the square of how far through it is - `afade`'s
-    // `qua`, which the export uses - so window and file agree. See
-    // `concat_media::audio` for why a square and not a straight line.
+    let fade = |progress: f64, smooth: bool| {
+        let x = progress.clamp(0.0, 1.0);
+        if smooth {
+            (1.0 - (std::f64::consts::PI * x).cos()) * 0.5
+        } else {
+            x * x
+        }
+    };
     if clip.fade_in > 0.0 {
-        gain *= (local / clip.fade_in).clamp(0.0, 1.0).powi(2);
+        gain *= fade(local / clip.fade_in, clip.smooth_fade_in);
     }
     if clip.fade_out > 0.0 {
-        gain *= ((clip.duration - local) / clip.fade_out)
-            .clamp(0.0, 1.0)
-            .powi(2);
+        gain *= fade(
+            (clip.duration - local) / clip.fade_out,
+            clip.smooth_fade_out,
+        );
     }
     gain.max(0.0) as f32
 }
@@ -972,6 +992,8 @@ impl Playback {
                     volume_curve: track_of(&spec.volume_curve),
                     fade_in: spec.fade_in,
                     fade_out: spec.fade_out,
+                    smooth_fade_in: spec.smooth_fade_in,
+                    smooth_fade_out: spec.smooth_fade_out,
                     pcm: Arc::clone(&entry.pcm),
                     lead,
                     covered: if spec.bus.is_some() {
@@ -1182,6 +1204,10 @@ fn decode_key(spec: &ClipSpec) -> String {
         eat(&spec.duration.to_bits().to_le_bytes());
         for clip in &bus.clips {
             eat(decode_key(clip).as_bytes());
+            eat(&[
+                u8::from(clip.smooth_fade_in),
+                u8::from(clip.smooth_fade_out),
+            ]);
             for number in [
                 clip.start,
                 clip.fade_in,
@@ -1801,6 +1827,8 @@ mod tests {
             volume_curve: Vec::new(),
             fade_in: 0.0,
             fade_out: 0.0,
+            smooth_fade_in: false,
+            smooth_fade_out: false,
             speed: 1.0,
             tempo: Vec::new(),
             preserve_pitch: true,
@@ -1897,6 +1925,8 @@ mod tests {
             volume_curve: super::Track::default(),
             fade_in: 0.0,
             fade_out: 0.0,
+            smooth_fade_in: false,
+            smooth_fade_out: false,
             pcm: std::sync::Arc::new(pcm),
             lead: 0,
             covered: std::sync::Arc::from(vec![(1.0, 2.0)]),

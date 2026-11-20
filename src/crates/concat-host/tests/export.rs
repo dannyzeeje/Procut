@@ -196,6 +196,8 @@ fn clock_aac(wav: &Path, path: &Path, seconds: u32) {
         volume_curve: GainTrack::default(),
         fade_in: 0.0,
         fade_out: 0.0,
+        smooth_fade_in: false,
+        smooth_fade_out: false,
         filter_chain: String::new(),
     };
     sound::mix_to_file(&[clip], f64::from(seconds), path).expect("mixes the clock");

@@ -18,7 +18,15 @@ export component AudioEnvelope inherits Rectangle {
     changed selected => { root.seed(); }
     property <float> a: root.fade-in / root.duration;
     property <float> b: 1 - root.fade-out / root.duration;
-    property <string> curve: "M 0 1 Q " + (root.a / 2) + " 1 " + root.a + " 0.12 L " + root.b + " 0.12 Q " + ((root.b + 1) / 2) + " 1 1 1";
+    property <string> curve: "M 0 1 "
+        + (root.selected.smooth-fade-in
+            ? ("C " + (root.a / 2) + " 1 " + (root.a / 2) + " 0.12 ")
+            : ("Q " + (root.a / 2) + " 1 "))
+        + root.a + " 0.12 L " + root.b + " 0.12 "
+        + (root.selected.smooth-fade-out
+            ? ("C " + ((root.b + 1) / 2) + " 0.12 " + ((root.b + 1) / 2) + " 1 ")
+            : ("Q " + ((root.b + 1) / 2) + " 1 "))
+        + "1 1";
     function preset(kind: int) {
         let d = root.duration;
         let quick = Math.min(0.2, d / 4);
