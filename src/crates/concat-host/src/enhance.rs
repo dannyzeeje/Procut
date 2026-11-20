@@ -531,6 +531,8 @@ fn footage(
                     volume_curve: concat_core::animate::Track::new(Vec::new()),
                     fade_in: 0.0,
                     fade_out: 0.0,
+                    smooth_fade_in: false,
+                    smooth_fade_out: false,
                     filter_chain: String::new(),
                 };
                 let muxed = concat_media::audio::mix_to_file(&[clip], duration, &partial_audio)

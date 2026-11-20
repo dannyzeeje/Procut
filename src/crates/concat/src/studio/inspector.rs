@@ -312,6 +312,8 @@ impl Studio {
                     clip.crop = (!crop.is_none()).then_some(crop);
                 }
                 ClipField::FadeIn => clip.fade_in = value.clamp(0.0, clip.duration / 2.0),
+                ClipField::SmoothFadeIn => clip.smooth_fade_in = value != 0.0,
+                ClipField::SmoothFadeOut => clip.smooth_fade_out = value != 0.0,
                 ClipField::FadeOut => clip.fade_out = value.clamp(0.0, clip.duration / 2.0),
                 ClipField::FontSize => text.font_size = value.clamp(0.01, 0.5),
                 ClipField::FontWeight => text.font_weight = value.clamp(100.0, 900.0),

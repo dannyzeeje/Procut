@@ -119,6 +119,8 @@ export struct ClipData {
     /// seconds of audio ramp at each end; zero for none
     fade-in: float,
     fade-out: float,
+    smooth-fade-in: bool,
+    smooth-fade-out: bool,
     /// linear gain, 1 being unity — the drawn waveform follows it
     volume: float,
     /// a title's words, for the body of a text clip
@@ -174,7 +176,7 @@ export enum TextAlignment { left, center, right }
 /// one per control.
 export enum ClipField {
     scale, offset-x, offset-y, rotation, stretch-x, stretch-y, opacity,
-    volume, speed, preserve-pitch, fade-in, fade-out,
+    volume, speed, preserve-pitch, fade-in, fade-out, smooth-fade-in, smooth-fade-out,
     flip-h, flip-v, blend, crop-left, crop-top, crop-right, crop-bottom,
     font-size, font-weight, italic, underline, strikethrough, text-case, text-opacity, align,
     stroke-width, shadow, line-height, tracking, text-width, text-height,
@@ -475,6 +477,8 @@ export struct SelectedClipData {
     mask-opacity: float,
     fade-in: float,
     fade-out: float,
+    smooth-fade-in: bool,
+    smooth-fade-out: bool,
     /// The clip's first and last seconds of sound - as far as a fade
     /// can reach, half the clip and ten seconds at most - as bars in a 1x1
     /// box, for the Audio tab's fade panes; empty while the peaks are not

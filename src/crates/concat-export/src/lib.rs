@@ -169,6 +169,12 @@ pub struct ExportClip {
     /// Audio fade out into the clip's end, in seconds.
     #[serde(default)]
     pub fade_out: f64,
+    /// Use a smooth ease at both ends of the fade-in.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub smooth_fade_in: bool,
+    /// Use a smooth ease at both ends of the fade-out.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub smooth_fade_out: bool,
     /// FFmpeg filter chain from the Filters tab, or empty.
     #[serde(default)]
     pub filter_chain: String,
@@ -403,6 +409,8 @@ impl ExportClip {
             volume: 1.0,
             fade_in: 0.0,
             fade_out: 0.0,
+            smooth_fade_in: false,
+            smooth_fade_out: false,
             filter_chain: String::new(),
             speed: 1.0,
             preserve_pitch: true,
@@ -1388,6 +1396,8 @@ fn audio_pieces_of(
             volume_curve: track,
             fade_in: clip.fade_in,
             fade_out: clip.fade_out,
+            smooth_fade_in: clip.smooth_fade_in,
+            smooth_fade_out: clip.smooth_fade_out,
             filter_chain: chain,
         }];
     };
@@ -1430,6 +1440,8 @@ fn audio_pieces_of(
             volume_curve: track,
             fade_in: clip.fade_in,
             fade_out: clip.fade_out,
+            smooth_fade_in: clip.smooth_fade_in,
+            smooth_fade_out: clip.smooth_fade_out,
             filter_chain: chain,
         }];
     }
@@ -1461,6 +1473,8 @@ fn audio_pieces_of(
                 volume_curve: track_slice(&track, x0, x1),
                 fade_in: if clip.fade_in > 0.0 { fade_in } else { 0.0 },
                 fade_out: if clip.fade_out > 0.0 { fade_out } else { 0.0 },
+                smooth_fade_in: clip.smooth_fade_in,
+                smooth_fade_out: clip.smooth_fade_out,
                 filter_chain: chain.clone(),
             }
         })

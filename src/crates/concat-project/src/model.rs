@@ -2730,6 +2730,12 @@ pub struct Clip {
     pub fade_in: f64,
     /// Seconds of audio ramp-out to silence at the tail. Zero for none.
     pub fade_out: f64,
+    /// Use a smooth ease at both ends of the fade-in.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub smooth_fade_in: bool,
+    /// Use a smooth ease at both ends of the fade-out.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub smooth_fade_out: bool,
     /// Multiplier over the fitted size. 1 fills the frame, preserving aspect.
     pub scale: f64,
     /// Offset from centred, as a fraction of frame width / height.
@@ -2921,6 +2927,8 @@ impl Clip {
             volume: 1.0,
             fade_in: 0.0,
             fade_out: 0.0,
+            smooth_fade_in: false,
+            smooth_fade_out: false,
             scale: 1.0,
             offset_x: 0.0,
             offset_y: 0.0,

@@ -84,7 +84,7 @@ impl Studio {
         if clip {
             tools.push(("delete", t("common.delete"), Glyph::Trash, true));
         }
-        if picture || section == "text" {
+        if (picture || section == "text") && !crate::platform::phone() {
             tools.push(("edit", t("phone.edit"), Glyph::Frame, true));
         }
         if picture {
@@ -99,10 +99,10 @@ impl Studio {
         if visual {
             tools.push(("clip-effects", t("common.effects"), Glyph::Sparkle, false));
         }
-        if av {
+        if av && !crate::platform::phone() {
             tools.push(("clip-speed", t("common.speed"), Glyph::Clock, false));
         }
-        if av {
+        if av && (!crate::platform::phone() || picture) {
             tools.push(("clip-audio", t("common.audio"), Glyph::Volume, false));
         }
         if av {
@@ -136,7 +136,7 @@ impl Studio {
         if picture {
             tools.push(("freeze", t("timelinePane.freeze"), Glyph::Image, false));
         }
-        if av {
+        if picture {
             tools.push(("reverse", t("common.reverse"), Glyph::StepBack, false));
         }
         if picture {

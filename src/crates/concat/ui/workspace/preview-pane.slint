@@ -732,6 +732,7 @@ component StageOverlay inherits Rectangle {
 
 export component PreviewPane inherits Rectangle {
     // ── what the output is ───────────────────────────────────────────────
+    in property <bool> view-gestures: true;
     in property <int> output-width: 1920;
     in property <int> output-height: 1080;
     in property <float> frame-rate: 30;
@@ -975,6 +976,7 @@ export component PreviewPane inherits Rectangle {
             // handle reaches it, and a press on the well - the one place
             // the overlay does not cover - is a drag of the view.
             view := TouchArea {
+                enabled: root.view-gestures;
                 property <bool> panning;
                 mouse-cursor: self.panning ? MouseCursor.grabbing : MouseCursor.default;
 
@@ -1096,8 +1098,8 @@ export component PreviewPane inherits Rectangle {
                 grip-pressed(id, grip, x, y) => { root.stage-grip-pressed(id, grip, x, y); }
                 dragged(x, y, snap) => { root.stage-dragged(x, y, snap); }
                 released => { root.stage-released(); }
-                pan-pressed(x, y) => { viewport.grab(x, y); }
-                pan-dragged(x, y) => { viewport.drag-to(x, y); }
+                pan-pressed(x, y) => { if (root.view-gestures) { viewport.grab(x, y); } }
+                pan-dragged(x, y) => { if (root.view-gestures) { viewport.drag-to(x, y); } }
                 pan-released => { }
                 // In the pane's coordinates: the menu's surface is the pane.
                 context-requested(x, y) => {

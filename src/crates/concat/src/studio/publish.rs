@@ -341,6 +341,8 @@ impl Studio {
                             .unwrap_or(0.0),
                         fade_in: clip.fade_in as f32,
                         fade_out: clip.fade_out as f32,
+                        smooth_fade_in: clip.smooth_fade_in,
+                        smooth_fade_out: clip.smooth_fade_out,
                         volume: clip.volume as f32,
                         text_body: clip
                             .text
@@ -512,6 +514,7 @@ impl Studio {
                     && !self.locked(&clip.track_id)
             },
         ));
+        editor.set_primary_selected_id(self.selection.first().map_or("", String::as_str).into());
         editor.set_selected_count(self.selection.len() as i32);
         // The tray's undo and redo buttons grey out on these; the Edit menu
         // asks the session itself when it opens.

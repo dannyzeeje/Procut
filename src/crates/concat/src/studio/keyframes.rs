@@ -1343,6 +1343,8 @@ impl Studio {
             wave_head: self.wave_end(clip, false),
             wave_tail: self.wave_end(clip, true),
             fade_out: clip.fade_out as f32,
+            smooth_fade_in: clip.smooth_fade_in,
+            smooth_fade_out: clip.smooth_fade_out,
             content: text.content.as_str().into(),
             font_family: text.font_family.trim_matches('"').into(),
             family_row: family_row.unwrap_or(0) as i32,

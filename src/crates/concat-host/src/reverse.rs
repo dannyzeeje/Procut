@@ -40,6 +40,8 @@ use concat_media::{
 
 use crate::jobs::SingleFlight;
 
+mod flow;
+
 /// What one reverse covers.
 #[derive(Clone, Debug)]
 pub struct ReverseRequest {
@@ -62,7 +64,11 @@ pub struct Reversers {
 
 /// Pixels a run of frames may hold before it is written out as a segment:
 /// a hundred-odd frames of 1080p, a couple of dozen of 4K.
-const RUN_BYTES: usize = 384 << 20;
+const RUN_BYTES: usize = if cfg!(target_os = "android") {
+    96 << 20
+} else {
+    384 << 20
+};
 
 /// Where the reversed copy of `media`'s span lives under `project`: in
 /// the cache, named by the file's path, size and modification time and
@@ -86,7 +92,7 @@ pub fn target_for(
     }
     let extension = if audio_only { "m4a" } else { "mp4" };
     Some(project.join("cache").join(format!(
-        "reverse-{:016x}-{}-{}.{extension}",
+        "reverse-v2-{:016x}-{}-{}.{extension}",
         hasher.finish(),
         (start * 1000.0).round() as u64,
         (duration * 1000.0).round() as u64
@@ -117,6 +123,28 @@ impl Reversers {
         self.gate.cancel();
     }
 
+    /// Render a higher-frame-rate copy of the clip's source span.
+    pub fn interpolate(
+        &self,
+        request: &ReverseRequest,
+        factor: u32,
+        stream: Option<usize>,
+    ) -> Result<PathBuf, String> {
+        if request.audio_only
+            || !request.start.is_finite()
+            || !request.duration.is_finite()
+            || request.duration <= 0.0
+        {
+            return Err("nothing to interpolate".to_owned());
+        }
+        let job = self.gate.begin("optical flow")?;
+        if let Some(folder) = request.target.parent() {
+            std::fs::create_dir_all(folder).map_err(|error| error.to_string())?;
+        }
+        flow::write(request, factor, stream, &job)?;
+        Ok(request.target.clone())
+    }
+
     /// Writes the copy `request` asks for, or finds it already written.
     /// Blocks until done, so run it on its own thread; `progress` is
     /// called with a fraction as it goes. Returns where the copy is.
@@ -126,7 +154,10 @@ impl Reversers {
         progress: &mut dyn FnMut(f32),
     ) -> Result<PathBuf, String> {
         if request.target.is_file() {
-            return Ok(request.target.clone());
+            if request.audio_only || check_picture(&request.target).is_ok() {
+                return Ok(request.target.clone());
+            }
+            std::fs::remove_file(&request.target).map_err(|error| error.to_string())?;
         }
         if !request.start.is_finite() || !request.duration.is_finite() || request.duration <= 0.0 {
             return Err("nothing to reverse".to_owned());
@@ -161,8 +192,24 @@ fn span_clip(request: &ReverseRequest, chain: &str) -> AudioClip {
         volume_curve: concat_core::animate::Track::new(Vec::new()),
         fade_in: 0.0,
         fade_out: 0.0,
+        smooth_fade_in: false,
+        smooth_fade_out: false,
         filter_chain: chain.to_owned(),
     }
+}
+
+/// Check the generated stream before letting a clip point at it.
+fn check_picture(path: &Path) -> Result<(), String> {
+    let options = DecodeOptions::default().in_software().scaled_to(32, 32);
+    let mut decoder = Decoder::open(path, &options).map_err(|error| error.to_string())?;
+    if decoder
+        .next_frame()
+        .map_err(|error| error.to_string())?
+        .is_none()
+    {
+        return Err("the generated video has no readable frames".to_owned());
+    }
+    Ok(())
 }
 
 /// A partial file moved into place, or cleared away with the error.
@@ -203,7 +250,12 @@ fn footage(
         .video
         .as_ref()
         .ok_or_else(|| "no video stream".to_owned())?;
-    let rate = video.frame_rate;
+    // MPEG-4 Part 2 needs a timebase denominator at most 65,535.
+    let rate = if video.frame_rate.fps().numerator() > 65_535 {
+        FrameRate::from_int(video.frame_rate.fps().as_f64().round().max(1.0) as u32)
+    } else {
+        video.frame_rate
+    };
     // About how many frames the span holds, for the readout and for a
     // container that keeps no clock.
     let expected = (request.duration * rate.fps().as_f64()).max(1.0);
@@ -247,6 +299,9 @@ fn footage(
             };
             if past {
                 break;
+            }
+            if frame.width() < width || frame.height() < height {
+                return Err("the video resolution changed during reverse".to_owned());
             }
             held.push(crate::enhance::crop(&frame, width, height));
             count += 1;
@@ -297,7 +352,11 @@ fn footage(
 
     // The sound, when the file has any, backwards beside the picture.
     if info.audio.is_none() {
-        return land(&partial_video, &request.target, Ok(()));
+        return land(
+            &partial_video,
+            &request.target,
+            check_picture(&partial_video),
+        );
     }
     let partial_audio = request.target.with_extension("part.m4a");
     let partial_muxed = request.target.with_extension("muxed.part.mp4");
@@ -310,7 +369,11 @@ fn footage(
     .map_err(|error| error.to_string());
     let _ = std::fs::remove_file(&partial_video);
     let _ = std::fs::remove_file(&partial_audio);
-    land(&partial_muxed, &request.target, muxed)
+    land(
+        &partial_muxed,
+        &request.target,
+        muxed.and_then(|()| check_picture(&partial_muxed)),
+    )
 }
 
 /// The run in `held`, backwards, as the next segment; the run is emptied
@@ -353,7 +416,7 @@ fn write_segment(
 /// quality nothing is lost through.
 fn segment_options() -> EncodeOptions {
     EncodeOptions {
-        codec: VideoCodec::WORKING,
+        codec: VideoCodec::Mpeg4,
         preset: "ultrafast".to_owned(),
         crf: 8,
         rate_mode: RateMode::Vbr,
@@ -372,16 +435,20 @@ fn segment_options() -> EncodeOptions {
 /// the same picture.
 fn copy_options() -> EncodeOptions {
     EncodeOptions {
-        codec: VideoCodec::H264,
+        codec: if cfg!(target_os = "android") {
+            VideoCodec::Mpeg4
+        } else {
+            VideoCodec::H264
+        },
         preset: "medium".to_owned(),
         crf: 16,
         rate_mode: RateMode::Vbr,
         bitrate_kbps: 0,
         ten_bit: false,
         color_range: concat_media::ColorRange::Limited,
-        hardware: true,
+        hardware: !cfg!(target_os = "android"),
         threads: 2,
-        software_only: false,
+        software_only: cfg!(target_os = "android"),
     }
 }
 
@@ -434,6 +501,6 @@ mod tests {
         let hd = RUN_BYTES / (1920 * 1080 * 4);
         let uhd = RUN_BYTES / (3840 * 2160 * 4);
         assert!(hd > uhd && uhd >= 2, "{hd} {uhd}");
-        assert_eq!((RUN_BYTES / (7680 * 4320 * 4)).clamp(2, 240), 3);
+        assert!((RUN_BYTES / (7680 * 4320 * 4)).clamp(2, 240) <= 3);
     }
 }

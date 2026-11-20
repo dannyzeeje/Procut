@@ -51,6 +51,7 @@ export enum Glyph {
     more,
     menu,
     check,
+    select-clips,
     /// an exclamation mark alone, for a mark that already sits in a
     /// disc of its own: a notice's warning
     alert,
@@ -388,6 +389,11 @@ export component Icon inherits Rectangle {
     if root.glyph == Glyph.close: Stroked {
         size: root.size; tint: root.tint; weight: root.weight;
         commands: "M18 6 6 18 M6 6l12 12";
+    }
+
+    if root.glyph == Glyph.select-clips: Stroked {
+        size: root.size; tint: root.tint; weight: root.weight;
+        commands: "M8 8 H20 V20 H8 Z M16 4 H4 V16 M11 14 L13 16 L17 11";
     }
 
     // lucide/check

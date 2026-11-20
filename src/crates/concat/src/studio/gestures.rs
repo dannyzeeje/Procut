@@ -56,6 +56,11 @@ impl Studio {
             vec![id.to_owned()]
         };
 
+        // The phone selection mode toggles membership without arming a drag.
+        if edge == -3 {
+            self.gesture = Gesture::None;
+            return;
+        }
         self.begin_echo();
         if edge >= 0 && self.selection.len() <= 1 {
             self.gesture = Gesture::Trim {
