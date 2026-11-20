@@ -188,6 +188,69 @@ step = 0.01
 animate = true
 
 [[param]]
+key = "gamma_red"
+group = "Gamma channels"
+label = "Red gamma"
+min = -2
+max = 2
+default = 0
+step = 0.01
+animate = true
+
+[[param]]
+key = "gamma_green"
+group = "Gamma channels"
+label = "Green gamma"
+min = -2
+max = 2
+default = 0
+step = 0.01
+animate = true
+
+[[param]]
+key = "gamma_blue"
+group = "Gamma channels"
+label = "Blue gamma"
+min = -2
+max = 2
+default = 0
+step = 0.01
+animate = true
+
+[[param]]
+key = "gain_red"
+group = "Gain channels"
+label = "Red gain"
+min = -2
+max = 2
+default = 0
+step = 0.01
+unit = "EV"
+animate = true
+
+[[param]]
+key = "gain_green"
+group = "Gain channels"
+label = "Green gain"
+min = -2
+max = 2
+default = 0
+step = 0.01
+unit = "EV"
+animate = true
+
+[[param]]
+key = "gain_blue"
+group = "Gain channels"
+label = "Blue gain"
+min = -2
+max = 2
+default = 0
+step = 0.01
+unit = "EV"
+animate = true
+
+[[param]]
 key = "luma"
 group = "Curves"
 label = "Luma"

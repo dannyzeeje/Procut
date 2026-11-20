@@ -36,6 +36,7 @@ export component NumberField inherits Rectangle {
     in property <bool> keyframe;
     in-out property <bool> keyframed;
     in property <bool> enabled: true;
+    in property <bool> drag-scrub: true;
     /// The corners, a side at a time; see Field.
     in property <length> radius-left: Theme.r;
     in property <length> radius-right: Theme.r;
@@ -120,6 +121,7 @@ export component NumberField inherits Rectangle {
             font-family: Theme.font-technical;
             font-size: Theme.fs;
             single-line: true;
+            input-type: root.drag-scrub ? InputType.text : InputType.decimal;
             enabled: root.enabled;
             vertical-alignment: center;
             selection-background-color: Theme.accent;
@@ -233,7 +235,7 @@ export component NumberField inherits Rectangle {
         width: root.width - root.keyframe-slot;
         height: root.height;
         enabled: root.enabled && !ti.has-focus;
-        mouse-cursor: ew-resize;
+        mouse-cursor: root.drag-scrub ? ew-resize : text;
 
         property <float> origin;
         property <bool> travelled;
@@ -252,6 +254,7 @@ export component NumberField inherits Rectangle {
         }
 
         moved => {
+            if (!root.drag-scrub) { return; }
             if (Math.abs((self.mouse-x - self.pressed-x) / 1px) > 3) {
                 self.travelled = true;
             }

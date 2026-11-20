@@ -1,0 +1,18 @@
+[effect]
+id = "concat.low-pass"
+name = "Low Pass"
+kind = "audio"
+category = "Tone"
+description = "Attenuates frequencies above the cutoff."
+
+[[param]]
+key = "frequency"
+label = "Cutoff"
+min = 20
+max = 20000
+default = 1200
+step = 1
+unit = "Hz"
+
+[ffmpeg]
+chain = "lowpass=f={round(frequency)}:p=2"

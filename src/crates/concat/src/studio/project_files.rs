@@ -382,7 +382,11 @@ impl Studio {
         self.enhance_preview = None;
         self.enhance_previewing = None;
         self.enhance_ticked.clear();
-        self.reverse_jobs.clear();
+        self.motion_job = None;
+        self.phone_color_before = None;
+        self.phone_audio_zoom = None;
+        self.phone_edit_zoom = None;
+        self.meters.phone_workspace = false;
         self.cancel_merge();
         self.cutout_jobs.clear();
         self.stabilize_jobs.clear();

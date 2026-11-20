@@ -68,8 +68,8 @@ pub fn manifest(id: &str, name: &str, file: &str, space: Space) -> String {
 }
 
 /// Makes a package folder under `dir` from the table at `path`, and
-/// returns the package's id: `user.` and the file's name, slugged. A second
-/// import of the same name replaces the first.
+/// returns the package's id. Identical reimports reuse the saved package,
+/// while different tables with the same name get their own package.
 pub fn import(dir: &Path, path: &Path) -> Result<String, String> {
     let stem = path
         .file_stem()
@@ -87,21 +87,50 @@ pub fn import(dir: &Path, path: &Path) -> Result<String, String> {
     if slug.is_empty() {
         slug = "look".to_owned();
     }
-    let id = format!("user.{slug}");
     let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
     // A byte-order mark would hide a `TITLE` on the first line from `space_of`.
     let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
     crate::cube::parse(text)?;
-    let folder = dir.join(&id);
-    std::fs::create_dir_all(&folder).map_err(|error| error.to_string())?;
-    let written = manifest(&id, stem.trim(), TABLE, space_of(path, text));
-    std::fs::write(folder.join("effect.toml"), written).map_err(|error| error.to_string())?;
-    std::fs::write(folder.join("effect.wgsl"), SHADER).map_err(|error| error.to_string())?;
-    std::fs::write(folder.join(TABLE), text).map_err(|error| error.to_string())?;
-    // A still an earlier import drew for this name: the card drawn from the
-    // package's own shader replaces it.
-    let _ = std::fs::remove_file(folder.join("preview.png"));
-    Ok(id)
+    let space = space_of(path, text);
+    std::fs::create_dir_all(dir).map_err(|error| error.to_string())?;
+    for number in 1.. {
+        let (id, name) = if number == 1 {
+            (format!("user.{slug}"), stem.trim().to_owned())
+        } else {
+            (
+                format!("user.{slug}-{number}"),
+                format!("{} ({number})", stem.trim()),
+            )
+        };
+        let folder = dir.join(&id);
+        match std::fs::create_dir(&folder) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                let same_table =
+                    std::fs::read_to_string(folder.join(TABLE)).is_ok_and(|saved| saved == text);
+                let same_space = std::fs::read_to_string(folder.join("effect.toml"))
+                    .ok()
+                    .and_then(|saved| Manifest::parse(&saved).ok())
+                    .and_then(|saved| saved.wgsl)
+                    .is_some_and(|shader| shader.space == space);
+                if same_table && same_space && folder.join("effect.wgsl").is_file() {
+                    return Ok(id);
+                }
+                continue;
+            }
+            Err(error) => return Err(error.to_string()),
+        }
+        let written = manifest(&id, &name, TABLE, space);
+        let result = std::fs::write(folder.join("effect.wgsl"), SHADER)
+            .and_then(|()| std::fs::write(folder.join(TABLE), text))
+            .and_then(|()| std::fs::write(folder.join("effect.toml"), written));
+        if let Err(error) = result {
+            let _ = std::fs::remove_dir_all(&folder);
+            return Err(error.to_string());
+        }
+        return Ok(id);
+    }
+    unreachable!("look ids are unbounded")
 }
 
 /// Rewrites every look an earlier build made from a table in `dir` onto
@@ -227,6 +256,31 @@ mod tests {
         );
         assert!(import(&looks, &dir.join("missing.cube")).is_err());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_different_table_with_the_same_name_keeps_both_project_references() {
+        let dir = scratch("name-collision");
+        let source = dir.join("Film.cube");
+        let looks = dir.join("looks");
+
+        let first_table = table("First");
+        std::fs::write(&source, &first_table).unwrap();
+        let first = import(&looks, &source).unwrap();
+        let second_table = table("Second").replace("1 0.5 1", "0.3 0.5 1");
+        std::fs::write(&source, &second_table).unwrap();
+        let second = import(&looks, &source).unwrap();
+
+        assert_ne!(first, second);
+        assert_eq!(second, import(&looks, &source).unwrap());
+        for (id, contents) in [(first, first_table), (second, second_table)] {
+            assert_eq!(
+                std::fs::read_to_string(looks.join(&id).join(TABLE)).unwrap(),
+                contents
+            );
+            assert!(Package::from_folder(&looks.join(id)).is_ok());
+        }
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     /// A table saved with a byte-order mark still has its title read for

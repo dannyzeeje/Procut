@@ -586,6 +586,10 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
         editor.set_transition_choices(ModelRc::from(models.transition_choices.clone()));
         editor.set_audio_params(ModelRc::from(models.audio_params.clone()));
         editor.set_adjust_params(ModelRc::from(models.adjust_params.clone()));
+        editor.set_phone_color_params(ModelRc::from(models.phone_color_params.clone()));
+        editor.set_phone_grade_layers(ModelRc::from(models.phone_grade_layers.clone()));
+        editor.set_phone_grade_params(ModelRc::from(models.phone_grade_params.clone()));
+        editor.set_phone_color_shots(ModelRc::from(models.phone_color_shots.clone()));
         editor.set_adjust_wheels(ModelRc::from(models.adjust_wheels.clone()));
         editor.set_adjust_curves(ModelRc::from(models.adjust_curves.clone()));
         editor.set_visual_wheels(ModelRc::from(models.visual_wheels.clone()));
@@ -1519,6 +1523,9 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
         ramp.on_remove_selected(on_lanes!(|state| {
             state.speed_remove_chosen();
         }));
+        ramp.on_insert_point(on_lanes!(|state| {
+            state.speed_insert_point();
+        }));
     }
     // The Keyframes panel's verbs; its rows go out with every publish.
     {
@@ -1611,6 +1618,57 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     editor.on_clip_commit(on_lanes!(|state| {
         state.clip_commit();
     }));
+    editor.on_phone_edit_started(on_lanes!(|state| {
+        state.phone_edit_started();
+    }));
+    editor.on_phone_edit_preview(on_lanes!(|state| {
+        state.request_preview();
+    }));
+    editor.on_phone_edit_finished(on_window!(|state| {
+        state.phone_edit_finished();
+    }));
+    editor.on_phone_workspace_changed(on_window!(|state, audio: bool| {
+        state.phone_workspace_changed(audio);
+    }));
+    editor.on_phone_camera_input(on_window!(|state, profile: i32, levels: i32| {
+        state.phone_camera_input(profile, levels);
+    }));
+    editor.on_phone_grade_layer(on_window!(|state, action: SharedString, index: i32| {
+        state.phone_grade_layer(action.as_str(), index);
+    }));
+    editor.on_phone_track_mix(on_window!(
+        |state, id: SharedString, field: SharedString, value: f32| {
+            state.phone_track_mix(id.as_str(), field.as_str(), value);
+        }
+    ));
+    editor.on_phone_audio_filter(on_window!(|state, high_pass: bool| {
+        state.phone_audio_filter(high_pass);
+    }));
+    editor.on_phone_low_pass_region(on_window!(|state, start: f32, end: f32| {
+        state.phone_low_pass_region(start, end);
+    }));
+    editor.on_phone_audio_key(on_window!(|state, from: f32, at: f32, fraction: f32| {
+        state.phone_audio_key(from, at, fraction);
+    }));
+    editor.on_phone_audio_remove_key(on_window!(|state, at: f32| {
+        state.phone_audio_remove_key(at);
+    }));
+    editor.on_phone_color_shot(on_window!(|state, id: SharedString| {
+        state.phone_color_shot(id.as_str());
+    }));
+    editor.on_phone_color_compare(on_lanes!(|state, before: bool| {
+        state.phone_color_compare(before);
+    }));
+    editor.on_phone_clip_scrubbed(on_lanes!(|state, at: f32| {
+        if let Some(clip) = state.sole_selection().and_then(|id| state.clip(&id)) {
+            let fps = state.timeline().video.rate().max(1.0);
+            let last = (clip.start + clip.duration - 1.0 / fps).max(clip.start);
+            let at = (clip.start + clip.duration * f64::from(at.clamp(0.0, 1.0))).min(last);
+            state.stop_glide();
+            state.pause();
+            state.seek(at as f32);
+        }
+    }));
 
     // ── the chains ──
     editor.on_chain_add(on_window!(|state, audio: bool, id: SharedString| {
@@ -1677,9 +1735,9 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     editor.on_step_frames(on_lanes!(|state, frames: f32| {
         state.stop_glide();
         state.pause();
-        let fps = state.frame_rate().round().max(1.0);
-        let at = (state.playhead * fps).round() + frames;
-        state.seek(at / fps);
+        let fps = state.timeline().video.rate().max(1.0);
+        let at = (f64::from(state.playhead) * fps).round() + f64::from(frames);
+        state.seek((at / fps) as f32);
     }));
     editor.on_ratio_changed(on_window!(|state, index: i32| {
         state.set_output((index.max(0) as usize).min(OUTPUTS.len() - 1));

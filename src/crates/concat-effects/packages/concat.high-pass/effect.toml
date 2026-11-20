@@ -1,0 +1,18 @@
+[effect]
+id = "concat.high-pass"
+name = "High Pass"
+kind = "audio"
+category = "Tone"
+description = "Attenuates frequencies below the cutoff."
+
+[[param]]
+key = "frequency"
+label = "Cutoff"
+min = 20
+max = 20000
+default = 120
+step = 1
+unit = "Hz"
+
+[ffmpeg]
+chain = "highpass=f={round(frequency)}:p=2"

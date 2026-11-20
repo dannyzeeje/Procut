@@ -1,4 +1,8 @@
 import { SpeedRamp } from "../inspector/speed-ramp.slint";
+import { PhoneCameraInput, PhoneColorShots, PhoneColorTools, PhoneGradeLayers } from "color.slint";
+import { PhoneAudioGain, PhoneCommand, PhoneSpeed } from "clip-tools.slint";
+import { PhoneAudioFilters, PhoneMixer, PhoneVolumeGraph } from "audio-workspace.slint";
+import { PhoneValue } from "value.slint";
 import { ToolGrid } from "tool-grid.slint";
 import { PhoneQuickActions } from "quick-actions.slint";
 // SPDX-License-Identifier: AGPL-3.0-or-later
@@ -26,11 +30,11 @@ import {
 } from "../workspace/media-pane.slint";
 import {
     AdjustPanel, AnimatePanel, AudioPanel, EnhancePanel, FilterPanel, Library, PresetStack, ProcessorRows,
-    SpeedPanel, VideoPanel,
+    VideoPanel,
 } from "../inspector/clip-inspector.slint";
 import { TextPanel } from "../inspector/text-panel.slint";
 import { ShapePanel } from "../inspector/shape-panel.slint";
-import { RoundButton, ToolItem, ToolStrip } from "controls.slint";
+import { PhoneScroll, RoundButton, ToolItem, ToolStrip } from "controls.slint";
 import { PhoneSheet } from "sheet.slint";
 import { PhoneCanvas } from "canvas.slint";
 import { Sounds, SoundList, VoiceList } from "../workspace/audio-page.slint";
@@ -400,9 +404,13 @@ export component PhoneEditor inherits Rectangle {
     property <length> sidebar-width: 56px;
     // Back closes the sheet on top before it leaves the editor; the window
     // hears the key, so the sheet's state is told it through PhoneSheets.
-    changed sheet => { PhoneSheets.open = root.sheet != ""; }
+    property <bool> handles-back: root.sheet != "" || root.workspace-mode != 0;
+    changed handles-back => { PhoneSheets.open = root.handles-back; }
     property <int> close-asked: PhoneSheets.close-asked;
-    changed close-asked => { root.hide(); }
+    changed close-asked => {
+        if (root.sheet != "") { Editor.blur(); root.hide(); }
+        else if (root.workspace-mode != 0) { root.switch-workspace(0); }
+    }
     /// The Audio sheet's shelf: 0 my sounds, 1 voices, 2 styles.
     property <int> audio-shelf;
     /// Kept for the shared picker callback; phone imports use the playhead.
@@ -411,7 +419,46 @@ export component PhoneEditor inherits Rectangle {
     property <bool> sheet-needs-clip;
 
     property <bool> multi-select;
+    property <int> workspace-mode;
+    property <bool> color-mode: root.workspace-mode == 1;
+    property <bool> audio-mode: root.workspace-mode == 2;
+    property <bool> audio-preview: true;
+    property <bool> audio-region;
+    property <bool> audio-point-dragging;
+    changed sheet => { root.audio-point-dragging = false; }
+    property <float> region-start: -1;
+    property <bool> audio-source: root.has-clip && !root.batch-selection && Editor.selected-clip.has-sound;
+    property <bool> editable-audio: root.audio-source || (root.has-clip && !root.batch-selection && root.kind == ClipKind.sound-layer);
+    init => { Editor.phone-color-active = false; }
+    property <bool> before-grade;
+    property <bool> expanded-tool;
+    property <string> color-parameter: "exposure";
+    property <int> crop-side;
+    property <[string]> crop-labels: [
+        I18n.t("common.left"), I18n.t("common.top"), I18n.t("common.right"), I18n.t("common.bottom")
+    ];
+    property <string> grading-target: Editor.primary-selected-id;
+    property <bool> can-grade: Editor.phone-can-grade;
+    changed grading-target => { root.before-grade = false; }
+    changed can-grade => { if (!root.can-grade) { root.before-grade = false; } }
+
+    function compare-grade(before: bool) {
+        root.before-grade = before;
+        Editor.phone-color-compare(before);
+    }
+    function switch-workspace(mode: int) {
+        if (root.workspace-mode == mode) { return; }
+        Editor.blur();
+        root.hide();
+        root.before-grade = false;
+        root.workspace-mode = mode;
+        root.region-start = -1;
+        root.audio-region = false;
+        Editor.phone-color-active = root.color-mode;
+        Editor.phone-workspace-changed(root.audio-mode);
+    }
     property <bool> editing-clips: Editor.selected-count > 0;
+    property <bool> batch-selection: Editor.selected-count > 1;
     property <bool> has-clip: Editor.selected-clip.present;
     property <ClipKind> kind: Editor.selected-clip.kind;
     property <bool> is-video: !Editor.selected-clip.batch-volume && root.kind == ClipKind.video;
@@ -429,13 +476,15 @@ export component PhoneEditor inherits Rectangle {
     // A clip's sheet closes with the clip - deleted, or let go of by a tap
     // on the floor - rather than staying up over a selection it no longer
     // describes.
-    changed editing-clips => {
-        if (!root.editing-clips && root.sheet-needs-clip) {
+    property <int> selected-count: Editor.selected-count;
+    changed selected-count => {
+        if (root.selected-count != 1 && root.sheet-needs-clip) {
             root.hide();
         }
     }
 
     function show(name: string, needs-clip: bool) {
+        root.expanded-tool = false;
         Editor.effect-preview-finish(false);
         root.sheet = name;
         root.sheet-needs-clip = needs-clip;
@@ -458,6 +507,7 @@ export component PhoneEditor inherits Rectangle {
         Editor.effect-preview-finish(false);
         root.sheet = "";
         root.sheet-needs-clip = false;
+        root.expanded-tool = false;
     }
     /// The bin, with nothing picked yet.
     function show-media(at-end: bool) {
@@ -481,9 +531,17 @@ export component PhoneEditor inherits Rectangle {
             : name == "project" ? I18n.t("phone.project")
             : name == "canvas" || name == "clip-canvas" ? I18n.t("phone.canvas")
             : name == "clip-video" ? I18n.t("phone.edit")
+            : name == "clip-crop" ? I18n.t("clipInspector.crop")
+            : name == "clip-trim" ? I18n.t("mobile.trim")
             : name == "clip-speed" ? I18n.t("common.speed")
             : name == "clip-audio" ? I18n.t("common.audio")
             : name == "clip-audio-effects" ? I18n.t("configPane.audioEffects")
+            : name == "color-input" ? I18n.t("mobile.colorInput")
+            : name == "grade-layers" ? I18n.t("mobile.gradeLayers")
+            : name == "clip-luts" ? I18n.t("mediaPane.luts")
+            : name == "audio-mixer" ? I18n.t("mobile.mixer")
+            : name == "audio-graph" ? I18n.t("mobile.volumeGraph")
+            : name == "audio-filters" ? I18n.t("configPane.audioEffects")
             : name == "clip-adjust" ? I18n.t("common.adjust")
             : name == "clip-enhance" ? I18n.t("common.enhance")
             : name == "clip-layer" ? I18n.t("configPane.filter")
@@ -501,24 +559,36 @@ export component PhoneEditor inherits Rectangle {
     // from the foot, the top bar and the transport down from the head, and
     // the monitor is what is left between.
     property <length> top-h: 48px;
+    property <length> workspace-h: 54px;
+    property <length> preview-top: root.top-h;
+    property <length> workspace-y: root.height - root.workspace-h;
+    property <length> tools-y: root.workspace-y - root.bar-h;
     property <length> transport-h: 96px;
     /// A resizable timeline with room for the preview.
     property <float> timeline-share: 0.42;
-    property <length> lanes-h: Math.max(170px, Math.min(root.height - root.top-h - root.transport-h - root.bar-h - root.timeline-gap - 110px, root.height * root.timeline-share));
+    property <float> audio-timeline-share: 0.57;
+    property <length> lanes-h: Math.max(160px, Math.min(
+        root.workspace-y - root.preview-top - root.transport-h - root.bar-h - root.timeline-gap
+            - (root.audio-mode && !root.audio-preview ? 0px : 110px),
+        root.audio-mode && !root.audio-preview ? root.height
+            : root.height * (root.audio-mode ? root.audio-timeline-share : root.timeline-share)));
     property <length> bar-h: 74px;
-    property <length> lanes-y: root.height - root.bar-h - root.lanes-h;
+    property <length> lanes-y: root.tools-y - root.lanes-h;
     property <length> timeline-gap: 20px;
     property <length> transport-y: root.lanes-y - root.transport-h - root.timeline-gap;
-    /// How tall the sheet is when one is up. The bin's is lower: it is a
-    /// grid to pick from, and the picture is what the picks are judged in.
-    property <length> sheet-h: root.height * 0.5;
-    /// The foot of the monitor: the transport's head, or the sheet's while
-    /// one is up - the monitor shrinks to the room left above the sheet
-    /// rather than going under it, so the whole picture stays in view
-    /// while a sheet works on it.
-    property <length> monitor-foot: root.sheet != ""
-        ? Math.min(root.transport-y, root.height - root.sheet-h)
+    property <length> color-panel-h: 314px;
+    property <length> display-transport-y: root.color-mode
+        ? Math.max(root.preview-top + 72px, root.workspace-y - root.color-panel-h - root.transport-h)
         : root.transport-y;
+    property <bool> quick-sheet: root.sheet == "clip-speed" || root.sheet == "clip-audio" || root.sheet == "clip-trim";
+    property <length> sheet-h: root.quick-sheet
+        ? (root.expanded-tool ? root.height * 0.7 : Math.min(root.height * 0.52, 346px))
+        : root.sheet == "audio-graph" ? Math.min(root.height * 0.72, 545px)
+        : root.height * 0.5;
+    property <bool> show-motion-status: root.sheet == "" && !Editor.preview-fullscreen && Editor.motion-status != "";
+    property <length> monitor-foot: root.sheet != ""
+        ? Math.min(root.display-transport-y, root.height - root.sheet-h)
+        : root.display-transport-y;
     /// The Add bar under the bin while something is picked.
     property <length> add-bar-h: 68px;
 
@@ -526,10 +596,18 @@ export component PhoneEditor inherits Rectangle {
     Rectangle {
         x: 0px; y: 0px;
         width: root.width; height: root.top-h;
-        RoundButton { x: 12px; y: 2px; glyph: Glyph.chevron-left; label: I18n.t("studio.closeProject"); clicked => { root.hide(); root.close-project(); } }
+        RoundButton { x: 12px; y: 2px; glyph: Glyph.chevron-left; label: I18n.t("studio.closeProject"); clicked => { root.switch-workspace(0); root.hide(); root.close-project(); } }
         RoundButton { x: 56px; y: 2px; glyph: Glyph.more; label: I18n.t("mobile.menu"); clicked => { root.hide(); project-menu.open-state = !project-menu.open-state; } }
         Text { x: 96px; width: Math.max(0px, parent.width - 192px); height: parent.height; text: root.project-name; color: Theme.fg; font-size: Theme.fs-lg; font-weight: Theme.weight-title; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
         RoundButton { x: parent.width - 56px; y: 2px; glyph: Glyph.export; accent: true; corner-radius: 13px; label: I18n.t("common.export"); clicked => { root.hide(); root.export-clicked(); } }
+    }
+
+    HorizontalLayout {
+        x: 12px; y: root.workspace-y; width: root.width - 24px; height: root.workspace-h;
+        padding-top: 3px; padding-bottom: 3px; spacing: 6px;
+        PhoneCommand { label: I18n.t("phone.edit"); selected: root.workspace-mode == 0; clicked => { root.switch-workspace(0); } }
+        PhoneCommand { label: I18n.t("common.color"); selected: root.color-mode; clicked => { root.switch-workspace(1); } }
+        PhoneCommand { label: I18n.t("common.audio"); selected: root.audio-mode; clicked => { root.switch-workspace(2); } }
     }
 
     // ── the monitor ──────────────────────────────────────────────────
@@ -538,11 +616,11 @@ export component PhoneEditor inherits Rectangle {
     // reads as a card on the page like the lanes under it. The stage
     // keeps its gestures: a drag on the picture moves the selected clip. The fitted viewport stays fixed.
     Rectangle {
-        visible: !Editor.preview-fullscreen;
+        visible: !Editor.preview-fullscreen && (!root.audio-mode || root.audio-preview);
         x: 0;
-        y: root.top-h;
+        y: root.preview-top;
         width: root.width;
-        height: Math.max(0px, root.monitor-foot - root.top-h);
+        height: Math.max(0px, root.monitor-foot - root.preview-top);
 
         monitor := PreviewPane {
             x: 8px;
@@ -565,7 +643,9 @@ export component PhoneEditor inherits Rectangle {
             clip-name: Editor.preview-clip-name;
             frame: Editor.preview-frame;
             see-through: Editor.see-through;
-            stage-items: Editor.stage-items;
+            stage-items: root.workspace-mode == 0 ? Editor.stage-items : [];
+            crop-editing: root.sheet == "clip-crop";
+            touch-grips: true;
             stage-guides: Editor.stage-guides;
             stroke-path: Editor.stroke-path;
             stroke-width: Editor.stroke-width;
@@ -580,7 +660,11 @@ export component PhoneEditor inherits Rectangle {
             quality-changed(index) => { Editor.quality-changed(index); }
             stage-pressed(x, y, additive) => {
                 Editor.blur();
-                Editor.stage-pressed(x, y, additive);
+                if (root.workspace-mode == 0 && root.sheet != "clip-crop") {
+                    let target = Editor.primary-selected-id;
+                    Editor.stage-pressed(x, y, additive);
+                    if (root.sheet-needs-clip && target != Editor.primary-selected-id) { root.hide(); }
+                }
             }
             stage-grip-pressed(id, grip, x, y) => {
                 Editor.blur();
@@ -604,11 +688,17 @@ export component PhoneEditor inherits Rectangle {
     // The frame steps are for the cut a drag cannot land on: a finger
     // lifting off the glass nudges the lanes a little, and a frame is a
     // pixel or less at most zooms (#244). Held, they keep stepping.
+    if root.show-motion-status: Text {
+        x: 12px; y: root.display-transport-y - 24px; width: root.width - 24px; height: 24px;
+        text: Editor.motion-status; color: Theme.fg; font-size: Theme.fs-sm;
+        horizontal-alignment: center; vertical-alignment: center; overflow: elide;
+    }
+
     property <int> frames: Math.round(Math.max(0, Editor.playhead) * Editor.frame-rate);
     property <int> rate: Math.max(1, Math.round(Editor.frame-rate));
 
     PhoneTransport {
-        x: 0; y: root.transport-y; width: root.width; height: root.transport-h;
+        x: 0; y: root.display-transport-y; width: root.width; height: root.transport-h;
         fullscreen => { root.hide(); root.set-fullscreen(true); }
     }
 
@@ -616,6 +706,7 @@ export component PhoneEditor inherits Rectangle {
     //
     // Keep track switches aligned with the scrolling lanes.
     stack := Rectangle {
+        visible: !root.color-mode;
         x: 0;
         y: root.lanes-y;
         width: root.width;
@@ -699,6 +790,7 @@ export component PhoneEditor inherits Rectangle {
                 }
                 clip-dragged(seconds, pixels) => { Editor.clip-dragged(seconds, pixels); }
                 clip-released => { Editor.clip-released(); }
+                context-enabled: !root.batch-selection && !root.multi-select;
                 clip-context(id) => { Editor.clip-context(id); }
                 menu-selected(id) => { Editor.menu-selected(id); }
                 band-selected(a, b, c, d, additive) => {
@@ -741,14 +833,14 @@ export component PhoneEditor inherits Rectangle {
                         horizontal-stretch: 1; min-width: 0px;
                         Text {
                             text: I18n.t("atlas.timeline");
-                            visible: !root.multi-select && parent.width >= 64px;
+                            visible: !root.multi-select && !root.batch-selection && parent.width >= 64px;
                             x: 8px; width: Math.max(0px, parent.width - 12px); height: parent.height;
                             color: Theme.fg; font-size: 13px; font-weight: 600;
                             overflow: elide; vertical-alignment: center;
                         }
                         Text {
                             text: I18n.t1("mobile.selectedCount", Editor.selected-count);
-                            visible: root.multi-select && parent.width >= 72px;
+                            visible: (root.multi-select || root.batch-selection) && parent.width >= 72px;
                             x: 8px; width: Math.max(0px, parent.width - 12px); height: parent.height;
                             color: Theme.accent; font-size: 12px;
                             overflow: elide; vertical-alignment: center;
@@ -762,12 +854,10 @@ export component PhoneEditor inherits Rectangle {
                     }
                     if !root.editing-clips: RoundButton { glyph: Glyph.magnet; label: I18n.t("common.snapToEdges"); foreground: Editor.snap ? Theme.accent : Theme.fg; size: 38px; clicked => { Editor.snap-changed(!Editor.snap); } }
                     if !root.editing-clips: RoundButton { glyph: Glyph.ripple-trim; label: I18n.t("mobile.rippleTrim"); foreground: Editor.magnetic ? Theme.accent : Theme.fg; size: 38px; clicked => { Editor.magnetic-changed(!Editor.magnetic); } }
-                    if root.editing-clips: HorizontalLayout {
-                        opacity: root.cut-reveal;
-                        RoundButton { glyph: Glyph.split; label: I18n.t("phone.split"); size: 38px; clicked => { Editor.shortcut("split-selected"); } }
-                        RoundButton { glyph: Glyph.trash; label: I18n.t("common.delete"); size: 38px; clicked => { Editor.delete-selected(); } }
-                        RoundButton { glyph: Glyph.step-back; label: I18n.t("shortcuts.deleteLeft"); size: 38px; enabled: Editor.can-trim-selection; clicked => { Editor.shortcut("delete-left"); } }
-                        RoundButton { glyph: Glyph.step-forward; label: I18n.t("shortcuts.deleteRight"); size: 38px; enabled: Editor.can-trim-selection; clicked => { Editor.shortcut("delete-right"); } }
+                    if root.editing-clips && !root.batch-selection: RoundButton {
+                        glyph: Glyph.trash; label: I18n.t("common.delete"); size: 38px;
+                        enabled: Editor.can-delete-selection;
+                        clicked => { Editor.delete-selected(); }
                     }
                     RoundButton { glyph: Glyph.zoom-out; label: I18n.t("common.zoomOut"); size: 38px; clicked => { Editor.zoom(1.4, Editor.playhead); } }
                     RoundButton { glyph: Glyph.zoom-in; label: I18n.t("common.zoomIn"); size: 38px; clicked => { Editor.zoom(1 / 1.4, Editor.playhead); } }
@@ -779,6 +869,7 @@ export component PhoneEditor inherits Rectangle {
     }
 
     Rectangle {
+        visible: !root.color-mode;
         x: 0; y: root.lanes-y - root.timeline-gap;
         width: root.width; height: 20px;
         background: Theme.page;
@@ -786,43 +877,137 @@ export component PhoneEditor inherits Rectangle {
         TouchArea {
             property <length> origin;
             property <float> initial;
-            pointer-event(e) => { if (e.kind == PointerEventKind.down) { self.origin = self.absolute-position.y + self.mouse-y; self.initial = root.timeline-share; } }
-            moved => { if (self.pressed) { root.timeline-share = Math.clamp(self.initial - (self.absolute-position.y + self.mouse-y - self.origin) / root.height, 0.25, 0.7); } }
+            pointer-event(e) => { if (e.kind == PointerEventKind.down) { self.origin = self.absolute-position.y + self.mouse-y; self.initial = root.audio-mode ? root.audio-timeline-share : root.timeline-share; } }
+            moved => { if (self.pressed) {
+                let share = Math.clamp(self.initial - (self.absolute-position.y + self.mouse-y - self.origin) / root.height, 0.25, 0.7);
+                if (root.audio-mode) { root.audio-timeline-share = share; }
+                else { root.timeline-share = share; }
+            } }
         }
     }
-
-    property <float> cut-reveal: root.editing-clips ? 1 : 0;
-    animate cut-reveal { duration: 160ms; }
 
     function show-clip-actions() {
         Editor.clip-context(Editor.primary-selected-id);
         root.show("tools", true);
     }
-    if root.editing-clips: HorizontalLayout {
-        x: 0; y: root.height - root.bar-h; width: root.width; height: root.bar-h;
+    if root.batch-selection && root.workspace-mode == 0: HorizontalLayout {
+        x: 0; y: root.tools-y; width: root.width; height: root.bar-h;
         padding-left: 12px; padding-right: 12px; spacing: 0px;
-        property <bool> single: Editor.selected-count == 1 && root.has-clip;
-        property <int> slots: self.single && root.is-video ? 5 : self.single && root.is-picture ? 4 : self.single ? 3 : 2;
+        property <bool> can-merge: Editor.merge-blocked-because == "";
+        property <length> slot: (root.width - 24px) / (self.can-merge ? 5 : 4);
+        ToolItem { width: parent.slot; glyph: Glyph.check; label: I18n.t("mobile.done"); clicked => { root.multi-select = false; Editor.shortcut("deselect"); } }
+        ToolItem { width: parent.slot; glyph: Glyph.copy; label: I18n.t("common.copy"); clicked => { Editor.shortcut("copy"); } }
+        ToolItem { width: parent.slot; glyph: Glyph.split; label: I18n.t("phone.split"); enabled: Editor.can-trim-selection; clicked => { Editor.shortcut("split-selected"); } }
+        ToolItem { width: parent.slot; glyph: Glyph.trash; label: I18n.t("common.delete"); enabled: Editor.can-delete-selection; clicked => { Editor.delete-selected(); } }
+        if Editor.merge-blocked-because == "": ToolItem { width: parent.slot; glyph: Glyph.merge; label: Editor.merge-label; clicked => { Editor.shortcut("merge"); } }
+    }
+    if root.editing-clips && !root.batch-selection && root.workspace-mode == 0: HorizontalLayout {
+        x: 0; y: root.tools-y; width: root.width; height: root.bar-h;
+        padding-left: 12px; padding-right: 12px; spacing: 0px;
+        property <int> slots: root.is-video ? 6 : root.is-picture ? 5 : 4;
         property <length> slot: (root.width - 24px) / self.slots;
-        if self.single: ToolItem {
+        ToolItem {
             width: parent.slot;
             glyph: root.is-audio ? Glyph.volume : root.is-text ? Glyph.text-mark : Glyph.sliders;
             label: root.is-audio ? I18n.t("common.audio") : root.is-text ? I18n.t("common.text") : I18n.t("phone.edit");
             clicked => { root.activate-tool("edit"); }
         }
-        if self.single && root.is-picture: ToolItem { width: parent.slot; glyph: Glyph.frame; label: I18n.t("phone.canvas"); clicked => { root.show("clip-canvas", true); } }
-        if self.single && root.is-video: ToolItem { width: parent.slot; glyph: Glyph.clock; label: I18n.t("common.speed"); enabled: root.is-video; clicked => { root.show("clip-speed", true); } }
-        if self.single: ToolItem {
-            width: parent.slot; glyph: root.is-audio ? Glyph.waveform : Glyph.sparkle; label: I18n.t("common.effects");
-            clicked => { root.show(root.is-audio ? "clip-audio-effects" : "clip-effects", true); }
-        }
-        if !self.single: ToolItem { width: parent.slot; glyph: Glyph.merge; label: Editor.merge-label; enabled: Editor.merge-blocked-because == ""; clicked => { Editor.shortcut("merge"); } }
+        if root.is-picture: ToolItem { width: parent.slot; glyph: Glyph.frame; label: I18n.t("phone.canvas"); clicked => { root.show("clip-canvas", true); } }
+        ToolItem { width: parent.slot; glyph: Glyph.split; label: I18n.t("phone.split"); enabled: Editor.can-trim-selection; clicked => { Editor.shortcut("split-selected"); } }
+        ToolItem { width: parent.slot; glyph: Glyph.ripple-trim; label: I18n.t("mobile.trim"); enabled: Editor.can-delete-selection; clicked => { root.show("clip-trim", true); } }
+        if root.is-video: ToolItem { width: parent.slot; glyph: Glyph.clock; label: I18n.t("common.speed"); clicked => { root.show("clip-speed", true); } }
         ToolItem { width: parent.slot; glyph: Glyph.more; label: I18n.t("phone.more"); clicked => { root.show-clip-actions(); } }
     }
-    if !root.editing-clips: ToolStrip {
-        y: root.height - root.bar-h; width: root.width; height: root.bar-h;
+    if !root.editing-clips && root.workspace-mode == 0: ToolStrip {
+        y: root.tools-y; width: root.width; height: root.bar-h;
         for tool in Editor.mobile-quick-tools: ToolItem { glyph: tool.glyph; label: tool.label; clicked => { root.activate-tool(tool.id); } }
         ToolItem { glyph: Glyph.more; label: I18n.t("mobile.allTools"); clicked => { root.show("tools", false); } }
+    }
+
+    PhoneScroll {
+        visible: root.color-mode;
+        x: 0; y: root.display-transport-y + root.transport-h;
+        width: root.width; height: Math.max(0px, root.workspace-y - self.y);
+        gutter: 12px;
+        PhoneColorShots {
+            height: 54px;
+            picked(id) => {
+                Editor.blur();
+                root.before-grade = false;
+                Editor.phone-color-shot(id);
+            }
+        }
+        PhoneColorTools {
+            selected-key <=> root.color-parameter;
+            before: root.before-grade;
+            compare(on) => { root.compare-grade(on); }
+            advanced => { root.show("clip-adjust", true); }
+        }
+        HorizontalLayout {
+            spacing: 4px;
+            PhoneCommand {
+                label: I18n.t("mobile.colorInput");
+                enabled: root.can-grade;
+                clicked => { root.compare-grade(false); root.show("color-input", true); }
+            }
+            PhoneCommand {
+                label: I18n.t("mobile.gradeLayers");
+                enabled: root.can-grade;
+                clicked => { root.compare-grade(false); root.show("grade-layers", true); }
+            }
+            PhoneCommand {
+                label: I18n.t("mediaPane.luts");
+                clicked => { root.compare-grade(false); root.show("clip-luts", false); }
+            }
+        }
+    }
+
+    if root.audio-mode: HorizontalLayout {
+        x: 10px; y: root.tools-y; width: root.width - 20px; height: root.bar-h;
+        padding-top: 5px; padding-bottom: 5px; spacing: 4px;
+        if !root.audio-region: PhoneCommand {
+            label: I18n.t("mobile.mixer");
+            clicked => { root.show("audio-mixer", false); }
+        }
+        if !root.audio-region: PhoneCommand {
+            label: I18n.t("mobile.graph");
+            enabled: root.audio-source;
+            clicked => { root.show("audio-graph", true); }
+        }
+        if !root.audio-region: PhoneCommand {
+            label: I18n.t("mediaPane.filters");
+            enabled: root.editable-audio;
+            clicked => { root.show("audio-filters", true); }
+        }
+        if !root.audio-region: PhoneCommand {
+            label: I18n.t("mobile.filterRange");
+            clicked => { root.audio-region = true; }
+        }
+        if !root.audio-region: PhoneCommand {
+            label: I18n.t("common.preview");
+            selected: root.audio-preview;
+            clicked => { root.audio-preview = !root.audio-preview; }
+        }
+        if root.audio-region: PhoneCommand {
+            label: I18n.t("mobile.markIn");
+            selected: root.region-start >= 0;
+            enabled: Editor.playhead < Editor.preview-duration;
+            clicked => { root.region-start = Editor.playhead; }
+        }
+        if root.audio-region: PhoneCommand {
+            label: I18n.t("mobile.applyLowPass");
+            enabled: root.region-start >= 0 && Editor.playhead - root.region-start >= 0.5 / Math.max(1, Editor.frame-rate);
+            clicked => {
+                Editor.phone-low-pass-region(root.region-start, Editor.playhead);
+                root.audio-region = false;
+                root.region-start = -1;
+                if (root.kind == ClipKind.sound-layer) { root.show("audio-filters", true); }
+            }
+        }
+        if root.audio-region: PhoneCommand {
+            label: I18n.t("common.cancel");
+            clicked => { root.audio-region = false; root.region-start = -1; }
+        }
     }
 
     // ── the sheet ────────────────────────────────────────────────────────
@@ -837,11 +1022,45 @@ export component PhoneEditor inherits Rectangle {
         width: root.width;
         height: root.height;
         sheet-height: root.sheet-h;
-        footer: root.sheet != "media" && root.sheet != "tools" && root.sheet != "customize-tools" && !Editor.effect-preview-active;
+        scroll-enabled: !root.audio-point-dragging;
+        dismiss-on-background: !root.quick-sheet && root.sheet != "clip-text" && root.sheet != "clip-mask" && root.sheet != "clip-crop";
+        footer: root.sheet != "audio-graph" && root.sheet != "media" && root.sheet != "tools" && root.sheet != "customize-tools" && !Editor.effect-preview-active;
         preview-footer: Editor.effect-preview-active;
         open: root.sheet != "";
         title: root.sheet-title(root.sheet);
-        closed => { root.hide(); }
+        closed => { Editor.blur(); root.hide(); }
+
+        if root.sheet == "color-input" && root.can-grade: PhoneCameraInput {}
+        if root.sheet == "grade-layers" && root.can-grade: PhoneGradeLayers {}
+        if root.sheet == "audio-mixer": PhoneMixer {}
+        if root.sheet == "audio-graph" && root.audio-source: PhoneVolumeGraph {
+            point-dragging(active) => { root.audio-point-dragging = active; }
+        }
+        if root.sheet == "audio-filters" && root.editable-audio: PhoneAudioFilters {
+            source: root.audio-source;
+            edit-fades => { root.show("clip-audio", true); root.expanded-tool = true; }
+            more-effects => { root.show("clip-audio-effects", true); }
+        }
+        if root.sheet == "clip-luts": VerticalLayout {
+            padding: 12px;
+            spacing: 8px;
+            SheetButton {
+                glyph: Glyph.import;
+                label: I18n.t("mediaPane.importALut");
+                clicked => { Editor.library-import-lut(); }
+            }
+            if Editor.catalogue-luts.length == 0: SheetNote { text: I18n.t("mediaPane.noLutsYet"); }
+            if !root.can-grade: SheetNote { text: I18n.t("mobile.selectShot"); }
+            for lut in Editor.catalogue-luts: VerticalLayout {
+                if !root.can-grade: PhoneCommand { label: lut.name; enabled: false; }
+            }
+            if root.can-grade: ShelfGrid {
+                entries: Editor.catalogue-luts;
+                glyph: Glyph.sun;
+                auditions: false;
+                applied(id, label) => { Editor.library-apply-lut(id, label); root.show("grade-layers", true); }
+            }
+        }
 
         // ── the bin ──
         if root.sheet == "media": VerticalLayout {
@@ -1146,7 +1365,50 @@ export component PhoneEditor inherits Rectangle {
 
         // ── the inspector's pages ──
         if root.sheet == "canvas": PhoneCanvas { own: false; }
-        if root.sheet == "clip-canvas": PhoneCanvas { own: true; }
+        if root.sheet == "clip-canvas": VerticalLayout {
+            spacing: 8px;
+            PhoneCommand {
+                label: I18n.t("clipInspector.crop");
+                enabled: Editor.phone-can-grade;
+                clicked => { root.show("clip-crop", true); }
+            }
+            PhoneCanvas { own: true; }
+        }
+
+        if root.sheet == "clip-crop": VerticalLayout {
+            spacing: 6px;
+            HorizontalLayout {
+                spacing: 4px;
+                for name[i] in root.crop-labels: PhoneCommand {
+                    label: name;
+                    selected: root.crop-side == i;
+                    enabled: Editor.phone-can-grade;
+                    clicked => { Editor.blur(); root.crop-side = i; }
+                }
+            }
+            PhoneValue {
+                label: root.crop-labels[root.crop-side];
+                unit: "%";
+                maximum: 100 * Math.max(0, 0.9 - (root.crop-side == 0 ? Editor.selected-clip.crop-right
+                    : root.crop-side == 1 ? Editor.selected-clip.crop-bottom
+                    : root.crop-side == 2 ? Editor.selected-clip.crop-left
+                    : Editor.selected-clip.crop-top));
+                step: 0.5;
+                value: 100 * (root.crop-side == 0 ? Editor.selected-clip.crop-left
+                    : root.crop-side == 1 ? Editor.selected-clip.crop-top
+                    : root.crop-side == 2 ? Editor.selected-clip.crop-right
+                    : Editor.selected-clip.crop-bottom);
+                enabled: Editor.phone-can-grade;
+                started => { Editor.phone-edit-started(); }
+                edited(v) => {
+                    Editor.clip-set(root.crop-side == 0 ? ClipField.crop-left
+                        : root.crop-side == 1 ? ClipField.crop-top
+                        : root.crop-side == 2 ? ClipField.crop-right : ClipField.crop-bottom, v / 100);
+                    Editor.phone-edit-preview();
+                }
+                finished => { Editor.phone-edit-finished(); }
+            }
+        }
 
         if root.sheet == "clip-mask": PhoneMaskPanel {
             selected: Editor.selected-clip;
@@ -1193,43 +1455,61 @@ export component PhoneEditor inherits Rectangle {
             commit => { Editor.clip-commit(); }
         }
 
-        if root.sheet == "clip-speed": VerticalLayout {
+        if root.sheet == "clip-speed": PhoneSpeed {
+            expanded <=> root.expanded-tool;
+            can-interpolate: root.is-video && (SpeedRamp.has-curve
+                ? SpeedRamp.trough-speed > 0 && SpeedRamp.trough-speed < 1
+                : Editor.selected-clip.speed < 1);
+        }
+
+        if root.sheet == "clip-trim": VerticalLayout {
             spacing: 8px;
-            SpeedPanel {
-                horizontal-stretch: 1;
-                selected: Editor.selected-clip;
-                set(field, value) => { Editor.clip-set(field, value); }
-                commit => { Editor.clip-commit(); }
+            Text {
+                text: Fmt.frames-timecode(Editor.playhead, Editor.frame-rate);
+                color: Theme.fg;
+                font-family: Theme.font-technical;
+                horizontal-alignment: center;
             }
-            if root.is-video && (SpeedRamp.has-curve ? SpeedRamp.trough-speed > 0 && SpeedRamp.trough-speed < 1 : Editor.selected-clip.speed < 1): SheetButton {
-                glyph: Glyph.sparkle;
-                label: I18n.t("mobile.opticalFlow");
-                enabled: Editor.selected-clip.reverse-progress < 0;
-                clicked => { Editor.shortcut("optical-flow"); }
+            HorizontalLayout {
+                spacing: 6px;
+                PhoneCommand { label: I18n.t("previewPane.previousFrame"); clicked => { Editor.step-frames(-1); } }
+                PhoneCommand { label: I18n.t("previewPane.nextFrame"); clicked => { Editor.step-frames(1); } }
+            }
+            HorizontalLayout {
+                spacing: 6px;
+                PhoneCommand { label: I18n.t("shortcuts.deleteLeft"); enabled: Editor.can-trim-selection; clicked => { Editor.shortcut("delete-left"); } }
+                PhoneCommand { label: I18n.t("shortcuts.deleteRight"); enabled: Editor.can-trim-selection; clicked => { Editor.shortcut("delete-right"); } }
             }
         }
 
         if root.sheet == "clip-audio": VerticalLayout {
-            if !Editor.selected-clip.batch-volume && Editor.selected-clip.has-sound: AudioEnvelope {
-                selected: Editor.selected-clip;
-                edited(a, b) => { Editor.audio-fades-edited(a, b); }
-                committed => { Editor.clip-commit(); }
+            spacing: 8px;
+            PhoneAudioGain { }
+            PhoneCommand {
+                label: root.expanded-tool ? I18n.t("configPane.basic") : I18n.t("phone.more");
+                selected: root.expanded-tool;
+                clicked => { root.expanded-tool = !root.expanded-tool; }
             }
-            AudioPanel {
+            if root.expanded-tool && Editor.selected-clip.has-sound: AudioEnvelope {
+                selected: Editor.selected-clip;
+                started => { Editor.phone-edit-started(); }
+                edited(a, b) => { Editor.audio-fades-edited(a, b); }
+                committed => { Editor.phone-edit-finished(); }
+            }
+            if root.expanded-tool: AudioPanel {
                 with-speed: root.kind == ClipKind.audio;
+                show-fade-graph: false;
                 selected: Editor.selected-clip;
                 audio-tracks: Editor.audio-tracks;
                 set(field, value) => { Editor.clip-set(field, value); }
                 commit => { Editor.clip-commit(); }
             }
-            if !Editor.selected-clip.batch-volume: ProcessorRows {
+            if root.expanded-tool: ProcessorRows {
                 applied: Editor.applied-audio;
                 params: Editor.audio-params;
                 add(id) => { Editor.chain-add(true, id); }
                 remove(index) => { Editor.chain-remove(true, index); }
-                set-param(index, key, value) => {
-                    Editor.chain-set-param(true, index, key, value);
-                }
+                set-param(index, key, value) => { Editor.chain-set-param(true, index, key, value); }
                 commit => { Editor.clip-commit(); }
             }
         }
@@ -1315,7 +1595,7 @@ export component PhoneEditor inherits Rectangle {
             for item in root.sheet-needs-clip ? Editor.menu-items : []: Rectangle {
                 property <bool> included: item.kind == MenuRow.action && item.id != "split"
                     && item.id != "delete" && item.id != "delete-left" && item.id != "delete-right"
-                    && (Editor.selected-count <= 1 || item.id != "merge");
+                    && item.id != "merge";
                 height: self.included ? 48px : 0px;
                 if self.included: MenuAction {
                     label: item.label;

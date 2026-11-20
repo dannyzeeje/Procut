@@ -64,6 +64,7 @@ mod menus;
 mod merge_words_tests;
 mod monitor;
 mod placing;
+mod pro_tools;
 mod project_files;
 mod publish;
 mod speech;
@@ -540,6 +541,13 @@ pub enum Gesture {
         /// The picture's turn, to project the pointer onto its axes.
         rotation: f64,
     },
+    StageCrop {
+        clip: String,
+        edge: usize,
+        original: model::Crop,
+        from: (f64, f64),
+        axis: (f64, f64),
+    },
     /// A side grip on a title pulls the width its words wrap at, not the
     /// glyphs: the box edge follows the pointer and the words reflow into
     /// it. The width is twice the pointer's distance from the centre along
@@ -762,6 +770,10 @@ pub struct Models {
     pub audio_params: Rc<VecModel<AppliedParamData>>,
     /// The colour panel's knobs.
     pub adjust_params: Rc<VecModel<AppliedParamData>>,
+    pub phone_grade_layers: Rc<VecModel<crate::ui::GradeLayerData>>,
+    pub phone_grade_params: Rc<VecModel<AppliedParamData>>,
+    pub phone_color_params: Rc<VecModel<AppliedParamData>>,
+    pub phone_color_shots: Rc<VecModel<crate::ui::ColorShotData>>,
     /// The colour panel's wheels and curves, and the picture's chain's by
     /// link.
     pub adjust_wheels: Rc<VecModel<WheelData>>,
@@ -867,6 +879,10 @@ impl Models {
             transition_choices: Rc::new(VecModel::default()),
             audio_params: Rc::new(VecModel::default()),
             adjust_params: Rc::new(VecModel::default()),
+            phone_grade_layers: Rc::new(VecModel::default()),
+            phone_grade_params: Rc::new(VecModel::default()),
+            phone_color_params: Rc::new(VecModel::default()),
+            phone_color_shots: Rc::new(VecModel::default()),
             adjust_wheels: Rc::new(VecModel::default()),
             adjust_curves: Rc::new(VecModel::default()),
             visual_wheels: Rc::new(VecModel::default()),
@@ -1328,8 +1344,12 @@ pub struct Studio {
     /// a run leaves a copy, whose link then holds it. The window's, not
     /// the project's: a tick with nothing made is not worth an undo step.
     enhance_ticked: HashSet<String>,
-    /// Reverse writing a clip's backwards copy, by clip: how far along.
-    reverse_jobs: HashMap<String, f32>,
+    /// The reverse or interpolation job running for this project.
+    motion_job: Option<vision::MotionJob>,
+    /// The grade being bypassed in the monitor for a phone comparison.
+    phone_color_before: Option<(String, String)>,
+    phone_audio_zoom: Option<f32>,
+    phone_edit_zoom: Option<f32>,
     /// A selection being rendered into one clip, with its own cancel flag.
     merge_job: Option<MergeJob>,
     /// The smart stroke being read, by the same name, while one is.
@@ -1992,6 +2012,7 @@ fn command_kind(command: &Command) -> &'static str {
         Command::ReattachAudio { .. } => "Reattach audio",
         Command::AddTrack { .. } => "Add track",
         Command::RemoveTrack { .. } => "Delete track",
+        Command::SetTrackMix { .. } => "Mix track",
         Command::SetTrackFlag {
             flag: TrackFlag::Visible,
             value,
@@ -2705,6 +2726,7 @@ fn grading_rows(
 /// Every link's wheels and curves in a chain, for the stack.
 fn chain_grading(
     chain: &[AppliedFilter],
+    phone_layers: Option<Option<f64>>,
 ) -> (Vec<WheelData>, Vec<(CurveData, Vec<CurvePointData>)>) {
     let catalogue = Catalogue::builtin();
     let mut wheels = Vec::new();
@@ -2716,10 +2738,15 @@ fn chain_grading(
         else {
             continue;
         };
-        if package.id() == ADJUST_ID {
+        if package.id() == ADJUST_ID && phone_layers.is_none() {
             continue;
         }
-        let (more_wheels, more_curves) = grading_rows(package, Some(link), index as i32, None);
+        let at = if package.id() == ADJUST_ID {
+            phone_layers
+        } else {
+            None
+        };
+        let (more_wheels, more_curves) = grading_rows(package, Some(link), index as i32, at);
         wheels.extend(more_wheels);
         curves.extend(more_curves);
     }
@@ -3217,7 +3244,10 @@ impl Studio {
             enhance_preview: None,
             enhance_previewing: None,
             enhance_ticked: HashSet::new(),
-            reverse_jobs: HashMap::new(),
+            motion_job: None,
+            phone_color_before: None,
+            phone_audio_zoom: None,
+            phone_edit_zoom: None,
             merge_job: None,
             region_job: None,
             pending_stroke: None,

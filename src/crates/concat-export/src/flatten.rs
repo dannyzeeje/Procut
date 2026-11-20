@@ -44,6 +44,12 @@ pub fn flatten_timeline_in(
     };
     // Found once: asked of every clip, it is a walk of every clip.
     let lane = timeline.background_lane();
+    let mixes: Vec<_> = timeline
+        .tracks
+        .iter()
+        .map(|track| track.audio_mix())
+        .collect();
+    let solo = mixes.iter().any(|mix| mix.solo);
 
     timeline
         .clips
@@ -137,13 +143,14 @@ pub fn flatten_timeline_in(
                 color_range: media.color_range,
                 source_start: clip.source_start,
                 hidden: !track.visible,
-                muted: track.muted || clip.muted == Some(true),
-                volume: export_base(clip, KeyProperty::Volume),
+                muted: track.muted || (solo && !mixes[index].solo) || clip.muted == Some(true),
+                volume: export_base(clip, KeyProperty::Volume)
+                    * 10_f64.powf(mixes[index].gain_db / 20.0),
                 fade_in: clip.fade_in,
                 fade_out: clip.fade_out,
                 smooth_fade_in: clip.smooth_fade_in,
                 smooth_fade_out: clip.smooth_fade_out,
-                filter_chain: audio_filter_chain(&clip.filters),
+                filter_chain: audio_chain_with_balance(&clip.filters, mixes[index].pan),
                 speed: clip.speed,
                 preserve_pitch: clip.preserve_pitch,
                 speed_curve: clip
@@ -242,6 +249,23 @@ pub fn flatten_timeline_in(
             })
         })
         .collect()
+}
+
+fn audio_chain_with_balance(filters: &[concat_project::model::AppliedFilter], pan: f64) -> String {
+    let mut chain = audio_filter_chain(filters);
+    if pan.abs() > 1e-6 {
+        let left = 1.0 - pan.max(0.0);
+        let right = 1.0 + pan.min(0.0);
+        if !chain.is_empty() {
+            chain.push(',');
+        }
+        use std::fmt::Write;
+        let _ = write!(
+            chain,
+            "aformat=channel_layouts=stereo,pan=stereo|c0={left:.6}*c0|c1={right:.6}*c1"
+        );
+    }
+    chain
 }
 
 /// A background as it is drawn: a blur and a colour as they are, a still
@@ -409,6 +433,69 @@ mod tests {
         let flat = flatten_timeline(editor.project(), None);
         assert!(flat[0].hidden, "a hidden track hides its clips");
         assert!(flat[0].muted, "a muted track mutes its clips");
+    }
+
+    #[test]
+    fn track_mix_combines_filters_with_gain_and_pan_and_solo_keeps_the_picture() {
+        use concat_project::model::TrackMix;
+
+        let (mut editor, _, clip_id) = project_with_clip();
+        let tracks: Vec<_> = editor.project().timelines[0]
+            .tracks
+            .iter()
+            .map(|track| track.id.clone())
+            .collect();
+        editor
+            .apply(Command::UpdateClip {
+                clip_id: clip_id.clone(),
+                patch: ClipPatch {
+                    filters: Some(vec![AppliedFilter::new("concat.low-pass")]),
+                    ..Default::default()
+                },
+            })
+            .unwrap();
+        editor
+            .apply(Command::SetTrackMix {
+                track_id: tracks[0].clone(),
+                mix: TrackMix {
+                    gain_db: -6.0,
+                    pan: 0.5,
+                    solo: false,
+                },
+            })
+            .unwrap();
+        editor
+            .apply(Command::SetClipKey {
+                clip_id,
+                property: KeyProperty::Volume,
+                at: 0.25,
+                value: 0.75,
+                ease: Default::default(),
+            })
+            .unwrap();
+        let flat = flatten_timeline(editor.project(), None);
+        assert_eq!(
+            flat[0].filter_chain,
+            "lowpass=f=1200:p=2,aformat=channel_layouts=stereo,pan=stereo|c0=0.500000*c0|c1=1.000000*c1"
+        );
+        assert!((flat[0].volume - 0.5011872336).abs() < 1e-9);
+        assert_eq!(flat[0].animation[0].value, 0.75);
+        assert!(!flat[0].muted);
+
+        editor
+            .apply(Command::SetTrackMix {
+                track_id: tracks[1].clone(),
+                mix: TrackMix {
+                    solo: true,
+                    ..TrackMix::default()
+                },
+            })
+            .unwrap();
+        let flat = flatten_timeline(editor.project(), None);
+        assert!(flat[0].muted);
+        assert!(!flat[0].hidden);
+        editor.undo();
+        assert!(!flatten_timeline(editor.project(), None)[0].muted);
     }
 
     #[test]

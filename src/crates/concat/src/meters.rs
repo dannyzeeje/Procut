@@ -9,7 +9,7 @@
 //! The timer runs only while something plays and the meters are on
 //! screen, and for the moment after it takes the bars to fall; it stops
 //! itself once they are down. Put away - the tray's meter button, a dock
-//! with no timeline in it, the phone shell, which has none - they cost
+//! with no timeline in it, or a phone workspace without the mixer - they cost
 //! nothing: no timer, and no property changing thirty times a second.
 
 use slint::ComponentHandle;
@@ -70,8 +70,8 @@ pub struct MeterFeed {
     left: Side,
     right: Side,
     pub clipped: bool,
-    /// The window is a phone's, whose shell has no meters to feed.
     pub phone: bool,
+    pub phone_workspace: bool,
     timer: slint::Timer,
 }
 
@@ -79,7 +79,11 @@ impl Studio {
     /// Whether anything can see the meters: the tray's switch is on, and
     /// a timeline - whose right edge they sit on - is in the dock.
     pub fn meters_shown(&self) -> bool {
-        !self.meters.phone && self.prefs.meters_shown() && self.dock.contains(PaneKind::Timeline)
+        if self.meters.phone {
+            self.meters.phone_workspace
+        } else {
+            self.prefs.meters_shown() && self.dock.contains(PaneKind::Timeline)
+        }
     }
 
     fn rolling(&self) -> bool {
@@ -116,7 +120,10 @@ impl Studio {
                     }
                     feed.left.tick(left, TICK.as_secs_f32());
                     feed.right.tick(right, TICK.as_secs_f32());
-                    feed.clipped |= left >= 1.0 || right >= 1.0;
+                    // An already clipped PCM stem can reach the largest
+                    // positive signed sample, one step shy of 1.0.
+                    const FULL_SCALE_PCM: f32 = 32767.0 / 32768.0;
+                    feed.clipped |= left >= FULL_SCALE_PCM || right >= FULL_SCALE_PCM;
                     feed.publish(&app);
                     if !rolling && feed.left.quiet() && feed.right.quiet() {
                         feed.timer.stop();

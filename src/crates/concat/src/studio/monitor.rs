@@ -113,6 +113,25 @@ impl Studio {
         // The frame's own additions - a look being shown, a cutout being
         // painted - go on a copy, so the kept list stays the document's.
         let mut own: Option<Vec<concat_export::ExportClip>> = None;
+        if let Some((timeline, id)) = &self.phone_color_before
+            && self.timeline().id == *timeline
+            && self.selection.len() == 1
+            && self.selection.first() == Some(id)
+            && let Some(clip) = self.clip(id)
+            && let Some(track) = self
+                .timeline()
+                .tracks
+                .iter()
+                .position(|lane| lane.id == clip.track_id)
+            && let Some(media) = self.project().media_by_id(&clip.media_id)
+            && let Some(index) = clips.iter().position(|flat| {
+                flat.track == track && flat.start == clip.start && flat.path == media.path
+            })
+        {
+            own.get_or_insert_with(|| (*clips).clone())[index]
+                .effects
+                .retain(|effect| !pro_tools::is_grade_layer(effect));
+        }
         // The look being shown before it is laid down goes into this
         // frame only, as the layer it would be: over every track, the
         // whole way along, at full strength. The timeline is as it was.
@@ -191,6 +210,57 @@ impl Studio {
     }
 
     // ── playback ──
+
+    pub fn phone_color_compare(&mut self, before: bool) {
+        let target = if before {
+            self.phone_grade_clip()
+                .map(|clip| (self.timeline().id.clone(), clip.id.clone()))
+        } else {
+            None
+        };
+        if self.phone_color_before != target {
+            self.phone_color_before = target;
+            self.request_preview();
+        }
+    }
+
+    pub(super) fn phone_grade_clip(&self) -> Option<&Clip> {
+        let id = self.sole_selection()?;
+        self.clip(&id)
+            .filter(|clip| self.phone_visible_picture(clip) && !self.locked(&clip.track_id))
+    }
+
+    pub(super) fn phone_visible_picture(&self, clip: &Clip) -> bool {
+        matches!(clip.kind, model::ClipKind::Video | model::ClipKind::Image)
+            && self
+                .timeline()
+                .tracks
+                .iter()
+                .any(|lane| lane.id == clip.track_id && lane.visible)
+    }
+
+    pub fn phone_color_shot(&mut self, id: &str) {
+        let Some(clip) = self
+            .clip(id)
+            .filter(|clip| self.phone_visible_picture(clip) && !self.locked(&clip.track_id))
+        else {
+            return;
+        };
+        let (start, end) = (clip.start, clip.start + clip.duration);
+        self.flush_commit();
+        self.end_audition();
+        self.phone_color_before = None;
+        self.selection = vec![id.to_owned()];
+        self.transition_selected = None;
+        let at = f64::from(self.playhead);
+        if self.source.is_some() || !(start..end).contains(&at) {
+            self.stop_glide();
+            self.pause();
+            self.seek(((start + end) * 0.5) as f32);
+        } else {
+            self.request_preview();
+        }
+    }
 
     pub fn play_toggle(&mut self) {
         self.stop_glide();

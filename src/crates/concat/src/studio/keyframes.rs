@@ -62,6 +62,7 @@ impl Studio {
                 .collect(),
         );
         let chosen = self.speed_chosen_now();
+        ramp.set_can_remove_point(chosen.iter().any(|index| *index > 0 && *index < last));
         sync(
             &models.curve_selected,
             (0..points.len())
@@ -1445,7 +1446,12 @@ impl Studio {
                 .enhance_jobs
                 .get(&clip.id)
                 .is_some_and(|(fetching, _)| *fetching),
-            reverse_progress: self.reverse_jobs.get(&clip.id).copied().unwrap_or(-1.0),
+            motion_status: self
+                .motion_job
+                .as_ref()
+                .filter(|job| job.clip_id == clip.id)
+                .map(|job| job.status().into())
+                .unwrap_or_default(),
             enhance_linked: clip.enhanced.is_some(),
             enhance_on: self.enhance_ticked(clip),
             enhance_busy: !self.enhance_jobs.is_empty() || self.enhance_previewing.is_some(),

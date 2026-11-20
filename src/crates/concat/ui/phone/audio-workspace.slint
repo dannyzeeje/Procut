@@ -1,0 +1,281 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import { Editor } from "../editor.slint";
+import { I18n } from "../i18n.slint";
+import { Theme } from "../theme/theme.slint";
+import { Select } from "../primitives/select.slint";
+import { ClipField } from "../timeline/model.slint";
+import { Meters } from "../timeline/vu-meter.slint";
+import { KeyEditor } from "../workspace/keyframes-pane.slint";
+import { PhoneCommand } from "clip-tools.slint";
+import { PhoneValue } from "value.slint";
+
+component AuditionButton inherits PhoneCommand {
+    label: Editor.playing ? I18n.t("previewPane.pause") : I18n.t("previewPane.play");
+    selected: Editor.playing;
+    clicked => { Editor.blur(); Editor.play-toggled(); }
+}
+
+export component PhoneMasterMeter inherits HorizontalLayout {
+    spacing: 6px;
+    min-height: 48px;
+    Text {
+        text: I18n.t("mobile.master");
+        color: Theme.fg;
+        vertical-alignment: center;
+    }
+    VerticalLayout {
+        alignment: center;
+        horizontal-stretch: 1;
+        spacing: 4px;
+        for level in [Meters.left, Meters.right]: Rectangle {
+            height: 6px;
+            border-radius: 3px;
+            background: Theme.field;
+            Rectangle {
+                x: 0;
+                width: parent.width * level;
+                height: 6px;
+                border-radius: 3px;
+                background: level > 0.9 ? #eb5757 : level > 0.7 ? #f2c35f : Theme.accent;
+            }
+        }
+    }
+    PhoneCommand {
+        label: I18n.t("mobile.clipping");
+        enabled: Meters.clipped;
+        selected: Meters.clipped;
+        clicked => { Meters.clip-cleared(); }
+    }
+}
+
+export component PhoneMixer inherits VerticalLayout {
+    padding: 12px;
+    spacing: 8px;
+    property <string> track-id;
+
+    PhoneMasterMeter {}
+    AuditionButton {}
+    for track in Editor.tracks: VerticalLayout {
+        if track.mixable: VerticalLayout {
+            spacing: 4px;
+            PhoneCommand {
+                label: track.label;
+                selected: root.track-id == track.id;
+                clicked => { Editor.blur(); root.track-id = track.id == root.track-id ? "" : track.id; }
+            }
+            if root.track-id == track.id: VerticalLayout {
+                spacing: 4px;
+                HorizontalLayout {
+                    spacing: 6px;
+                    PhoneCommand {
+                        label: I18n.t("studio.mute");
+                        selected: track.muted;
+                        enabled: !track.locked;
+                        clicked => { Editor.phone-track-mix(track.id, "mute", track.muted ? 0 : 1); }
+                    }
+                    PhoneCommand {
+                        label: I18n.t("mobile.solo");
+                        selected: track.solo;
+                        enabled: !track.locked;
+                        clicked => { Editor.phone-track-mix(track.id, "solo", track.solo ? 0 : 1); }
+                    }
+                }
+                for control[i] in [I18n.t("mobile.gain"), I18n.t("mobile.pan")]: PhoneValue {
+                    property <float> pending: self.value;
+                    label: control;
+                    value: i == 0 ? track.gain-db : track.pan;
+                    unit: i == 0 ? "dB" : "";
+                    minimum: i == 0 ? -60 : -1;
+                    maximum: i == 0 ? 24 : 1;
+                    step: i == 0 ? 0.1 : 0.01;
+                    enabled: !track.locked;
+                    started => { self.pending = self.value; }
+                    edited(v) => { self.pending = v; }
+                    finished => { Editor.phone-track-mix(track.id, i == 0 ? "gain" : "pan", self.pending); }
+                }
+            }
+        }
+    }
+}
+
+export component PhoneVolumeGraph inherits VerticalLayout {
+    padding: 12px;
+    spacing: 8px;
+    callback point-dragging(active: bool);
+    property <float> selected: -1;
+    property <string> clip-id: Editor.primary-selected-id;
+    changed clip-id => { root.selected = -1; }
+    AuditionButton {}
+    for row in KeyEditor.rows: VerticalLayout {
+        if row.field == ClipField.volume && row.param == "": VerticalLayout {
+            spacing: 8px;
+            PhoneValue {
+                property <float> pending: row.value;
+                property <float> target;
+                property <bool> altered;
+                label: I18n.t("mobile.gain");
+                value: row.value; unit: "dB";
+                minimum: row.minimum; maximum: row.maximum; step: row.step; detent: 0;
+                started => { self.pending = row.value; self.target = KeyEditor.at; self.altered = false; }
+                edited(v) => { self.pending = v; self.altered = true; }
+                finished => {
+                    if (self.altered) {
+                        root.selected = self.target;
+                        Editor.phone-audio-key(-1, self.target, (self.pending - row.minimum) / (row.maximum - row.minimum));
+                    }
+                }
+            }
+            Rectangle {
+                height: 194px;
+                background: Theme.well;
+                border-radius: Theme.r;
+                plot := Rectangle {
+                    x: 22px; y: 22px;
+                    width: Math.max(1px, parent.width - 44px); height: parent.height - 44px;
+                    for tick in 5: Rectangle {
+                        x: 0; y: parent.height * tick / 4;
+                        width: parent.width; height: 1px; background: Theme.line;
+                    }
+                    Path {
+                        width: parent.width; height: parent.height;
+                        viewbox-width: 1; viewbox-height: 1; fit: fill;
+                        commands: row.curve; fill: Colors.transparent;
+                        stroke: Theme.accent; stroke-width: 2px;
+                        visible: row.keys.length > 0;
+                    }
+                    Rectangle {
+                        visible: row.keys.length == 0;
+                        y: parent.height * (1 - Math.clamp((row.value - row.minimum) / (row.maximum - row.minimum), 0, 1));
+                        width: parent.width; height: 2px; background: Theme.accent;
+                    }
+                    Rectangle {
+                        x: parent.width * KeyEditor.at;
+                        width: 1px; height: parent.height; background: Theme.fg-muted;
+                    }
+                    TouchArea {
+                        clicked => { Editor.phone-clip-scrubbed(Math.clamp(self.mouse-x / Math.max(1px, self.width), 0, 1)); }
+                    }
+                    for node in row.keys: TouchArea {
+                        x: plot.width * node.at - 22px; y: plot.height * (1 - node.value) - 22px;
+                        width: 44px; height: 44px;
+                        property <length> down-x;
+                        property <length> down-y;
+                        property <float> next-at: node.at;
+                        property <float> next-value: node.value;
+                        property <bool> moved-point;
+                        pointer-event(event) => {
+                            if (event.kind == PointerEventKind.down) {
+                                self.down-x = self.mouse-x; self.down-y = self.mouse-y;
+                                self.next-at = node.at; self.next-value = node.value;
+                                self.moved-point = false;
+                                root.point-dragging(true);
+                            } else if (event.kind == PointerEventKind.up) {
+                                root.point-dragging(false);
+                                if (self.moved-point) {
+                                    root.selected = self.next-at;
+                                    Editor.phone-audio-key(node.at, self.next-at, self.next-value);
+                                } else {
+                                    root.selected = node.at;
+                                    Editor.phone-clip-scrubbed(node.at);
+                                }
+                            } else if (event.kind == PointerEventKind.cancel) {
+                                root.point-dragging(false);
+                            }
+                        }
+                        moved => {
+                            if (self.pressed) {
+                                let dx = self.mouse-x - self.down-x;
+                                let dy = self.mouse-y - self.down-y;
+                                if (Math.abs(dx) > 4px || Math.abs(dy) > 4px || self.moved-point) {
+                                    self.moved-point = true;
+                                    self.next-at = Math.clamp(node.at + dx / plot.width, 0, 1);
+                                    self.next-value = Math.clamp(node.value - dy / plot.height, 0, 1);
+                                }
+                            }
+                        }
+                        Rectangle {
+                            x: 15px + (parent.pressed ? (parent.next-at - node.at) * plot.width : 0px);
+                            y: 15px - (parent.pressed ? (parent.next-value - node.value) * plot.height : 0px);
+                            width: 14px; height: 14px; border-radius: 7px;
+                            background: Math.abs(node.at - root.selected) < 0.0001 ? Theme.fg : Theme.accent;
+                        }
+                    }
+                }
+            }
+            HorizontalLayout {
+                spacing: 6px;
+                PhoneCommand {
+                    label: I18n.t("mobile.addPoint");
+                    clicked => {
+                        let at = KeyEditor.at;
+                        Editor.phone-audio-key(-1, at, (row.value - row.minimum) / (row.maximum - row.minimum));
+                        root.selected = at;
+                    }
+                }
+                PhoneCommand {
+                    label: I18n.t("mobile.removePoint");
+                    enabled: root.selected >= 0 && row.keys.length > 0;
+                    clicked => { Editor.phone-audio-remove-key(root.selected); root.selected = -1; }
+                }
+            }
+            for node in row.keys: VerticalLayout {
+                if node.eased && Math.abs(node.at - root.selected) < 0.0001: Select {
+                    height: 48px; row-h: 48px;
+                    options: [I18n.t("speedRamp.straight"), I18n.t("speedRamp.smooth")];
+                    property <int> preset: Math.abs(node.ease-x1 - node.ease-y1) + Math.abs(node.ease-x2 - node.ease-y2) < 0.0001 ? 0 : 1;
+                    current: self.preset;
+                    changed preset => { self.current = self.preset; }
+                    changed(i) => {
+                        KeyEditor.set-ease(ClipField.volume, "", node.at, i == 0 ? 0 : 0.42, 0, i == 0 ? 1 : 0.58, 1);
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component PhoneAudioFilters inherits VerticalLayout {
+    padding: 12px;
+    spacing: 6px;
+    in property <bool> source;
+    callback edit-fades();
+    callback more-effects();
+    HorizontalLayout {
+        spacing: 6px;
+        AuditionButton {}
+        if root.source: PhoneCommand { label: I18n.t("atlas.audioEnvelope"); clicked => { root.edit-fades(); } }
+        PhoneCommand { label: I18n.t("phone.more"); clicked => { root.more-effects(); } }
+    }
+    HorizontalLayout {
+        spacing: 6px;
+        PhoneCommand { label: I18n.t("mobile.lowPass"); clicked => { Editor.phone-audio-filter(false); } }
+        PhoneCommand { label: I18n.t("mobile.highPass"); clicked => { Editor.phone-audio-filter(true); } }
+    }
+    for filter[index] in Editor.applied-audio: VerticalLayout {
+        spacing: 4px;
+        HorizontalLayout {
+            spacing: 6px;
+            PhoneCommand {
+                label: filter.name;
+                selected: filter.on;
+                clicked => { Editor.blur(); Editor.chain-toggle(true, index); }
+            }
+            PhoneCommand {
+                label: I18n.t("common.remove");
+                clicked => { Editor.blur(); Editor.chain-remove(true, index); }
+            }
+        }
+        for p in Editor.audio-params: VerticalLayout {
+            if filter.on && p.entry == index: PhoneValue {
+                label: p.label; unit: p.unit; value: p.value;
+                minimum: p.min; maximum: p.max; step: p.step; detent: p.default-value;
+                logarithmic: p.key == "frequency" && p.min > 0;
+                precision: p.unit == "Hz" ? 0 : 2;
+                started => { Editor.phone-edit-started(); }
+                edited(v) => { Editor.chain-set-param(true, index, p.key, v); Editor.phone-edit-preview(); }
+                finished => { Editor.phone-edit-finished(); }
+            }
+        }
+    }
+}

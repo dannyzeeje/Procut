@@ -74,6 +74,33 @@ pub(super) fn apply(
             })
         }
 
+        Command::SetTrackMix { track_id, mix } => {
+            let mix = mix.bounded();
+            let applied = project
+                .active_mut()
+                .tracks
+                .iter_mut()
+                .find(|track| track.id == track_id)
+                .is_some_and(|track| {
+                    if track.audio_mix() == mix {
+                        return false;
+                    }
+                    if mix == crate::model::TrackMix::default() {
+                        track.extra.remove(crate::model::TrackMix::FIELD);
+                    } else {
+                        track.extra.insert(
+                            crate::model::TrackMix::FIELD.to_owned(),
+                            serde_json::json!(mix),
+                        );
+                    }
+                    true
+                });
+            Ok(Outcome {
+                created_id: None,
+                applied,
+            })
+        }
+
         _ => unreachable!("commands::apply routes only this module's commands here"),
     }
 }

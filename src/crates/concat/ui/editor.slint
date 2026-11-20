@@ -16,8 +16,8 @@ import { DockDivider, DockSide, SeatBox } from "dock.slint";
 import { PaneKind } from "workspace/pane-switcher.slint";
 import { MenuItemData } from "primitives/context-menu.slint";
 import {
-    ClipData, ClipField, ClipTextField, DropData, SelectedClipData, SelectedTransitionData,
-    StageGuideData, StageItemData, TimelineTabData, TimelineTool, TrackData,
+    ClipData, ClipField, ClipTextField, ColorShotData, GradeLayerData, DropData, SelectedClipData, SelectedTransitionData,
+    StageGuideData, StageItemData, StripData, TimelineTabData, TimelineTool, TrackData,
     TrackSize,
 } from "timeline/model.slint";
 
@@ -185,6 +185,29 @@ export global Editor {
     /// A shape's colour; see ShapePanel.set-colour.
     callback clip-shape-colour(which: int, value: color);
     callback clip-commit();
+    callback phone-edit-started();
+    callback phone-edit-preview();
+    callback phone-edit-finished();
+    in-out property <bool> phone-color-active;
+    in-out property <bool> phone-can-grade;
+    in-out property <[ColorShotData]> phone-color-shots;
+    in-out property <[AppliedParamData]> phone-color-params;
+    in-out property <StripData> phone-selected-strip;
+    in-out property <[GradeLayerData]> phone-grade-layers;
+    in-out property <[AppliedParamData]> phone-grade-params;
+    in-out property <int> phone-camera-profile;
+    in-out property <int> phone-camera-levels;
+    callback phone-workspace-changed(audio: bool);
+    callback phone-camera-input(profile: int, levels: int);
+    callback phone-grade-layer(action: string, index: int);
+    callback phone-track-mix(id: string, field: string, value: float);
+    callback phone-audio-filter(high-pass: bool);
+    callback phone-low-pass-region(start: float, end: float);
+    callback phone-audio-key(from: float, at: float, fraction: float);
+    callback phone-audio-remove-key(at: float);
+    callback phone-color-shot(id: string);
+    callback phone-color-compare(on: bool);
+    callback phone-clip-scrubbed(at: float);
     callback audio-fades-edited(fade-in: float, fade-out: float);
     /// The families a title can be set in: the bundled face, the user's
     /// own fonts, then the machine's. See `Studio::font_families`.
@@ -393,6 +416,8 @@ export global Editor {
     /// none is being reversed.
     in-out property <string> primary-selected-id;
     in-out property <bool> can-trim-selection;
+    in-out property <bool> can-delete-selection;
+    in-out property <string> motion-status;
     in-out property <bool> picture-selected;
     in-out property <bool> freezable;
     in-out property <bool> reversible;

@@ -8,7 +8,7 @@
 //! and each seek is a decode from the keyframe before it: choppy at best,
 //! and wrong where a seek lands short of its frame. So a reverse is not
 //! played, it is written. The span the clip covers is read forwards once,
-//! turned round, and put in the project's cache as a file of its own,
+//! turned round, and saved as a project media file of its own,
 //! picture and sound, which the clip then shows like any other file. The
 //! import is never touched; the bin keeps it.
 //!
@@ -17,8 +17,8 @@
 //! span forwards in runs of a few hundred megabytes, writes each run
 //! backwards into a segment of its own, and moves on. The second reads
 //! the segments last to first into the copy. Every frame is decoded and
-//! encoded twice, the segments near-losslessly, and nothing is sought but
-//! the span's start. The sound goes through the mixer's own graph with
+//! encoded twice for spans that exceed a run, the segments near-losslessly,
+//! and nothing is sought but the span's start. The sound goes through the mixer's own graph with
 //! `areverse`, which holds the span's samples - a few hundred megabytes
 //! an hour - and is muxed in beside the picture.
 //!
@@ -49,6 +49,8 @@ pub struct ReverseRequest {
     pub media_path: String,
     /// A sound clip: no picture to turn, only the samples.
     pub audio_only: bool,
+    /// The source stream the clip plays, or its default stream.
+    pub audio_stream: Option<usize>,
     /// Seconds into the file where the span begins.
     pub start: f64,
     /// Seconds of the file the span covers.
@@ -71,7 +73,7 @@ const RUN_BYTES: usize = if cfg!(target_os = "android") {
 };
 
 /// Where the reversed copy of `media`'s span lives under `project`: in
-/// the cache, named by the file's path, size and modification time and
+/// its processed media, named by the file's path, size and modification time and
 /// the span in milliseconds. None for a file that cannot be stat'ed,
 /// which cannot be read either.
 pub fn target_for(
@@ -90,9 +92,16 @@ pub fn target_for(
     {
         since.as_secs().hash(&mut hasher);
     }
-    let extension = if audio_only { "m4a" } else { "mp4" };
-    Some(project.join("cache").join(format!(
-        "reverse-v2-{:016x}-{}-{}.{extension}",
+    // Internal Android copies carry PCM so neither operation depends on
+    // MediaCodec accepting and draining a separate AAC encode.
+    let extension = match (cfg!(target_os = "android"), audio_only) {
+        (true, true) => "wav",
+        (true, false) => "mov",
+        (false, true) => "m4a",
+        (false, false) => "mp4",
+    };
+    Some(project.join("media").join("processed").join(format!(
+        "reverse-v3-{:016x}-{}-{}.{extension}",
         hasher.finish(),
         (start * 1000.0).round() as u64,
         (duration * 1000.0).round() as u64
@@ -113,12 +122,12 @@ impl Reversers {
         }
     }
 
-    /// Whether a reverse is running.
+    /// Whether reverse or frame interpolation is running.
     pub fn is_busy(&self) -> bool {
         self.gate.is_busy()
     }
 
-    /// Asks the running reverse to stop after the frame in hand.
+    /// Asks the running job to stop after the frame in hand.
     pub fn cancel(&self) {
         self.gate.cancel();
     }
@@ -128,7 +137,7 @@ impl Reversers {
         &self,
         request: &ReverseRequest,
         factor: u32,
-        stream: Option<usize>,
+        progress: &mut dyn FnMut(f32),
     ) -> Result<PathBuf, String> {
         if request.audio_only
             || !request.start.is_finite()
@@ -141,7 +150,12 @@ impl Reversers {
         if let Some(folder) = request.target.parent() {
             std::fs::create_dir_all(folder).map_err(|error| error.to_string())?;
         }
-        flow::write(request, factor, stream, &job)?;
+        if request.target.is_file() && check_picture(&request.target).is_ok() {
+            return Ok(request.target.clone());
+        }
+        progress(0.0);
+        flow::write(request, factor, &job, progress)?;
+        progress(1.0);
         Ok(request.target.clone())
     }
 
@@ -153,8 +167,14 @@ impl Reversers {
         request: &ReverseRequest,
         progress: &mut dyn FnMut(f32),
     ) -> Result<PathBuf, String> {
+        let job = self.gate.begin("reverse")?;
         if request.target.is_file() {
-            if request.audio_only || check_picture(&request.target).is_ok() {
+            let readable = if request.audio_only {
+                concat_media::probe(&request.target).is_ok_and(|info| info.audio.is_some())
+            } else {
+                check_picture(&request.target).is_ok()
+            };
+            if readable {
                 return Ok(request.target.clone());
             }
             std::fs::remove_file(&request.target).map_err(|error| error.to_string())?;
@@ -162,18 +182,20 @@ impl Reversers {
         if !request.start.is_finite() || !request.duration.is_finite() || request.duration <= 0.0 {
             return Err("nothing to reverse".to_owned());
         }
-        let job = self.gate.begin("reverse")?;
         if let Some(folder) = request.target.parent() {
             std::fs::create_dir_all(folder)
                 .map_err(|error| format!("{}: {error}", folder.display()))?;
         }
         progress(0.0);
         let result = if request.audio_only {
-            sound(request)
+            sound(request, &job)
         } else {
             footage(request, &job, progress)
         };
-        result.map(|()| request.target.clone())
+        result.map(|()| {
+            progress(1.0);
+            request.target.clone()
+        })
     }
 }
 
@@ -181,7 +203,7 @@ impl Reversers {
 fn span_clip(request: &ReverseRequest, chain: &str) -> AudioClip {
     AudioClip {
         path: PathBuf::from(&request.media_path),
-        stream: None,
+        stream: request.audio_stream,
         start: 0.0,
         duration: request.duration,
         source_start: request.start,
@@ -214,26 +236,83 @@ fn check_picture(path: &Path) -> Result<(), String> {
 
 /// A partial file moved into place, or cleared away with the error.
 fn land(partial: &Path, target: &Path, written: Result<(), String>) -> Result<(), String> {
-    match written {
-        Ok(()) => std::fs::rename(partial, target)
-            .map_err(|error| format!("{}: {error}", target.display())),
-        Err(error) => {
-            let _ = std::fs::remove_file(partial);
-            Err(error)
-        }
+    let result = written.and_then(|()| {
+        std::fs::rename(partial, target).map_err(|error| format!("{}: {error}", target.display()))
+    });
+    if result.is_err() {
+        let _ = std::fs::remove_file(partial);
     }
+    result
+}
+
+fn staged(target: &Path, stage: &str) -> PathBuf {
+    target.with_extension(format!(
+        "{stage}.{}",
+        target
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("mp4")
+    ))
+}
+
+fn check_cancel(job: &crate::jobs::Job) -> Result<(), String> {
+    if job.cancelled() {
+        return Err("clip processing cancelled".to_owned());
+    }
+    Ok(())
+}
+
+/// Attach only the clip's chosen stream, and leave the previous copy in
+/// place until a new one can be opened and decoded.
+fn finish_copy(
+    request: &ReverseRequest,
+    picture: &Path,
+    has_audio: bool,
+    chain: &str,
+    job: &crate::jobs::Job,
+) -> Result<(), String> {
+    if !has_audio {
+        return land(
+            picture,
+            &request.target,
+            check_cancel(job).and_then(|()| check_picture(picture)),
+        );
+    }
+    let audio_extension = if request.target.extension().is_some_and(|ext| ext == "mov") {
+        "part.wav"
+    } else {
+        "part.m4a"
+    };
+    let audio = request.target.with_extension(audio_extension);
+    let muxed = staged(&request.target, "muxed.part");
+    let result = check_cancel(job)
+        .and_then(|()| {
+            mix_to_file(&[span_clip(request, chain)], request.duration, &audio)
+                .map_err(|error| error.to_string())
+        })
+        .and_then(|()| check_cancel(job))
+        .and_then(|()| mux(picture, &audio, &muxed).map_err(|error| error.to_string()))
+        .and_then(|()| check_cancel(job))
+        .and_then(|()| check_picture(&muxed));
+    let _ = std::fs::remove_file(picture);
+    let _ = std::fs::remove_file(&audio);
+    land(&muxed, &request.target, result)
 }
 
 /// The span's sound, backwards, as a file of its own: the mixer's graph
 /// with `areverse` on it.
-fn sound(request: &ReverseRequest) -> Result<(), String> {
-    let partial = request.target.with_extension("part.m4a");
-    let written = mix_to_file(
-        &[span_clip(request, "areverse")],
-        request.duration,
-        &partial,
-    )
-    .map_err(|error| error.to_string());
+fn sound(request: &ReverseRequest, job: &crate::jobs::Job) -> Result<(), String> {
+    let partial = staged(&request.target, "part");
+    let written = check_cancel(job)
+        .and_then(|()| {
+            mix_to_file(
+                &[span_clip(request, "areverse")],
+                request.duration,
+                &partial,
+            )
+            .map_err(|error| error.to_string())
+        })
+        .and_then(|()| check_cancel(job));
     land(&partial, &request.target, written)
 }
 
@@ -258,7 +337,7 @@ fn footage(
     };
     // About how many frames the span holds, for the readout and for a
     // container that keeps no clock.
-    let expected = (request.duration * rate.fps().as_f64()).max(1.0);
+    let expected = frame_count(request.duration, rate);
     // Even sides, which the encoder wants: a stray pixel at the right or
     // bottom is cropped rather than the whole copy refused.
     let width = video.width & !1;
@@ -266,8 +345,7 @@ fn footage(
     if width == 0 || height == 0 {
         return Err("the picture is too small to reverse".to_owned());
     }
-    let end = request.start + request.duration;
-    let partial_video = request.target.with_extension("part.mp4");
+    let partial_video = staged(&request.target, "part");
 
     // Pass one: the span forwards, in runs, each run written backwards as
     // a segment of its own.
@@ -275,7 +353,9 @@ fn footage(
     let options = DecodeOptions::default()
         .in_software()
         .threaded(2)
-        .starting_at(start);
+        .starting_at(start)
+        .at_rate(rate)
+        .repeating();
     let mut decoder =
         Decoder::open(&request.media_path, &options).map_err(|error| error.to_string())?;
     let frame_bytes = width as usize * height as usize * concat_core::frame::BYTES_PER_PIXEL;
@@ -284,36 +364,23 @@ fn footage(
     let mut held: Vec<Frame> = Vec::with_capacity(run);
     let mut count = 0u64;
     let passes = (|| -> Result<(), String> {
-        loop {
-            if job.cancelled() {
-                return Err("reverse cancelled".to_owned());
-            }
+        while count < expected {
+            check_cancel(job)?;
             let Some(frame) = decoder.next_frame().map_err(|error| error.to_string())? else {
                 break;
             };
-            // The span's end by the frame's own clock where the container
-            // keeps one, and by count where it does not.
-            let past = match decoder.position() {
-                Some(at) => at.as_f64() >= end,
-                None => count as f64 >= expected,
-            };
-            if past {
-                break;
-            }
             if frame.width() < width || frame.height() < height {
                 return Err("the video resolution changed during reverse".to_owned());
             }
             held.push(crate::enhance::crop(&frame, width, height));
             count += 1;
-            if held.len() >= run {
+            if held.len() >= run && count < expected {
                 write_segment(request, &mut segments, &mut held, rate)?;
             }
-            progress((0.5 * count as f64 / expected).min(0.5) as f32);
+            progress(0.5 * count as f32 / expected as f32);
         }
-        if !held.is_empty() {
-            write_segment(request, &mut segments, &mut held, rate)?;
-        }
-        if segments.is_empty() {
+        drop(decoder);
+        if count == 0 {
             return Err("the span holds no frames".to_owned());
         }
 
@@ -322,20 +389,31 @@ fn footage(
             .map_err(|error| error.to_string())?;
         let mut written = 0u64;
         let encoded = (|| -> Result<(), String> {
+            // The last run is already in memory, so encode it straight into
+            // the final copy. For a short clip this is the entire span.
+            for frame in held.drain(..).rev() {
+                check_cancel(job)?;
+                encoder
+                    .write_frame(&frame)
+                    .map_err(|error| error.to_string())?;
+                written += 1;
+                progress(0.5 + 0.45 * written as f32 / count as f32);
+            }
             for segment in segments.iter().rev() {
                 let mut reader =
                     Decoder::open(segment, &DecodeOptions::default().in_software().threaded(2))
                         .map_err(|error| error.to_string())?;
                 while let Some(frame) = reader.next_frame().map_err(|error| error.to_string())? {
-                    if job.cancelled() {
-                        return Err("reverse cancelled".to_owned());
-                    }
+                    check_cancel(job)?;
                     encoder
                         .write_frame(&frame)
                         .map_err(|error| error.to_string())?;
                     written += 1;
-                    progress((0.5 + 0.5 * written as f64 / count.max(1) as f64).min(0.99) as f32);
+                    progress(0.5 + 0.45 * written as f32 / count as f32);
                 }
+            }
+            if written != count {
+                return Err(format!("reverse wrote {written} of {count} frames"));
             }
             encoder.finish().map_err(|error| error.to_string())
         })();
@@ -348,32 +426,24 @@ fn footage(
     for segment in &segments {
         let _ = std::fs::remove_file(segment);
     }
-    passes?;
-
-    // The sound, when the file has any, backwards beside the picture.
-    if info.audio.is_none() {
-        return land(
-            &partial_video,
-            &request.target,
-            check_picture(&partial_video),
-        );
+    if let Err(error) = passes {
+        let _ = std::fs::remove_file(&partial_video);
+        return Err(error);
     }
-    let partial_audio = request.target.with_extension("part.m4a");
-    let partial_muxed = request.target.with_extension("muxed.part.mp4");
-    let muxed = mix_to_file(
-        &[span_clip(request, "areverse")],
-        request.duration,
-        &partial_audio,
+    finish_copy(
+        request,
+        &partial_video,
+        info.audio.is_some(),
+        "areverse",
+        job,
     )
-    .and_then(|()| mux(&partial_video, &partial_audio, &partial_muxed))
-    .map_err(|error| error.to_string());
-    let _ = std::fs::remove_file(&partial_video);
-    let _ = std::fs::remove_file(&partial_audio);
-    land(
-        &partial_muxed,
-        &request.target,
-        muxed.and_then(|()| check_picture(&partial_muxed)),
-    )
+}
+
+fn frame_count(duration: f64, rate: FrameRate) -> u64 {
+    // A span cut at an exact frame can be a few floating point bits past it.
+    (duration.mul_add(rate.fps().as_f64(), -1e-7))
+        .ceil()
+        .max(1.0) as u64
 }
 
 /// The run in `held`, backwards, as the next segment; the run is emptied
@@ -465,10 +535,20 @@ mod tests {
         let media = media.to_string_lossy().into_owned();
         let project = dir.join("project");
         let span = target_for(&project, &media, 1.5, 4.0, false).expect("named");
-        assert!(span.starts_with(project.join("cache")));
+        assert!(span.starts_with(project.join("media").join("processed")));
         assert!(
-            span.to_string_lossy().ends_with("-1500-4000.mp4"),
-            "{span:?}"
+            span.file_stem()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with("-1500-4000")
+        );
+        assert_eq!(
+            span.extension().unwrap(),
+            if cfg!(target_os = "android") {
+                "mov"
+            } else {
+                "mp4"
+            }
         );
         assert_eq!(
             target_for(&project, &media, 1.5, 4.0, false),
@@ -479,7 +559,14 @@ mod tests {
             Some(span.clone())
         );
         let sound = target_for(&project, &media, 1.5, 4.0, true).expect("named");
-        assert!(sound.to_string_lossy().ends_with(".m4a"), "{sound:?}");
+        assert_eq!(
+            sound.extension().unwrap(),
+            if cfg!(target_os = "android") {
+                "wav"
+            } else {
+                "m4a"
+            }
+        );
         assert_eq!(
             target_for(
                 &project,

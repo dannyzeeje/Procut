@@ -331,6 +331,7 @@ impl Studio {
             | Gesture::TextWidth { .. }
             | Gesture::TextHeight { .. }
             | Gesture::StageMask { .. }
+            | Gesture::StageCrop { .. }
             | Gesture::Paint { .. } => {}
         }
         self.gesture = gesture;
@@ -466,6 +467,7 @@ impl Studio {
             | Gesture::TextWidth { .. }
             | Gesture::TextHeight { .. }
             | Gesture::StageMask { .. }
+            | Gesture::StageCrop { .. }
             | Gesture::Paint { .. }) => {
                 self.gesture = other;
             }

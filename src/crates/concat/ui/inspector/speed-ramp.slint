@@ -45,6 +45,7 @@ export global SpeedRamp {
     in property <float> playhead-at: -1;
     /// The controls act: exactly one video or sound clip is selected.
     in property <bool> usable;
+    in property <bool> can-remove-point;
 
     /// Curve (true): a level curve at the clip's rate, so nothing moves
     /// until a point does. Constant: the rate the curve averaged.
@@ -78,6 +79,7 @@ export global SpeedRamp {
     callback drag-selected(dx: float, dy: float);
     /// The chosen points taken off; the ends stay.
     callback remove-selected();
+    callback insert-point();
 }
 
 /// One point of the curve: a ring that drags in time and speed, filled
@@ -93,6 +95,7 @@ component SpeedHandle inherits TouchArea {
     /// The first or the last point of the curve.
     in property <bool> end;
     in property <bool> chosen;
+    in property <bool> touch-mode;
 
     callback press-with(add: bool);
     callback dragged-by(dx: float, dy: float);
@@ -109,19 +112,19 @@ component SpeedHandle inherits TouchArea {
     /// Dragged well outside the graph: let go there, it comes off.
     property <bool> off;
 
-    x: root.pos-x * root.plot-width - 8px;
-    y: (1 - root.pos-y) * root.plot-height - 8px;
-    width: 16px;
-    height: 16px;
+    x: root.pos-x * root.plot-width - self.width / 2;
+    y: (1 - root.pos-y) * root.plot-height - self.height / 2;
+    width: root.touch-mode ? 44px : 16px;
+    height: self.width;
     // The ends are held at the clip's ends: they move up and down only.
     mouse-cursor: root.end ? ns-resize : move;
 
     Rectangle {
-        x: 3px;
-        y: 3px;
-        width: 10px;
-        height: 10px;
-        border-radius: 5px;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        width: root.touch-mode ? 15px : 10px;
+        height: self.width;
+        border-radius: self.width / 2;
         background: root.chosen || root.moving ? Theme.accent : Theme.panel;
         border-width: 2px;
         border-color: Theme.accent;
@@ -130,6 +133,8 @@ component SpeedHandle inherits TouchArea {
 
     // Chosen, a halo: seen at a glance among the rings.
     if root.chosen: Rectangle {
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
         width: 16px;
         height: 16px;
         border-radius: 8px;
@@ -162,12 +167,12 @@ component SpeedHandle inherits TouchArea {
             let y = self.start-y + dy;
             // Well outside the graph, the points between the ends are on
             // their way off.
-            self.off = !root.end && (x < -0.08 || x > 1.08 || y < -0.08 || y > 1.08);
+            self.off = !root.touch-mode && !root.end && (x < -0.08 || x > 1.08 || y < -0.08 || y > 1.08);
             root.dragged-by(dx, dy);
         }
     }
     double-clicked => {
-        if (!root.end) {
+        if (!root.touch-mode && !root.end) {
             root.double-removed();
         }
     }
@@ -185,6 +190,7 @@ component SpeedHandle inherits TouchArea {
 export component SpeedGraph inherits VerticalLayout {
     /// The graph takes presses and keys; dimmed when it does not.
     in property <bool> enabled: SpeedRamp.usable;
+    in property <bool> touch-mode;
 
     /// A point moved, or put down when `index` is -1: `x` across the clip
     /// and `y` up the graph.
@@ -193,11 +199,13 @@ export component SpeedGraph inherits VerticalLayout {
     callback remove(index: int);
     /// The chosen points moved or taken off: one commit, as a point's is.
     callback changed();
+    callback started();
+    callback preview();
 
     /// The labels' column.
     property <length> label-width: 38px;
     /// Room inside the border around the chart, for an end's ring.
-    property <length> pad: 9px;
+    property <length> pad: root.touch-mode ? 22px : 9px;
     property <length> plot-width: Math.max(1px, outline.width - 2 * root.pad);
     /// Sixteen rows of a half doubling and twenty columns, each a square:
     /// tall enough to shape a ramp by.
@@ -287,7 +295,7 @@ export component SpeedGraph inherits VerticalLayout {
                 // A press on the graph away from every point: let go where
                 // it was, a point put down; dragged, the box that chooses.
                 TouchArea {
-                    enabled: root.enabled;
+                    enabled: root.enabled && !root.touch-mode;
                     mouse-cursor: crosshair;
                     property <bool> extending;
                     pointer-event(event) => {
@@ -369,19 +377,23 @@ export component SpeedGraph inherits VerticalLayout {
                     plot-height: chart.height;
                     end: point.end;
                     chosen: SpeedRamp.selected[point.index];
+                    touch-mode: root.touch-mode;
                     enabled: root.enabled;
                     press-with(add) => {
+                        if (root.touch-mode) { root.started(); }
                         focus-scope.focus();
                         SpeedRamp.select(point.index, add);
                         SpeedRamp.begin-drag();
                     }
                     dragged-by(dx, dy) => {
                         SpeedRamp.drag-selected(dx, dy);
-                        root.changed();
+                        if (root.touch-mode) { root.preview(); } else { root.changed(); }
                     }
                     let-go(off) => {
                         if (off) {
                             SpeedRamp.remove-selected();
+                            root.changed();
+                        } else if (root.touch-mode) {
                             root.changed();
                         }
                     }

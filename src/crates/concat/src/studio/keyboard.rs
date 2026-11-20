@@ -46,9 +46,11 @@ impl Studio {
                 self.end_audition();
                 self.selection.clear();
                 self.transition_selected = None;
+                self.phone_color_compare(false);
             }
             // ⇧⌫, from the key table; plain ⌫ comes in as its own callback.
             "ripple-delete" => self.ripple_delete_selected(),
+            "merge" => self.merge(),
             // Copy takes the whole selection; see `copy_clips`.
             "copy" => self.copy_clips(None),
             "duplicate" | "mute" => {

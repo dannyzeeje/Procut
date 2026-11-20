@@ -1186,20 +1186,6 @@ component StatRow inherits HorizontalLayout {
     }
 }
 
-/// Reverse at work on the clip's media: the span read forwards and written
-/// back, into the copy the clip will show.
-component ReverseRow inherits Row {
-    in property <float> progress;
-
-    label: I18n.t("common.reverse");
-    Text {
-        text: I18n.t1("clipInspector.reversing", "\{Math.round(root.progress * 100)}");
-        color: Theme.fg-muted;
-        font-size: Theme.fs;
-        vertical-alignment: center;
-    }
-}
-
 // A rule between blocks inside one section, inset to the section's padding
 // where a Section's own hairline runs edge to edge.
 component Hairline inherits HorizontalLayout {
@@ -1345,8 +1331,8 @@ export component SpeedPanel inherits VerticalLayout {
         if root.bare || root.speed-open: SectionBody {
             horizontal-stretch: 1; max-width: 100000px;
             padding-top: root.bare ? 0 : 4px;
-            if root.selected.reverse-progress >= 0: ReverseRow {
-                progress: root.selected.reverse-progress;
+            if root.selected.motion-status != "": Note {
+                text: root.selected.motion-status;
             }
 
             Row {
@@ -2960,6 +2946,7 @@ export component AudioPanel inherits VerticalLayout {
     /// The rate goes in Playback beside the fades: a sound clip's, whose
     /// rate has no other home. A picture's sound rides its picture's.
     in property <bool> with-speed;
+    in property <bool> show-fade-graph: true;
 
     callback set(field: ClipField, value: float);
     callback commit();
@@ -3029,7 +3016,7 @@ export component AudioPanel inherits VerticalLayout {
 
     // The fades, drawn where they happen: the clip's first and last
     // seconds of sound with the ramp over each, its corner dragged.
-    if !root.selected.batch-volume: Section {
+    if root.show-fade-graph && !root.selected.batch-volume: Section {
         SectionBody {
             padding-top: 10px;
             FadeEnds {

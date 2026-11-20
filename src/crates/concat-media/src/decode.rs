@@ -176,6 +176,9 @@ pub struct DecodeOptions {
     /// pre-chain runs, since those are FFmpeg filters on eight bits. See
     /// [`Frame::signal`].
     pub deep: bool,
+    /// Keep camera code values through the YUV-to-RGB conversion. The
+    /// compositor applies the selected camera curve and gamut afterwards.
+    pub camera_log: bool,
 }
 
 impl DecodeOptions {
@@ -257,6 +260,12 @@ impl DecodeOptions {
     /// Keeps a wide or HDR source deep; see [`DecodeOptions::deep`].
     pub fn deep(mut self, deep: bool) -> Self {
         self.deep = deep;
+        self
+    }
+
+    /// Keep camera code values; see [`DecodeOptions::camera_log`].
+    pub fn camera_log(mut self, camera_log: bool) -> Self {
+        self.camera_log = camera_log;
         self
     }
 
@@ -527,7 +536,11 @@ fn deep_output(options: &DecodeOptions, color: Option<&ColorSignal>) -> Option<S
     if !options.deep || options.filter_chain.is_some() || options.pre_chain.is_some() {
         return None;
     }
-    color?.deep_signal()
+    if options.camera_log {
+        Some(Signal::Sdr)
+    } else {
+        color?.deep_signal()
+    }
 }
 
 /// The filtergraph between the decoder and the caller, as one string.
@@ -561,6 +574,25 @@ fn video_filter(
     // swscale to read, and untagged already means limited to it.
     let deep = deep_output(options, color);
     let convert = match (color, options.color_range) {
+        (_, range) if options.camera_log => {
+            let input_range = range.map_or_else(
+                || {
+                    if color.is_some_and(|signal| signal.range == ffmpeg::color::Range::JPEG) {
+                        "pc"
+                    } else {
+                        "tv"
+                    }
+                },
+                ColorRange::scale_name,
+            );
+            let input_matrix = match color.map(|signal| signal.matrix) {
+                Some(ffmpeg::color::Space::BT2020CL) => "bt2020c",
+                Some(ffmpeg::color::Space::BT2020NCL) => "bt2020nc",
+                Some(ffmpeg::color::Space::BT470BG | ffmpeg::color::Space::SMPTE170M) => "bt601",
+                _ => "bt709",
+            };
+            format!(":in_color_matrix={input_matrix}:in_range={input_range}")
+        }
         (Some(signal), _) if deep.is_some() => signal.native_args(),
         (Some(signal), _) if signal.is_wide() => signal.bt709_args(),
         (_, Some(range)) => format!(":in_range={}", range.scale_name()),
@@ -1996,6 +2028,33 @@ mod tests {
     /// A PQ-tagged ten-bit HEVC file, made with the encoder's own machinery,
     /// decodes through the tone-map to frames that are neither the black
     /// nor the blown-out white a curve mismatch gives.
+    #[test]
+    fn camera_log_keeps_the_native_signal_at_sixteen_bits() {
+        use ffmpeg::color::{Primaries, Range, Space, TransferCharacteristic as Transfer};
+        let color = ColorSignal {
+            primaries: Primaries::BT2020,
+            transfer: Transfer::SMPTE2084,
+            matrix: Space::BT2020NCL,
+            range: Range::MPEG,
+            implied: false,
+        };
+        let camera = DecodeOptions::default().deep(true).camera_log(true);
+        assert_eq!(deep_output(&camera, Some(&color)), Some(Signal::Sdr));
+        let graph = video_filter(0, &camera, 640, 360, Some(&color));
+        assert_eq!(
+            graph,
+            "scale=640:360:flags=bilinear:in_color_matrix=bt2020nc:in_range=tv,format=rgba64le"
+        );
+
+        let eight_bit = camera.deep(false);
+        assert_eq!(deep_output(&eight_bit, Some(&color)), None);
+        let graph = video_filter(0, &eight_bit, 640, 360, Some(&color));
+        assert_eq!(
+            graph,
+            "scale=640:360:flags=bilinear:in_color_matrix=bt2020nc:in_range=tv,format=rgba"
+        );
+    }
+
     #[test]
     fn an_hdr_file_decodes_through_the_tone_map() {
         use crate::encode::{EncodeOptions, Encoder, FrameSink, VideoCodec};

@@ -53,6 +53,34 @@ impl Studio {
         editor.set_keys_delete_right(hint("delete-right").into());
         editor.set_keys_pan(hint("pan").into());
         editor.set_keys_preview_axis(hint("preview-axis").into());
+        if crate::platform::phone() && editor.get_phone_color_active() {
+            let mut clips: Vec<_> = self
+                .timeline()
+                .clips
+                .iter()
+                .filter(|clip| self.phone_visible_picture(clip))
+                .collect();
+            clips.sort_by(|a, b| a.start.total_cmp(&b.start));
+            sync(
+                &models.phone_color_shots,
+                clips
+                    .into_iter()
+                    .map(|clip| crate::ui::ColorShotData {
+                        id: clip.id.as_str().into(),
+                        name: clip.name.as_str().into(),
+                        poster: self
+                            .media
+                            .thumbs
+                            .get(&clip.media_id)
+                            .cloned()
+                            .unwrap_or_default(),
+                        editable: !self.locked(&clip.track_id),
+                    })
+                    .collect(),
+            );
+        } else {
+            sync(&models.phone_color_shots, Vec::new());
+        }
         self.publish_lanes(app, models);
         self.publish_chrome(app, models);
         self.publish_dock(app, models);
@@ -270,6 +298,16 @@ impl Studio {
                 labels.insert(lane.id.clone(), format!("A{audio}"));
             }
         }
+        let sounding: HashSet<_> = if self.meters.phone_workspace {
+            timeline
+                .clips
+                .iter()
+                .filter(|clip| self.clip_has_sound(clip))
+                .map(|clip| clip.track_id.as_str())
+                .collect()
+        } else {
+            HashSet::new()
+        };
         let mut top = 0.0;
         sync(
             &models.tracks,
@@ -279,6 +317,7 @@ impl Studio {
                 .rev()
                 .map(|lane| {
                     let height = self.lane_height(lane);
+                    let mix = lane.audio_mix();
                     let row = TrackData {
                         label: labels.get(&lane.id).cloned().unwrap_or_default().into(),
                         minimized: self
@@ -289,6 +328,10 @@ impl Studio {
                         id: lane.id.as_str().into(),
                         visible: lane.visible,
                         muted: lane.muted,
+                        gain_db: mix.gain_db as f32,
+                        pan: mix.pan as f32,
+                        solo: mix.solo,
+                        mixable: mix.solo || sounding.contains(lane.id.as_str()),
                         locked: self.locked(&lane.id),
                         size: self.lane_size(&lane.id),
                         height,
@@ -514,8 +557,31 @@ impl Studio {
                     && !self.locked(&clip.track_id)
             },
         ));
+        editor.set_can_delete_selection(
+            self.selection
+                .iter()
+                .filter_map(|id| self.clip(id))
+                .any(|clip| !self.locked(&clip.track_id)),
+        );
+        editor.set_motion_status(
+            self.motion_job
+                .as_ref()
+                .map(|job| job.status().into())
+                .unwrap_or_default(),
+        );
         editor.set_primary_selected_id(self.selection.first().map_or("", String::as_str).into());
         editor.set_selected_count(self.selection.len() as i32);
+        if crate::platform::phone() {
+            editor.set_phone_can_grade(self.phone_grade_clip().is_some());
+            editor.set_phone_selected_strip(
+                self.selection
+                    .first()
+                    .filter(|_| self.selection.len() == 1)
+                    .and_then(|id| self.clip(id))
+                    .map(|clip| self.strip_of(clip))
+                    .unwrap_or_default(),
+            );
+        }
         // The tray's undo and redo buttons grey out on these; the Edit menu
         // asks the session itself when it opens.
         // https://github.com/jub0t/Concat/issues/154
@@ -601,22 +667,38 @@ impl Studio {
         );
         sync(&models.applied_audio, sound);
         sync(&models.audio_params, sound_params);
-        sync(
-            &models.adjust_params,
-            match self.sole_selection().and_then(|id| self.clip(&id)) {
-                Some(clip) if graded(clip.kind) => {
-                    adjust_rows(&clip.video_effects, self.key_point().map(|(_, at)| at))
-                }
-                _ => Vec::new(),
-            },
-        );
+        let adjustment_rows = match self.sole_selection().and_then(|id| self.clip(&id)) {
+            Some(clip) if graded(clip.kind) => {
+                adjust_rows(&clip.video_effects, self.key_point().map(|(_, at)| at))
+            }
+            _ => Vec::new(),
+        };
+        if crate::platform::phone() && editor.get_phone_color_active() {
+            let quick: Vec<_> = ["exposure", "contrast", "saturation", "temperature"]
+                .into_iter()
+                .filter_map(|key| adjustment_rows.iter().find(|row| row.key == key).cloned())
+                .collect();
+            sync(&models.phone_color_params, quick);
+        } else {
+            sync(&models.phone_color_params, Vec::new());
+        }
+        sync(&models.adjust_params, adjustment_rows);
+        if crate::platform::phone() && editor.get_phone_color_active() {
+            self.publish_phone_grade(&editor, models);
+        }
 
         // The wheels and curves: the chain's by link, the colour panel's
         // keyable at the playhead. Each curve's points go into the model
         // kept for it.
         let clip = self.sole_selection().and_then(|id| self.clip(&id));
-        let (visual_wheels, visual_curves) =
-            clip.map_or_else(Default::default, |clip| chain_grading(&clip.video_effects));
+        let (visual_wheels, visual_curves) = clip.map_or_else(Default::default, |clip| {
+            chain_grading(
+                &clip.video_effects,
+                editor
+                    .get_phone_color_active()
+                    .then(|| self.key_point().map(|(_, at)| at)),
+            )
+        });
         let (adjust_wheels, adjust_curves) = match (clip, Catalogue::builtin().get(ADJUST_ID)) {
             (Some(clip), Some(package)) if graded(clip.kind) => grading_rows(
                 package,

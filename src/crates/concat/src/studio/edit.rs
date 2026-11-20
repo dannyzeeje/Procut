@@ -263,6 +263,7 @@ impl Studio {
                 TrackSize::Small => 88.0,
                 TrackSize::Medium => 112.0,
                 TrackSize::Large => 144.0,
+                TrackSize::Auto if self.meters.phone_workspace => 152.0,
                 TrackSize::Auto => 112.0,
             };
         }
@@ -525,6 +526,9 @@ impl Studio {
             .map(|clip| clip.id.clone())
             .collect();
         self.selection.retain(|id| survivors.contains(id));
+        if self.phone_color_before.is_some() && self.phone_grade_clip().is_none() {
+            self.phone_color_before = None;
+        }
         self.schedule_autosave();
         self.sync_audio();
         self.request_media_art();

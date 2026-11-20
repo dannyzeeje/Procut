@@ -1379,6 +1379,7 @@ export component Lanes inherits Rectangle {
     callback clip-context(id: string);
     callback menu-selected(id: string);
 
+    in property <bool> context-enabled: true;
     in property <[MenuItemData]> menu-items;
     in property <length> menu-height;
     in property <int> menu-token;
@@ -1844,10 +1845,12 @@ export component Lanes inherits Rectangle {
                 // from the click reads as a misfire. `asked` goes up first for
                 // the same reason — the call below publishes before it
                 // returns, so the token can arrive inside it.
-                menu.request-x = wheel.mouse-x;
-                menu.request-y = wheel.mouse-y;
-                root.asked = true;
-                root.clip-context(entry.id);
+                if (root.context-enabled) {
+                    menu.request-x = wheel.mouse-x;
+                    menu.request-y = wheel.mouse-y;
+                    root.asked = true;
+                    root.clip-context(entry.id);
+                }
             }
         }
 

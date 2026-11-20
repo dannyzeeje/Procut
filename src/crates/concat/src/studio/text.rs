@@ -325,6 +325,18 @@ impl Studio {
         self.notify(&t("textPanel.newTitlesUseThisStyle"), false);
     }
 
+    /// Give a phone control an undo boundary before its pointer gesture.
+    pub fn phone_edit_started(&mut self) {
+        self.flush_commit();
+        self.last_commit = None;
+    }
+
+    pub fn phone_edit_finished(&mut self) {
+        self.clip_commit();
+        self.flush_commit();
+        self.last_commit = None;
+    }
+
     /// The inspector's gesture is over: what differs between the echo and
     /// the session becomes commands, as one batch.
     /// An inspector control changed something on the echo and wants it

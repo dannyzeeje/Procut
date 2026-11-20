@@ -716,6 +716,12 @@ fn from_2020(rgb: vec3<f32>) -> vec3<f32> {
 }
 
 @fragment
+fn fs_upload_sdr_deep(@builtin(position) at: vec4<f32>) -> @location(0) vec4<f32> {
+    let colour = deep_at(at);
+    return vec4<f32>(pow(max(colour.rgb, vec3<f32>(0.0)), vec3<f32>(2.4)), colour.a);
+}
+
+@fragment
 fn fs_upload_sdr_wide(@builtin(position) at: vec4<f32>) -> @location(0) vec4<f32> {
     let colour = deep_at(at);
     let lin = pow(max(colour.rgb, vec3<f32>(0.0)), vec3<f32>(2.4));
@@ -1119,7 +1125,7 @@ pub struct WgpuCompositor {
     /// A deep frame into the working space, by signal: Rec. 2020 gamma,
     /// HLG and PQ conformed to SDR, then HLG and PQ kept HDR (see
     /// `DEEP_SHADER`).
-    deep_pipelines: [wgpu::RenderPipeline; 5],
+    deep_pipelines: [wgpu::RenderPipeline; 6],
     /// The layout a deep staging texture is bound with: sixteen-bit
     /// integers, read texel by texel.
     deep_layout: wgpu::BindGroupLayout,
@@ -1851,6 +1857,7 @@ impl WgpuCompositor {
             "fs_upload_pq",
             "fs_upload_hlg_hdr",
             "fs_upload_pq_hdr",
+            "fs_upload_sdr_deep",
         ]
         .map(|entry| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -3041,7 +3048,8 @@ impl WgpuCompositor {
                 (Signal::Pq, false) => 2,
                 (Signal::Hlg, true) => 3,
                 (Signal::Pq, true) => 4,
-                (Signal::Sdr | Signal::SdrWide, _) => 0,
+                (Signal::SdrWide, _) => 0,
+                (Signal::Sdr, _) => 5,
             }]
         } else {
             &self.upload_pipeline

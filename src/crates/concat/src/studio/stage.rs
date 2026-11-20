@@ -333,6 +333,45 @@ impl Studio {
             return;
         }
         let (width, height) = self.output_size();
+        if (20..24).contains(&grip) {
+            if !matches!(clip.kind, model::ClipKind::Video | model::ClipKind::Image)
+                || self.sole_selection().as_deref() != Some(id)
+            {
+                return;
+            }
+            self.flush_commit();
+            let footprint = self.footprint(&clip);
+            let original = clip.crop.unwrap_or_default();
+            let side = (grip - 20) as usize;
+            let across = side % 2 == 0;
+            let flipped = if across { clip.flip_h } else { clip.flip_v };
+            let edge = if flipped { (side + 2) % 4 } else { side };
+            let (sin, cos) = footprint.rotation.to_radians().sin_cos();
+            let (w, h) = (f64::from(width), f64::from(height));
+            let (ux, uy, span) = if across {
+                (
+                    cos,
+                    sin,
+                    (1.0 - original.left - original.right) / (footprint.w * w).max(1.0),
+                )
+            } else {
+                (
+                    -sin,
+                    cos,
+                    (1.0 - original.top - original.bottom) / (footprint.h * h).max(1.0),
+                )
+            };
+            let direction = if side < 2 { span } else { -span };
+            self.begin_echo();
+            self.gesture = Gesture::StageCrop {
+                clip: id.to_owned(),
+                edge,
+                original,
+                from: (f64::from(x), f64::from(y)),
+                axis: (direction * ux * w, direction * uy * h),
+            };
+            return;
+        }
         // A grip of the mask: the mask is what moves, not the picture.
         if let Some(grip) = MaskGrip::of(grip) {
             let Some(frame) = self.mask_frame(&clip) else {
@@ -685,6 +724,26 @@ impl Studio {
                     clip.text.get_or_insert_with(TextStyle::default).max_height = next;
                 }
             }
+            Gesture::StageCrop {
+                clip,
+                edge,
+                original,
+                from,
+                axis,
+            } => {
+                let delta = (x - from.0) * axis.0 + (y - from.1) * axis.1;
+                let mut crop = *original;
+                let (edge, opposite) = match edge {
+                    0 => (&mut crop.left, crop.right),
+                    1 => (&mut crop.top, crop.bottom),
+                    2 => (&mut crop.right, crop.left),
+                    _ => (&mut crop.bottom, crop.top),
+                };
+                *edge = (*edge + delta).clamp(0.0, (0.9 - opposite).max(0.0));
+                if let Some(clip) = self.echo_clip_mut(clip) {
+                    clip.crop = (!crop.is_none()).then_some(crop);
+                }
+            }
             Gesture::StageMask {
                 clip,
                 grip,
@@ -762,6 +821,8 @@ impl Studio {
             | Gesture::StageRotate { clip, .. }
             | Gesture::StageStretch { clip, .. }
             | Gesture::StageMask { clip, .. }
+            | Gesture::StageCrop { clip, .. }
+            | Gesture::TextHeight { clip, .. }
             | Gesture::TextWidth { clip, .. } => vec![clip],
             Gesture::Paint {
                 clip,
@@ -830,6 +891,15 @@ impl Studio {
             // snaps back to the ride the document still holds.
             // https://github.com/jub0t/Concat/issues/228
             commands.extend(key_commands(&id, before, after));
+            if after.crop != before.crop {
+                commands.push(Command::UpdateClip {
+                    clip_id: id.clone(),
+                    patch: ClipPatch {
+                        crop: Some(after.crop),
+                        ..Default::default()
+                    },
+                });
+            }
             // A mask's grips move its numbers, held or keyed: the masks
             // carry their own keys, so the list is the whole of it.
             if after.masks != before.masks {

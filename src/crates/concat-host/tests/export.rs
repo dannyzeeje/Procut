@@ -2354,6 +2354,7 @@ fn a_reversed_span_plays_its_seconds_backwards() {
         target: reverse::target_for(&project, &peek, 1.0, 5.0, false).expect("named"),
         media_path: peek,
         audio_only: false,
+        audio_stream: None,
         start: 1.0,
         duration: 5.0,
     };
@@ -2368,6 +2369,7 @@ fn a_reversed_span_plays_its_seconds_backwards() {
         })
         .expect("reverses the span");
     assert_eq!(written, request.target);
+    assert_eq!(last, 1.0);
     assert!(!reversers.is_busy(), "the slot is free again");
 
     let copy = Exported::read("reversed", &written, (60, 1));
@@ -2397,6 +2399,7 @@ fn a_reversed_span_plays_its_seconds_backwards() {
         target: reverse::target_for(&project, &aac, 2.0, 3.0, true).expect("named"),
         media_path: aac,
         audio_only: true,
+        audio_stream: None,
         start: 2.0,
         duration: 3.0,
     };
@@ -2430,6 +2433,38 @@ fn a_reversed_span_plays_its_seconds_backwards() {
     heard.expect_quiet(0.5);
     heard.expect_tone(1.5);
     heard.expect_quiet(2.5);
+}
+
+#[test]
+fn an_interpolated_copy_keeps_pcm_audio_and_reports_progress() {
+    let scratch = Scratch::new("interpolated");
+    let sources = Sources::make(scratch.path());
+    let request = reverse::ReverseRequest {
+        target: scratch.path().join("flow-android.mov"),
+        media_path: sources.peek.to_string_lossy().into_owned(),
+        audio_only: false,
+        audio_stream: Some(1),
+        start: 1.0,
+        duration: 0.25,
+    };
+    let reversers = reverse::Reversers::new();
+    let mut progress = Vec::new();
+    let written = reversers
+        .interpolate(&request, 2, &mut |fraction| progress.push(fraction))
+        .expect("writes and muxes the interpolated copy");
+    assert_eq!(written, request.target);
+    assert!(progress.len() > 2, "{progress:?}");
+    assert!(progress.windows(2).all(|pair| pair[0] <= pair[1]));
+    assert_eq!(progress.last(), Some(&1.0));
+    assert!(!reversers.is_busy());
+
+    let info = concat_media::probe(&written).expect("probes the copy");
+    assert_eq!(info.video.unwrap().frame_rate, FrameRate::from_int(120));
+    assert_eq!(info.audio.unwrap().codec, "pcm_s16le");
+    assert!((info.duration.unwrap().as_f64() - 0.25).abs() < 0.01);
+    reversers
+        .interpolate(&request, 2, &mut |_| panic!("reusable copy rendered again"))
+        .expect("reuses the copy");
 }
 
 /// The selection after deleting pauses is a new source, not a longer

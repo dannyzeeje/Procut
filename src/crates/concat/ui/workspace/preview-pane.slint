@@ -236,6 +236,7 @@ component Grip inherits Rectangle {
     callback dragged(x: float, y: float, snap: bool);
     callback released();
 
+    in property <length> target-size: root.size + 6px;
     property <length> size: root.turn ? 12px : 9px;
 
     x: root.at-x - self.width / 2;
@@ -251,10 +252,10 @@ component Grip inherits Rectangle {
     touch := TouchArea {
         // A hair wider than the drawn grip, so it is easier to find than it
         // is to see.
-        x: -3px;
-        y: -3px;
-        width: parent.width + 6px;
-        height: parent.height + 6px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: root.target-size;
+        height: self.width;
         mouse-cursor: root.cursor;
 
         property <bool> live;
@@ -296,6 +297,7 @@ component Grip inherits Rectangle {
 /// One selected picture: its outline, its grips and its readout.
 component StageItem inherits Rectangle {
     in property <StageItemData> item;
+    in property <bool> crop-editing;
 
     callback grip-pressed(grip: int, x: float, y: float);
     callback dragged(x: float, y: float, snap: bool);
@@ -341,7 +343,7 @@ component StageItem inherits Rectangle {
     }
 
     // The stem the rotation handle hangs off, from the top edge's midpoint.
-    Rectangle {
+    if !root.crop-editing: Rectangle {
         x: root.px(0px, -root.bh / 2 - root.stem / 2) - self.width / 2;
         y: root.py(0px, -root.bh / 2 - root.stem / 2) - self.height / 2;
         width: 1.5px;
@@ -351,7 +353,7 @@ component StageItem inherits Rectangle {
     }
 
     // The readout, clear of the box on whichever side is down.
-    Rectangle {
+    if !root.crop-editing: Rectangle {
         x: root.cx - self.width / 2;
         y: root.cy + root.below + 8px;
         width: readout.preferred-width + 12px;
@@ -372,7 +374,7 @@ component StageItem inherits Rectangle {
     }
 
     // The corners, clockwise from top-left, as Rust numbers them.
-    Grip {
+    if !root.crop-editing: Grip {
         at-x: root.px(-root.bw / 2, -root.bh / 2);
         at-y: root.py(-root.bw / 2, -root.bh / 2);
         stage-w: root.width; stage-h: root.height;
@@ -381,7 +383,7 @@ component StageItem inherits Rectangle {
         dragged(x, y, snap) => { root.dragged(x, y, snap); }
         released => { root.released(); }
     }
-    Grip {
+    if !root.crop-editing: Grip {
         at-x: root.px(root.bw / 2, -root.bh / 2);
         at-y: root.py(root.bw / 2, -root.bh / 2);
         stage-w: root.width; stage-h: root.height;
@@ -390,7 +392,7 @@ component StageItem inherits Rectangle {
         dragged(x, y, snap) => { root.dragged(x, y, snap); }
         released => { root.released(); }
     }
-    Grip {
+    if !root.crop-editing: Grip {
         at-x: root.px(root.bw / 2, root.bh / 2);
         at-y: root.py(root.bw / 2, root.bh / 2);
         stage-w: root.width; stage-h: root.height;
@@ -399,7 +401,7 @@ component StageItem inherits Rectangle {
         dragged(x, y, snap) => { root.dragged(x, y, snap); }
         released => { root.released(); }
     }
-    Grip {
+    if !root.crop-editing: Grip {
         at-x: root.px(-root.bw / 2, root.bh / 2);
         at-y: root.py(-root.bw / 2, root.bh / 2);
         stage-w: root.width; stage-h: root.height;
@@ -411,7 +413,7 @@ component StageItem inherits Rectangle {
 
     // The edges' midpoints, top, right, bottom, left as Rust numbers them:
     // a pull on one stretches that axis alone.
-    Grip {
+    if !root.crop-editing: Grip {
         at-x: root.px(0px, -root.bh / 2);
         at-y: root.py(0px, -root.bh / 2);
         stage-w: root.width; stage-h: root.height;
@@ -420,7 +422,7 @@ component StageItem inherits Rectangle {
         dragged(x, y, snap) => { root.dragged(x, y, snap); }
         released => { root.released(); }
     }
-    Grip {
+    if !root.crop-editing: Grip {
         at-x: root.px(root.bw / 2, 0px);
         at-y: root.py(root.bw / 2, 0px);
         stage-w: root.width; stage-h: root.height;
@@ -429,7 +431,7 @@ component StageItem inherits Rectangle {
         dragged(x, y, snap) => { root.dragged(x, y, snap); }
         released => { root.released(); }
     }
-    Grip {
+    if !root.crop-editing: Grip {
         at-x: root.px(0px, root.bh / 2);
         at-y: root.py(0px, root.bh / 2);
         stage-w: root.width; stage-h: root.height;
@@ -438,7 +440,7 @@ component StageItem inherits Rectangle {
         dragged(x, y, snap) => { root.dragged(x, y, snap); }
         released => { root.released(); }
     }
-    Grip {
+    if !root.crop-editing: Grip {
         at-x: root.px(-root.bw / 2, 0px);
         at-y: root.py(-root.bw / 2, 0px);
         stage-w: root.width; stage-h: root.height;
@@ -449,13 +451,26 @@ component StageItem inherits Rectangle {
     }
 
     // The rotation handle, above the top edge.
-    Grip {
+    if !root.crop-editing: Grip {
         turn: true;
         at-x: root.px(0px, -root.bh / 2 - root.stem);
         at-y: root.py(0px, -root.bh / 2 - root.stem);
         stage-w: root.width; stage-h: root.height;
         cursor: MouseCursor.grab;
         pressed(x, y) => { root.grip-pressed(4, x, y); }
+        dragged(x, y, snap) => { root.dragged(x, y, snap); }
+        released => { root.released(); }
+    }
+    for side in root.crop-editing ? 4 : 0: Grip {
+        property <length> local-x: side == 0 ? -root.bw / 2 : side == 2 ? root.bw / 2 : 0px;
+        property <length> local-y: side == 1 ? -root.bh / 2 : side == 3 ? root.bh / 2 : 0px;
+        at-x: Math.clamp(root.px(self.local-x, self.local-y), 12px, Math.max(12px, root.width - 12px));
+        at-y: Math.clamp(root.py(self.local-x, self.local-y), 12px, Math.max(12px, root.height - 12px));
+        stage-w: root.width; stage-h: root.height;
+        size: 12px;
+        target-size: 48px;
+        cursor: Math.mod(side, 2) == 0 ? MouseCursor.ew-resize : MouseCursor.ns-resize;
+        pressed(x, y) => { root.grip-pressed(20 + side, x, y); }
         dragged(x, y, snap) => { root.dragged(x, y, snap); }
         released => { root.released(); }
     }
@@ -469,6 +484,7 @@ component StageItem inherits Rectangle {
 /// clip's own grips; see `masking::MaskGrip`.
 component MaskItem inherits Rectangle {
     in property <StageItemData> item;
+    in property <bool> touch-grips;
 
     callback grip-pressed(grip: int, x: float, y: float);
     callback dragged(x: float, y: float, snap: bool);
@@ -504,6 +520,7 @@ component MaskItem inherits Rectangle {
         turn: true;
         at-x: root.item.mask-cx * root.width;
         at-y: root.item.mask-cy * root.height;
+        target-size: root.touch-grips ? 40px : self.size + 6px;
         stage-w: root.width; stage-h: root.height;
         cursor: MouseCursor.move;
         pressed(x, y) => { root.grip-pressed(20, x, y); }
@@ -514,6 +531,7 @@ component MaskItem inherits Rectangle {
     if root.item.mask >= 2: Grip {
         at-x: root.item.mask-wx * root.width;
         at-y: root.item.mask-wy * root.height;
+        target-size: root.touch-grips ? 40px : self.size + 6px;
         stage-w: root.width; stage-h: root.height;
         cursor: MouseCursor.ew-resize;
         pressed(x, y) => { root.grip-pressed(21, x, y); }
@@ -523,6 +541,7 @@ component MaskItem inherits Rectangle {
     if root.item.mask >= 1: Grip {
         at-x: root.item.mask-hx * root.width;
         at-y: root.item.mask-hy * root.height;
+        target-size: root.touch-grips ? 40px : self.size + 6px;
         stage-w: root.width; stage-h: root.height;
         cursor: MouseCursor.ns-resize;
         pressed(x, y) => { root.grip-pressed(22, x, y); }
@@ -532,6 +551,7 @@ component MaskItem inherits Rectangle {
     if root.item.mask >= 2: Grip {
         at-x: root.item.mask-kx * root.width;
         at-y: root.item.mask-ky * root.height;
+        target-size: root.touch-grips ? 40px : self.size + 6px;
         stage-w: root.width; stage-h: root.height;
         cursor: MouseCursor.nwse-resize;
         pressed(x, y) => { root.grip-pressed(23, x, y); }
@@ -542,6 +562,7 @@ component MaskItem inherits Rectangle {
         turn: true;
         at-x: root.item.mask-rx * root.width;
         at-y: root.item.mask-ry * root.height;
+        target-size: root.touch-grips ? 40px : self.size + 6px;
         stage-w: root.width; stage-h: root.height;
         cursor: MouseCursor.grab;
         pressed(x, y) => { root.grip-pressed(24, x, y); }
@@ -553,6 +574,7 @@ component MaskItem inherits Rectangle {
         turn: true;
         at-x: root.item.mask-fx * root.width;
         at-y: root.item.mask-fy * root.height;
+        target-size: root.touch-grips ? 40px : self.size + 6px;
         stage-w: root.width; stage-h: root.height;
         cursor: MouseCursor.ns-resize;
         background: transparent;
@@ -601,6 +623,8 @@ component StageOverlay inherits Rectangle {
     /// A colour's eyedropper is armed: a press picks the colour under it,
     /// so the grips stand aside and the pointer is a crosshair.
     in property <bool> picking;
+    in property <bool> crop-editing;
+    in property <bool> touch-grips;
 
     callback pressed(x: float, y: float, additive: bool);
     callback grip-pressed(id: string, grip: int, x: float, y: float);
@@ -712,17 +736,19 @@ component StageOverlay inherits Rectangle {
             width: parent.width;
             height: parent.height;
             item: entry;
+            crop-editing: root.crop-editing;
             grip-pressed(grip, x, y) => { root.grip-pressed(entry.id, grip, x, y); }
             dragged(x, y, snap) => { root.dragged(x, y, snap); }
             released => { root.released(); }
         }
         // Over the clip's own box, so a mask grip on its edge wins.
-        if entry.selected && entry.mask >= 0 && !root.painting && !root.picking: MaskItem {
+        if entry.selected && entry.mask >= 0 && !root.crop-editing && !root.painting && !root.picking: MaskItem {
             x: 0;
             y: 0;
             width: parent.width;
             height: parent.height;
             item: entry;
+            touch-grips: root.touch-grips;
             grip-pressed(grip, x, y) => { root.grip-pressed(entry.id, grip, x, y); }
             dragged(x, y, snap) => { root.dragged(x, y, snap); }
             released => { root.released(); }
@@ -774,6 +800,8 @@ export component PreviewPane inherits Rectangle {
     in property <bool> painting;
     /// A colour's eyedropper is armed; see StageOverlay.
     in property <bool> picking;
+    in property <bool> crop-editing;
+    in property <bool> touch-grips;
     /// The snap lines while one of them is being moved.
     in property <[StageGuideData]> stage-guides;
 
@@ -1094,6 +1122,8 @@ export component PreviewPane inherits Rectangle {
                 stroke-erase: root.stroke-erase;
                 painting: root.painting;
                 picking: root.picking;
+                crop-editing: root.crop-editing;
+                touch-grips: root.touch-grips;
                 pressed(x, y, additive) => { root.stage-pressed(x, y, additive); }
                 grip-pressed(id, grip, x, y) => { root.stage-grip-pressed(id, grip, x, y); }
                 dragged(x, y, snap) => { root.stage-dragged(x, y, snap); }

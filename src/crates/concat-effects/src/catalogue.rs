@@ -34,6 +34,9 @@ struct Chain {
     template: Template,
 }
 
+/// The camera input transform that consumes encoded camera code values.
+pub const CAMERA_INPUT_ID: &str = "concat.camera-input";
+
 /// The key every filter answers to without declaring it: how much of the
 /// look is applied, as a percent. Absent means all of it.
 pub const INTENSITY: &str = "intensity";

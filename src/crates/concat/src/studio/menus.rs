@@ -757,7 +757,8 @@ impl Studio {
             }
             let video = clip.kind == model::ClipKind::Video;
             if sole
-                && self.reverse_jobs.is_empty()
+                && self.motion_job.is_none()
+                && !self.host.reversers.is_busy()
                 && (video || clip.kind == model::ClipKind::Audio)
             {
                 reversible = true;

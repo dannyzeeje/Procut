@@ -1,0 +1,31 @@
+format = 2
+
+[effect]
+id = "concat.camera-input"
+name = "Color Space Transform"
+kind = "effect"
+category = "Color"
+description = "Converts supported camera log footage to the linear Rec.709 working space."
+
+[[param]]
+key = "profile"
+label = "Camera profile"
+type = "enum"
+min = 0
+max = 3
+default = 0
+values = [0, 1, 2, 3]
+labels = ["Off", "Sony S-Log3 / S-Gamut3.Cine", "Sony S-Log3 / S-Gamut3", "Panasonic V-Log / V-Gamut"]
+
+[[param]]
+key = "levels"
+label = "Decoded levels"
+type = "enum"
+min = 0
+max = 1
+default = 0
+values = [0, 1]
+labels = ["Full-range code values", "Expanded video levels"]
+
+[wgsl]
+entry = "effect.wgsl"

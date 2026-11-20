@@ -908,6 +908,11 @@ pub enum Command {
         /// The new setting.
         value: bool,
     },
+    /// Set a track's gain, stereo balance and solo as one undoable edit.
+    SetTrackMix {
+        track_id: String,
+        mix: crate::model::TrackMix,
+    },
     /// Adds a fresh timeline - four new lanes, "Timeline N" after the
     /// highest in use - and makes it active. Mints a "tl" id.
     AddTimeline,
@@ -1181,6 +1186,7 @@ impl Command {
         }
         match self {
             Command::Batch { commands } => commands.iter().any(Command::has_non_finite),
+            Command::SetTrackMix { mix, .. } => bad([mix.gain_db, mix.pan]),
             Command::AddMedia { item }
             | Command::FillSlot { item, .. }
             | Command::ConsolidateClips { item, .. } => bad(item.duration) || bad(item.frame_rate),
@@ -1459,6 +1465,7 @@ pub fn apply(
         }
         command @ (Command::AddTrack { .. }
         | Command::RemoveTrack { .. }
+        | Command::SetTrackMix { .. }
         | Command::SetTrackFlag { .. }) => tracks::apply(project, mint, command),
         command @ (Command::AddTimeline
         | Command::SetTimelineVideo { .. }

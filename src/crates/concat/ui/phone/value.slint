@@ -1,0 +1,117 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import { Theme } from "../theme/theme.slint";
+import { Fmt, Focus } from "../util.slint";
+import { NumberField } from "../primitives/number-field.slint";
+
+/// A full-width touch rail with a separate field for exact entry.
+export component PhoneValue inherits Rectangle {
+    in property <string> label;
+    in property <string> unit;
+    in property <float> value;
+    in property <float> minimum;
+    in property <float> maximum: 1;
+    in property <float> step: 0.01;
+    in property <float> detent;
+    in property <bool> logarithmic;
+    in property <int> precision: 2;
+    in property <bool> enabled: true;
+    callback started();
+    callback edited(value: float);
+    callback finished();
+
+    property <float> shown: root.value;
+    changed value => { root.shown = root.value; }
+    function fraction(v: float) -> float {
+        return root.logarithmic
+            ? Math.log(Math.max(root.minimum, v) / root.minimum, 2) / Math.log(root.maximum / root.minimum, 2)
+            : (v - root.minimum) / Math.max(0.00001, root.maximum - root.minimum);
+    }
+    function at(f: float) -> float {
+        let t = Math.clamp(f, 0, 1);
+        if (Math.abs(t - root.fraction(root.detent)) < 0.018) { return root.detent; }
+        if (t == 0) { return root.minimum; }
+        if (t == 1) { return root.maximum; }
+        let v = root.logarithmic
+            ? root.minimum * Math.pow(root.maximum / root.minimum, t)
+            : root.minimum + (root.maximum - root.minimum) * t;
+        return Math.clamp(Fmt.round-to(Math.round(v / root.step) * root.step, root.precision), root.minimum, root.maximum);
+    }
+    function update(v: float) {
+        root.shown = v;
+        root.edited(v);
+    }
+    height: 96px;
+    HorizontalLayout {
+        height: 48px;
+        spacing: 8px;
+        Text {
+            text: root.label;
+            color: Theme.fg;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+        NumberField {
+            width: 100px;
+            height: 48px;
+            value <=> root.shown;
+            minimum: root.minimum;
+            maximum: root.maximum;
+            precision: root.precision;
+            step: root.step;
+            unit: root.unit;
+            enabled: root.enabled;
+            drag-scrub: false;
+            changed(v) => {
+                root.started();
+                root.update(v);
+                root.finished();
+            }
+        }
+    }
+    rail := TouchArea {
+        x: 0;
+        y: 48px;
+        width: root.width;
+        height: 48px;
+        enabled: root.enabled;
+        accessible-role: slider;
+        accessible-label: root.label;
+        property <bool> editing;
+        property <length> inset: 14px;
+        property <length> travel: Math.max(1px, self.width - 2 * self.inset);
+        property <length> marker: self.inset + self.travel * Math.clamp(root.fraction(root.shown), 0, 1);
+        function sample() {
+            root.update(root.at((self.mouse-x - self.inset) / self.travel));
+        }
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                self.editing = true;
+                Focus.release();
+                root.started();
+            } else if (self.editing && (event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel)) {
+                if (event.kind == PointerEventKind.up) { self.sample(); }
+                self.editing = false;
+                root.finished();
+            }
+        }
+        moved => { if (self.editing && self.pressed) { self.sample(); } }
+        Rectangle {
+            x: rail.inset; y: 21px;
+            width: rail.travel; height: 6px;
+            border-radius: 3px; background: Theme.field;
+        }
+        Rectangle {
+            x: rail.inset; y: 21px;
+            width: rail.marker - rail.inset; height: 6px;
+            border-radius: 3px; background: Theme.accent;
+        }
+        Rectangle {
+            x: rail.marker - 8px; y: 16px;
+            width: 16px; height: 16px;
+            border-radius: 8px; background: Theme.accent;
+            border-width: 2px; border-color: Theme.fg;
+        }
+    }
+}

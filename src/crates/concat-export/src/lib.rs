@@ -1911,7 +1911,8 @@ fn render_picture(
                 .scaled_to(decode_width, decode_height)
                 .at_rate(decode_rate)
                 .in_range(ranges.get(&layer.clip).copied())
-                .deep(deep);
+                .deep(deep)
+                .camera_log(has_camera_input(chains.get(&layer.clip)));
 
             // A still is a one-frame stream. Without looping it would
             // contribute a single frame and then disappear.
@@ -3086,10 +3087,23 @@ pub fn preview_sources(
     preview_sources_of(pool, &preview_timeline(request), request.time, false, false)
 }
 
+fn has_camera_input(chain: Option<&Vec<AppliedFilter>>) -> bool {
+    chain.is_some_and(|chain| {
+        chain.iter().any(|effect| {
+            effect.id == concat_effects::catalogue::CAMERA_INPUT_ID
+                && effect.enabled
+                && effect
+                    .params
+                    .get("profile")
+                    .is_some_and(|profile| *profile >= 1.0)
+        })
+    })
+}
+
 /// The pool's request for one planned layer: the source frame at the
 /// level that covers the output, so the cached picture is the file's and
 /// no knob invalidates it. `proxy` reads the file's stand-in where it has
-/// one: for a picture that is moving, never for the paused monitor.
+/// one for playback. Camera input uses the original to keep recorded code values.
 fn frame_request(
     plan: &PreviewPlan,
     layer: &concat_render::PlannedLayer,
@@ -3102,9 +3116,10 @@ fn frame_request(
         .as_still(still)
         .from_proxy(proxy)
         .in_range(plan.built.ranges.get(&layer.clip).copied())
+        .camera_log(has_camera_input(plan.built.chains.get(&layer.clip)))
         // The compositor fits the picture into its place, so an untreated
-        // frame is drawn at the level it was decoded at - deep, for an HDR
-        // clip, unless a cutout has to cut it in eight bits.
+        // frame is drawn at the level it was decoded at. HDR and camera log
+        // sources can stay deep unless a cutout needs eight bits.
         .at_any_size(true)
         .deep_when_untreated(!plan.built.cutouts.contains_key(&layer.clip))
 }

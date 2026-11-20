@@ -15,6 +15,12 @@ struct Params {
     lift: vec3<f32>,
     gamma: vec3<f32>,
     gain: vec3<f32>,
+    gamma_red: f32,
+    gamma_green: f32,
+    gamma_blue: f32,
+    gain_red: f32,
+    gain_green: f32,
+    gain_blue: f32,
     luma: array<vec4<f32>, 8>,
     red: array<vec4<f32>, 8>,
     green: array<vec4<f32>, 8>,
@@ -72,6 +78,12 @@ fn effect(uv: vec2<f32>) -> vec4<f32> {
 
     // The wheels, then the curves, on the display level too.
     d = grade_wheels(d, params.lift, params.gamma, params.gain);
+    let gamma_rgb = vec3<f32>(params.gamma_red, params.gamma_green, params.gamma_blue);
+    let gain_rgb = vec3<f32>(params.gain_red, params.gain_green, params.gain_blue);
+    if (any(gamma_rgb != vec3<f32>(0.0)) || any(gain_rgb != vec3<f32>(0.0))) {
+        let below = min(d, vec3<f32>(1.0));
+        d = (sign(below) * pow(abs(below), exp2(-gamma_rgb)) + (d - below)) * exp2(gain_rgb);
+    }
     d = grade_curves(d, params.luma, params.red, params.green, params.blue);
 
     // Sharpen: the picture's difference from a small blur of it, scaled.

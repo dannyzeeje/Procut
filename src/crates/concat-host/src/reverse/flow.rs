@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Offline optical flow for a constant-speed slow-motion clip.
+//! Offline optical flow for the source span of a slow-motion clip.
 use super::*;
 use concat_vision::stabilize::track::{Gray, Pyramid};
 
@@ -123,20 +123,26 @@ fn between(a: &Frame, b: &Frame, flow: &[Vector; COLS * ROWS], t: f32) -> Frame 
 /// Keep the generated copy within a portable encoder clock and cap
 /// its sustained decoding and storage cost on phones.
 fn interpolation_rates(source: FrameRate, factor: u32) -> (FrameRate, u32, FrameRate) {
-    let input = source.fps().as_f64().round().clamp(1.0, 60.0) as u32;
-    let factor = factor.clamp(2, (120 / input).min(8));
-    (
-        FrameRate::from_int(input),
-        factor,
-        FrameRate::from_int(input * factor),
-    )
+    let fps = source.fps().as_f64();
+    let rounded = fps.round().clamp(1.0, 60.0) as u32;
+    let factor = factor.clamp(2, (120 / rounded).min(8));
+    let multiplier = Rational::from_int(i64::from(factor));
+    let exact = source.fps() * multiplier;
+    // MPEG-4 Part 2's clock denominator cannot exceed 65,535.
+    let input =
+        if (1.0..=60.0).contains(&fps) && exact.as_f64() <= 120.0 && exact.numerator() <= 65_535 {
+            source
+        } else {
+            FrameRate::from_int(rounded)
+        };
+    (input, factor, FrameRate::new(input.fps() * multiplier))
 }
 
 pub(super) fn write(
     request: &ReverseRequest,
     factor: u32,
-    stream: Option<usize>,
     job: &crate::jobs::Job,
+    progress: &mut dyn FnMut(f32),
 ) -> Result<(), String> {
     let info = concat_media::probe(&request.media_path).map_err(|e| e.to_string())?;
     let source_rate = info.video.as_ref().ok_or("no video stream")?.frame_rate;
@@ -156,18 +162,14 @@ pub(super) fn write(
         return Err("video is too small to interpolate".to_owned());
     }
     let mut left = crate::enhance::crop(&first, width, height);
-    let partial = request.target.with_extension("part.mp4");
-    let pcm = request.target.with_extension("part.m4a");
-    let muxed = request.target.with_extension("muxed.part.mp4");
+    let partial = staged(&request.target, "part");
     let result = (|| {
         let mut encoder = Encoder::create(&partial, width, height, output, &copy_options())
             .map_err(|e| e.to_string())?;
-        let frames = (request.duration * output.fps().as_f64()).ceil().max(1.0) as u64;
+        let frames = frame_count(request.duration, output);
         let mut written = 0;
         while written < frames {
-            if job.cancelled() {
-                return Err("optical flow cancelled".to_owned());
-            }
+            check_cancel(job)?;
             let right = decoder.next_frame().map_err(|e| e.to_string())?;
             if right
                 .as_ref()
@@ -176,14 +178,15 @@ pub(super) fn write(
                 return Err("the video resolution changed during interpolation".to_owned());
             }
             let right = right.map(|frame| crate::enhance::crop(&frame, width, height));
-            let flow = right.as_ref().and_then(|r| vectors(&left, r));
+            let flow = right
+                .as_ref()
+                .filter(|r| r.pixels() != left.pixels())
+                .and_then(|r| vectors(&left, r));
             for i in 0..factor {
                 if written == frames {
                     break;
                 }
-                if job.cancelled() {
-                    return Err("optical flow cancelled".to_owned());
-                }
+                check_cancel(job)?;
                 let fraction = i as f32 / factor as f32;
                 let frame = match (&right, &flow) {
                     (Some(r), Some(v)) if i > 0 => between(&left, r, v, fraction),
@@ -192,25 +195,16 @@ pub(super) fn write(
                 };
                 encoder.write_frame(&frame).map_err(|e| e.to_string())?;
                 written += 1;
+                progress(0.95 * written as f32 / frames as f32);
             }
             if let Some(right) = right {
                 left = right;
             }
         }
         encoder.finish().map_err(|e| e.to_string())?;
-        if info.audio.is_none() {
-            return land(&partial, &request.target, check_picture(&partial));
-        }
-        let mut audio = span_clip(request, "");
-        audio.stream = stream;
-        mix_to_file(&[audio], request.duration, &pcm)
-            .and_then(|()| mux(&partial, &pcm, &muxed))
-            .map_err(|e| e.to_string())?;
-        land(&muxed, &request.target, check_picture(&muxed))
+        finish_copy(request, &partial, info.audio.is_some(), "", job)
     })();
-    for path in [&partial, &pcm, &muxed] {
-        let _ = std::fs::remove_file(path);
-    }
+    let _ = std::fs::remove_file(&partial);
     result
 }
 
@@ -225,6 +219,15 @@ mod tests {
         assert_eq!(input, FrameRate::from_int(60));
         assert_eq!(factor, 2);
         assert_eq!(output, FrameRate::from_int(120));
+    }
+
+    #[test]
+    fn common_fractional_rates_keep_the_source_cadence_when_the_clock_fits() {
+        let source = FrameRate::new(Rational::new(30_000, 1001));
+        let (input, factor, output) = interpolation_rates(source, 2);
+        assert_eq!(input, source);
+        assert_eq!(factor, 2);
+        assert_eq!(output, FrameRate::new(Rational::new(60_000, 1001)));
     }
 
     #[test]

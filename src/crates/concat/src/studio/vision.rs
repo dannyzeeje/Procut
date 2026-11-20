@@ -4,6 +4,31 @@
 
 use super::*;
 
+pub(super) struct MotionJob {
+    pub clip_id: String,
+    flow: bool,
+    progress: f32,
+}
+
+impl MotionJob {
+    pub(super) fn status(&self) -> String {
+        let percent = format!("{:.0}", self.progress * 100.0);
+        if self.flow {
+            format!("{} {percent}%", t("mobile.generatingFlow"))
+        } else {
+            tf("clipInspector.reversing", &[&percent])
+        }
+    }
+}
+
+fn motion_error(flow: bool, error: &str) -> String {
+    if flow {
+        tf("mobile.flowCouldNotGenerate", &[error])
+    } else {
+        tf("studio.reverse", &[error])
+    }
+}
+
 impl Studio {
     // ── cutouts ──
     //
@@ -732,7 +757,7 @@ impl Studio {
     }
 
     /// Writes the span clip `id` covers of its file backwards into the
-    /// project's cache, and points the clip at the copy when it is there;
+    /// project's media folder, and points the clip at the copy when it is there;
     /// see `concat_host::reverse`. The import is never touched.
     pub fn reverse_clip(&mut self, id: &str) {
         self.process_motion(id, false);
@@ -743,10 +768,18 @@ impl Studio {
     }
 
     fn process_motion(&mut self, id: &str, flow: bool) {
-        if !self.reverse_jobs.is_empty() || self.host.reversers.is_busy() {
-            self.notify(&t("studio.reverseAlreadyWorkOne"), true);
+        if let Some(job) = &self.motion_job {
+            self.notify(&job.status(), false);
             return;
         }
+        if self.host.reversers.is_busy() {
+            self.notify(
+                &motion_error(flow, &t("studio.reverseAlreadyWorkOne")),
+                true,
+            );
+            return;
+        }
+        self.flush_commit();
         let Some(clip) = self.clip(id).cloned() else {
             return;
         };
@@ -787,67 +820,71 @@ impl Studio {
             self.notify(&tf("studio.couldNotRead", &[&media.path]), true);
             return;
         };
-        let source_id = clip.media_id.clone();
+        let timeline_id = self.timeline().id.clone();
         let factor = (1.0 / slowest).ceil().clamp(2.0, 8.0) as u32;
-        let stream = clip.audio_stream;
-        let target = if flow {
-            let name = target
-                .file_stem()
-                .and_then(|name| name.to_str())
-                .unwrap_or("clip");
-            target.with_file_name(format!("flow-{factor}-{name}.mp4"))
-        } else {
-            target
-        };
+        let mut name = target
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap_or("reverse")
+            .to_owned();
+        if let Some(stream) = clip.audio_stream {
+            name.push_str(&format!("-audio-{stream}"));
+        }
+        if flow {
+            name = format!("flow-{factor}-{name}");
+        }
+        let target = target
+            .with_file_name(name)
+            .with_extension(target.extension().unwrap_or_default());
         let request = concat_host::ReverseRequest {
             media_path: media.path.clone(),
             audio_only,
+            audio_stream: clip.audio_stream.map(|index| index as usize),
             start,
             duration: covered,
             target,
         };
         let clip_id = clip.id.clone();
-        self.reverse_jobs.insert(clip_id.clone(), 0.0);
-        if flow {
-            self.notify(&t("mobile.generatingFlow"), false);
-        } else {
-            self.notify(&tf("studio.reversing", &[&media.name]), false);
-        }
+        let job = MotionJob {
+            clip_id: clip_id.clone(),
+            flow,
+            progress: 0.0,
+        };
+        self.notify(&job.status(), false);
+        self.motion_job = Some(job);
         let reversers = Arc::clone(&self.host.reversers);
         let epoch = crate::host::project_epoch();
         spawn_in_project(
             move || {
                 let mut last = -1.0f32;
-                let reporting = clip_id.clone();
                 let mut progress = |fraction: f32| {
                     if fraction - last >= 0.01 {
                         last = fraction;
-                        let id = reporting.clone();
+                        let id = clip_id.clone();
                         on_ui_in_project(epoch, move |studio, _, _| {
-                            if let Some(held) = studio.reverse_jobs.get_mut(&id) {
-                                *held = fraction;
+                            if let Some(job) = &mut studio.motion_job
+                                && job.clip_id == id
+                            {
+                                job.progress = fraction;
                             }
                         });
                     }
                 };
-                let result = if flow {
-                    reversers.interpolate(&request, factor, stream.map(|index| index as usize))
+                if flow {
+                    reversers.interpolate(&request, factor, &mut progress)
                 } else {
                     reversers.reverse(&request, &mut progress)
-                };
-                (clip_id, source_id, result)
+                }
             },
-            move |studio, _, _, (clip_id, source_id, result)| {
-                studio.reverse_jobs.remove(&clip_id);
+            move |studio, _, _, result| {
+                studio.motion_job = None;
                 match result {
-                    Ok(path) => {
-                        studio.adopt_motion(&clip_id, &path, &source_id, start, covered, flow)
+                    Ok(path) if studio.timeline().id == timeline_id => {
+                        studio.adopt_motion(&clip, &path, flow)
                     }
+                    Ok(_) => {}
                     Err(error) if error.contains("cancelled") => {}
-                    Err(error) if flow => {
-                        studio.notify(&tf("mobile.flowCouldNotGenerate", &[&error]), true)
-                    }
-                    Err(error) => studio.notify(&tf("studio.reverse", &[&error]), true),
+                    Err(error) => studio.notify(&motion_error(flow, &error), true),
                 }
             },
         );
@@ -857,29 +894,30 @@ impl Studio {
     /// the copy's own zero, and shows it - unless the clip has moved on
     /// its file meanwhile, in which case the copy covers a span the clip
     /// no longer shows, and the ask has to be made again.
-    fn adopt_motion(
-        &mut self,
-        id: &str,
-        path: &std::path::Path,
-        source_id: &str,
-        start: f64,
-        covered: f64,
-        flow: bool,
-    ) {
+    fn adopt_motion(&mut self, original: &Clip, path: &std::path::Path, flow: bool) {
+        let id = original.id.as_str();
         let Some(clip) = self.clip(id).cloned() else {
             return;
         };
-        if clip.media_id != source_id
-            || (clip.source_start - start).abs() > 1e-6
-            || (clip.duration * clip.speed - covered).abs() > 1e-6
+        if clip.media_id != original.media_id
+            || clip.audio_stream != original.audio_stream
+            || (clip.source_start - original.source_start).abs() > 1e-6
+            || (clip.duration * clip.speed - original.duration * original.speed).abs() > 1e-6
+            || (flow && (clip.speed != original.speed || clip.speed_curve != original.speed_curve))
+            || self.locked(&clip.track_id)
         {
-            self.notify(&t("studio.clipChangedWhileBeing"), true);
+            let message = if flow {
+                motion_error(true, "The clip changed during processing. Try again.")
+            } else {
+                t("studio.clipChangedWhileBeing")
+            };
+            self.notify(&message, true);
             return;
         }
         let summary = match media::probe(&path.to_string_lossy()) {
             Ok(summary) => summary,
             Err(error) => {
-                self.notify(&tf("studio.reverse", &[&error]), true);
+                self.notify(&motion_error(flow, &error), true);
                 return;
             }
         };
@@ -893,16 +931,31 @@ impl Studio {
         }
         item.origin = Some(model::MediaOrigin::Processed);
         self.finish_effect_preview(false);
-        if self
-            .apply(Command::ReplaceClipMedia {
-                clip_id: id.to_owned(),
-                item,
-                source_start: Some(0.0),
-                enhanced: false,
-                offset: 0.0,
-            })
-            .is_none()
-        {
+        let replace = Command::ReplaceClipMedia {
+            clip_id: id.to_owned(),
+            item,
+            source_start: Some(0.0),
+            enhanced: false,
+            offset: 0.0,
+        };
+        // The generated copy contains only the audio stream the clip used.
+        let command = if clip.audio_stream.is_some() {
+            Command::Batch {
+                commands: vec![
+                    replace,
+                    Command::UpdateClip {
+                        clip_id: id.to_owned(),
+                        patch: ClipPatch {
+                            audio_stream: Some(None),
+                            ..ClipPatch::default()
+                        },
+                    },
+                ],
+            }
+        } else {
+            replace
+        };
+        if self.apply(command).is_none() {
             return;
         }
         self.host.monitor.forget_plan();

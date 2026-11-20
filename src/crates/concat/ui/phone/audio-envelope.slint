@@ -7,6 +7,7 @@ import { SelectedClipData } from "../timeline/model.slint";
 import { AtlasChip } from "atlas-components.slint";
 export component AudioEnvelope inherits Rectangle {
     in property <SelectedClipData> selected;
+    callback started();
     callback edited(fade-in: float, fade-out: float);
     callback committed();
     height: 320px;
@@ -28,6 +29,7 @@ export component AudioEnvelope inherits Rectangle {
             : ("Q " + ((root.b + 1) / 2) + " 1 "))
         + "1 1";
     function preset(kind: int) {
+        root.started();
         let d = root.duration;
         let quick = Math.min(0.2, d / 4);
         let soft = Math.min(1, d / 5);
@@ -48,12 +50,16 @@ export component AudioEnvelope inherits Rectangle {
         Text { x: 16px; y: 138px; text: "0:00"; color: Theme.fg-muted; font-size: 10px; }
         Text { x: parent.width - self.width - 16px; y: 138px; text: Fmt.short-duration(root.duration); color: Theme.fg-muted; font-size: 10px; }
         for side in 2: TouchArea {
-            x: 16px + (side == 0 ? root.a : root.b) * plot.graph-w - 16px;
-            y: 13px; width: 32px; height: 32px;
+            x: 16px + (side == 0 ? root.a : root.b) * plot.graph-w - 22px;
+            y: 7px; width: 44px; height: 44px;
             property <length> origin;
             property <float> initial;
             pointer-event(e) => {
-                if (e.kind == PointerEventKind.down) { self.origin = self.absolute-position.x + self.mouse-x; self.initial = side == 0 ? root.fade-in : root.fade-out; }
+                if (e.kind == PointerEventKind.down) {
+                    root.started();
+                    self.origin = self.absolute-position.x + self.mouse-x;
+                    self.initial = side == 0 ? root.fade-in : root.fade-out;
+                }
                 if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) { root.committed(); }
             }
             moved => {
@@ -64,7 +70,7 @@ export component AudioEnvelope inherits Rectangle {
                     root.edited(root.fade-in, root.fade-out);
                 }
             }
-            Rectangle { x: 10px; y: 10px; width: 12px; height: 12px; border-radius: 6px; background: Theme.accent; border-width: 2px; border-color: Theme.fg; }
+            Rectangle { x: 16px; y: 16px; width: 12px; height: 12px; border-radius: 6px; background: Theme.accent; border-width: 2px; border-color: Theme.fg; }
         }
     }
     HorizontalLayout { x: 16px; y: 224px; width: root.width - 32px; height: 40px; spacing: 8px;

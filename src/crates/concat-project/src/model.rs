@@ -253,6 +253,46 @@ pub struct Track {
     pub extra: Map<String, Value>,
 }
 
+/// Non-destructive audio mix settings stored with the track in the project.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TrackMix {
+    pub gain_db: f64,
+    pub pan: f64,
+    pub solo: bool,
+}
+
+impl TrackMix {
+    pub const FIELD: &'static str = "procutAudioMix";
+
+    pub fn bounded(self) -> Self {
+        Self {
+            gain_db: if self.gain_db.is_finite() {
+                self.gain_db.clamp(-60.0, 24.0)
+            } else {
+                0.0
+            },
+            pan: if self.pan.is_finite() {
+                self.pan.clamp(-1.0, 1.0)
+            } else {
+                0.0
+            },
+            solo: self.solo,
+        }
+    }
+}
+
+impl Track {
+    pub fn audio_mix(&self) -> TrackMix {
+        self.extra
+            .get(TrackMix::FIELD)
+            .and_then(|value| serde_json::from_value::<TrackMix>(value.clone()).ok())
+            .unwrap_or_default()
+            .bounded()
+    }
+}
+
 impl Default for Track {
     fn default() -> Self {
         Track {

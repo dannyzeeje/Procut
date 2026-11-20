@@ -131,8 +131,19 @@ impl Studio {
 
     /// One knob of one link, on the echo. `clip_commit` makes it real.
     pub fn chain_set_param(&mut self, audio: bool, index: i32, key: &str, value: f32) {
-        self.edit_links(audio, index, |link, _| {
-            link.params.insert(key.to_owned(), f64::from(value));
+        if !value.is_finite() {
+            return;
+        }
+        let at = self.key_point().map(|(_, at)| at);
+        self.edit_links(audio, index, |link, shown| {
+            if !audio && link.id == ADJUST_ID && link.is_keyed(key) {
+                if let Some(at) = at.filter(|_| shown) {
+                    let ease = ease_before(link.keys_on(key), at);
+                    link.set_key(key, at, f64::from(value), ease);
+                }
+            } else {
+                link.params.insert(key.to_owned(), f64::from(value));
+            }
         });
     }
 
@@ -200,8 +211,10 @@ impl Studio {
     /// title or a shape, the curve's controls change nothing.
     pub(super) fn speed_clip(&self) -> Option<String> {
         let id = self.sole_selection()?;
-        let kind = self.clip(&id)?.kind;
-        matches!(kind, model::ClipKind::Video | model::ClipKind::Audio).then_some(id)
+        let clip = self.clip(&id)?;
+        (matches!(clip.kind, model::ClipKind::Video | model::ClipKind::Audio)
+            && !self.locked(&clip.track_id))
+        .then_some(id)
     }
 
     /// The Speed tab's clip's curve, edited on the echo by `edit`, which is
@@ -275,6 +288,25 @@ impl Studio {
             }
         });
         self.set_speed_chosen(Vec::new());
+    }
+
+    pub fn speed_insert_point(&mut self) {
+        let Some(clip) = self.speed_clip().and_then(|id| self.clip(&id)) else {
+            return;
+        };
+        let Some(curve) = clip
+            .speed_curve
+            .as_deref()
+            .and_then(concat_project::speed::engine_curve)
+        else {
+            return;
+        };
+        let x = ((f64::from(self.playhead) - clip.start) / clip.duration).clamp(0.01, 0.99);
+        self.speed_point(
+            -1,
+            x as f32,
+            speed_ramp::height_for(curve.speed_at(x)) as f32,
+        );
     }
 
     /// Smooth (`smooth`) or Straight, for every point of the curve.
@@ -460,8 +492,14 @@ impl Studio {
             {
                 Some(entry) => entry,
                 None => {
-                    clip.video_effects.insert(0, AppliedFilter::new(ADJUST_ID));
-                    0
+                    let index = clip
+                        .video_effects
+                        .iter()
+                        .take_while(|entry| entry.id == pro_tools::CAMERA_INPUT_ID)
+                        .count();
+                    clip.video_effects
+                        .insert(index, AppliedFilter::new(ADJUST_ID));
+                    index
                 }
             };
             edit(&mut clip.video_effects[entry], turn == 0);
@@ -678,7 +716,11 @@ impl Studio {
             // No colour link yet: one goes on, then the keys on it, as one
             // edit, so an undo takes all of it back.
             let mut effects = clip.video_effects.clone();
-            effects.insert(0, AppliedFilter::new(ADJUST_ID));
+            let index = effects
+                .iter()
+                .take_while(|entry| entry.id == pro_tools::CAMERA_INPUT_ID)
+                .count();
+            effects.insert(index, AppliedFilter::new(ADJUST_ID));
             let mut commands = vec![Command::UpdateClip {
                 clip_id: clip_id.clone(),
                 patch: ClipPatch {
@@ -688,7 +730,7 @@ impl Studio {
             }];
             commands.extend(names.iter().map(|(name, default)| Command::SetEffectKey {
                 clip_id: clip_id.clone(),
-                entry: 0,
+                entry: index,
                 key: name.clone(),
                 at,
                 value: *default,

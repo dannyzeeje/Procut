@@ -23,6 +23,9 @@ export component PhoneSheet inherits Rectangle {
     in property <bool> open;
     in property <bool> footer: true;
     in property <bool> preview-footer;
+    in property <bool> scroll-enabled: true;
+    /// Stage tools can leave the preview and transport interactive.
+    in property <bool> dismiss-on-background: true;
     in property <string> title;
     /// How much of the screen the sheet takes: enough for a panel, with
     /// the monitor still in view above it.
@@ -47,6 +50,7 @@ export component PhoneSheet inherits Rectangle {
     // What is left above the sheet. A tap there is a dismissal; declared
     // first, so the surface takes its own presses.
     TouchArea {
+        enabled: root.dismiss-on-background;
         clicked => { root.closed(); }
     }
 
@@ -159,6 +163,7 @@ export component PhoneSheet inherits Rectangle {
 
             // ── the body ──────────────────────────────────────────────────
             body := PhoneScroll {
+                interactive: root.scroll-enabled;
                 gutter: 12px;
                 vertical-stretch: 1;
                 @children

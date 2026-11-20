@@ -1195,6 +1195,10 @@ pub fn mux(video: &Path, audio: &Path, output: &Path) -> Result<()> {
             .add_stream(encoder::find(ffmpeg::codec::Id::None))
             .map_err(|error| ffi::fail("add stream", output, error))?;
         stream.set_parameters(audio_stream.parameters());
+        // The destination chooses its own tag. For example, PCM is tag 1
+        // in WAV, but the MOV muxer needs the QuickTime tag for those samples.
+        // SAFETY: the output stream owns the live AVCodecParameters.
+        unsafe { (*stream.parameters_mut().as_mut_ptr()).codec_tag = 0 };
         stream.set_time_base(audio_tb);
     }
     // The index up front, as the picture's own file had it - but not for

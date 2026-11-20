@@ -136,7 +136,7 @@ impl Studio {
         if picture {
             tools.push(("freeze", t("timelinePane.freeze"), Glyph::Image, false));
         }
-        if picture {
+        if av {
             tools.push(("reverse", t("common.reverse"), Glyph::StepBack, false));
         }
         if picture {
@@ -186,17 +186,15 @@ impl Studio {
             .into_iter()
             .filter(|tool| {
                 section == "project"
-                    || (!(section == "audio" && tool.id == "clip-audio-effects")
-                        && !matches!(
-                            tool.id.as_str(),
-                            "split"
-                                | "delete"
-                                | "clip-canvas"
-                                | "clip-effects"
-                                | "duplicate"
-                                | "freeze"
-                                | "clip-enhance"
-                        ))
+                    || !matches!(
+                        tool.id.as_str(),
+                        "split"
+                            | "delete"
+                            | "clip-canvas"
+                            | "duplicate"
+                            | "freeze"
+                            | "clip-enhance"
+                    )
             })
             .collect()
     }
@@ -249,6 +247,14 @@ impl Studio {
     }
     pub(super) fn publish_mobile_tools(&self, app: &App) {
         let editor = app.global::<Editor>();
+        if crate::platform::phone() && self.selection.len() > 1 {
+            if editor.get_mobile_all_tools().row_count() > 0 {
+                editor.set_mobile_all_tools(slint::ModelRc::default());
+                editor.set_mobile_quick_tools(slint::ModelRc::default());
+                editor.set_mobile_more_tools(slint::ModelRc::default());
+            }
+            return;
+        }
         let section = self.mobile_tool_section();
         let all = self.mobile_layout_tools();
         let quick: Vec<_> = all
@@ -256,9 +262,14 @@ impl Studio {
             .filter(|tool| tool.pinned && !tool.hidden)
             .cloned()
             .collect();
+        let (_, _, reversible) = self.transform_tools();
         let more: Vec<_> = all
             .iter()
-            .filter(|tool| !tool.hidden && (section != "project" || !tool.pinned))
+            .filter(|tool| {
+                !tool.hidden
+                    && (section != "project" || !tool.pinned)
+                    && (tool.id != "reverse" || reversible)
+            })
             .cloned()
             .collect();
         if editor.get_mobile_all_tools().iter().collect::<Vec<_>>() != all {

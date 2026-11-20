@@ -106,6 +106,8 @@ pub struct FrameRequest {
     /// go straight to the GPU. Only with `any_size`, since a fit here is
     /// FFmpeg on eight bits. See [`DecodeOptions::deep`].
     pub deep: bool,
+    /// Preserve camera code values for the input transform.
+    pub camera_log: bool,
 }
 
 impl FrameRequest {
@@ -124,6 +126,7 @@ impl FrameRequest {
             range: None,
             any_size: false,
             deep: false,
+            camera_log: false,
         }
     }
 
@@ -176,6 +179,13 @@ impl FrameRequest {
         self
     }
 
+    /// Read the original in camera code values. A proxy can have a
+    /// display transform baked in before a camera profile was chosen.
+    pub fn camera_log(mut self, camera_log: bool) -> Self {
+        self.camera_log = camera_log;
+        self
+    }
+
     /// Reads the proxy where there is one. See [`FrameRequest::proxy`].
     pub fn from_proxy(mut self, proxy: bool) -> Self {
         self.proxy = proxy;
@@ -209,6 +219,7 @@ struct SourceKey {
     /// (see [`DecodeOptions::deep`]) - a different picture from the
     /// tone-mapped eight bits.
     deep: bool,
+    camera_log: bool,
 }
 
 /// A treated frame's identity: the source frame and what was done to it.
@@ -410,6 +421,7 @@ impl Reader {
         pre: Option<&str>,
         range: Option<ColorRange>,
         deep: bool,
+        camera_log: bool,
         rate: FrameRate,
         still: bool,
         index: i64,
@@ -428,6 +440,7 @@ impl Reader {
             .scaled_to(width, height)
             .in_range(range)
             .deep(deep)
+            .camera_log(camera_log)
             .threaded(READER_THREADS);
         // Android MediaCodec may accept a generated stream and then return
         // no frame after a seek. These editor-owned copies have a software
@@ -560,6 +573,7 @@ type ReaderKey = (
     Option<String>,
     Option<String>,
     Option<ColorRange>,
+    bool,
     bool,
     bool,
 );
@@ -947,6 +961,7 @@ impl ReaderPool {
     /// file has one, the file itself otherwise.
     fn path_for(&self, request: &FrameRequest) -> PathBuf {
         if request.proxy
+            && !request.camera_log
             && let Some(proxy) = self.proxy_of(&request.path)
         {
             return proxy;
@@ -1009,6 +1024,7 @@ impl ReaderPool {
                 index,
                 range,
                 deep,
+                camera_log: request.camera_log,
             },
         ))
     }
@@ -1119,6 +1135,7 @@ impl ReaderPool {
                 None,
                 key.range,
                 key.deep,
+                key.camera_log,
                 false,
             );
             let roll = self
@@ -1200,7 +1217,17 @@ impl ReaderPool {
         let path = key.path.as_path();
         let aim = facts.rate.frame_at(seek);
         let shared = self.reader(
-            path, key.width, key.height, None, None, key.range, key.deep, facts, aim, true,
+            path,
+            key.width,
+            key.height,
+            None,
+            None,
+            key.range,
+            key.deep,
+            key.camera_log,
+            facts,
+            aim,
+            true,
         )?;
         let mut reader = shared.lock().map_err(|_| crate::error::Error::NoFrame {
             path: path.to_path_buf(),
@@ -1301,6 +1328,7 @@ impl ReaderPool {
             index,
             range,
             deep: deep && chain.is_none() && pre.is_none(),
+            camera_log: false,
         };
         if chain.is_none() && pre.is_none() {
             return self.source_frame(&facts, &source_key);
@@ -1331,7 +1359,7 @@ impl ReaderPool {
             return Ok(frame);
         }
         let shared = self.reader(
-            path, width, height, chain, pre, range, false, &facts, index, false,
+            path, width, height, chain, pre, range, false, false, &facts, index, false,
         )?;
         let mut reader = shared.lock().map_err(|_| crate::error::Error::NoFrame {
             path: path.to_path_buf(),
@@ -1368,7 +1396,17 @@ impl ReaderPool {
             return Ok(frame);
         }
         let shared = self.reader(
-            path, key.width, key.height, None, None, key.range, key.deep, facts, key.index, false,
+            path,
+            key.width,
+            key.height,
+            None,
+            None,
+            key.range,
+            key.deep,
+            key.camera_log,
+            facts,
+            key.index,
+            false,
         )?;
         let mut reader = shared.lock().map_err(|_| crate::error::Error::NoFrame {
             path: path.to_path_buf(),
@@ -1576,6 +1614,7 @@ impl ReaderPool {
         pre: Option<&str>,
         range: Option<ColorRange>,
         deep: bool,
+        camera_log: bool,
         facts: &MediaFacts,
         target: i64,
         keyframes: bool,
@@ -1588,6 +1627,7 @@ impl ReaderPool {
             pre.map(str::to_owned),
             range,
             deep,
+            camera_log,
             keyframes,
         );
         {
@@ -1613,6 +1653,7 @@ impl ReaderPool {
             pre,
             range,
             deep,
+            camera_log,
             facts.rate,
             facts.still,
             target,
@@ -1778,6 +1819,7 @@ pub(crate) mod tests {
             index,
             range: None,
             deep: false,
+            camera_log: false,
         };
         cache.insert(key(0), Arc::new(Frame::black(2, 2)));
         cache.insert(key(1), Arc::new(Frame::black(2, 2)));
@@ -1838,6 +1880,7 @@ pub(crate) mod tests {
                 index: 0,
                 range: None,
                 deep: false,
+                camera_log: false,
             },
             Arc::new(Frame::black(2, 2)),
         );

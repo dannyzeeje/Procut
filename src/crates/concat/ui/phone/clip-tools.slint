@@ -1,0 +1,241 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import { Editor } from "../editor.slint";
+import { I18n } from "../i18n.slint";
+import { Theme } from "../theme/theme.slint";
+import { Select } from "../primitives/select.slint";
+import { InspectorFmt } from "../inspector/controls.slint";
+import { SpeedGraph, SpeedRamp } from "../inspector/speed-ramp.slint";
+import { ClipField, StripData } from "../timeline/model.slint";
+import { PhoneValue } from "value.slint";
+
+export component PhoneCommand inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    in property <bool> enabled: true;
+    callback clicked();
+    min-height: 48px;
+    min-width: 48px;
+    horizontal-stretch: 1;
+    background: touch.pressed ? Theme.field-active : root.selected ? Theme.accent-soft : Theme.field;
+    border-radius: Theme.r;
+    opacity: root.enabled ? 1 : 0.45;
+    accessible-role: button;
+    accessible-label: root.label;
+    Text {
+        x: 3px;
+        width: root.width - 6px;
+        height: root.height;
+        text: root.label;
+        color: root.selected ? Theme.accent : Theme.fg;
+        font-size: Theme.fs-sm;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+component ClipFilmstrip inherits Rectangle {
+    in property <StripData> strip;
+    in property <float> playhead-at: -1;
+    callback scrubbed(at: float);
+    height: 48px;
+    background: Theme.well;
+    clip: true;
+    if root.strip.frames > 0: HorizontalLayout {
+        for cell in 6: Image {
+            source: root.strip.image;
+            image-fit: cover;
+            source-clip-x: Math.clamp(Math.floor(root.strip.frames *
+                (root.strip.start + root.strip.span * (cell + 0.5) / 6)),
+                0, root.strip.frames - 1) * root.strip.frame-width;
+            source-clip-y: 0;
+            source-clip-width: root.strip.frame-width;
+            source-clip-height: root.strip.height;
+        }
+    }
+    if root.playhead-at >= 0: Rectangle {
+        x: Math.clamp(root.playhead-at * root.width - 1px, 0px, root.width - self.width);
+        width: 2px;
+        height: root.height;
+        background: Theme.playhead;
+    }
+    TouchArea {
+        clicked => { root.scrubbed(Math.clamp(self.mouse-x / Math.max(1px, self.width), 0, 1)); }
+    }
+}
+
+export component PhoneSpeed inherits VerticalLayout {
+    in-out property <bool> expanded;
+    in property <bool> can-interpolate;
+    spacing: 8px;
+
+    HorizontalLayout {
+        spacing: 6px;
+        PhoneCommand {
+            label: I18n.t("speedRamp.constant");
+            selected: !SpeedRamp.has-curve;
+            enabled: SpeedRamp.usable;
+            clicked => {
+                Editor.blur();
+                if (SpeedRamp.has-curve) {
+                    Editor.phone-edit-started();
+                    SpeedRamp.toggle-curve(false);
+                    Editor.phone-edit-finished();
+                }
+                root.expanded = false;
+            }
+        }
+        PhoneCommand {
+            label: I18n.t("speedRamp.curve");
+            selected: SpeedRamp.has-curve;
+            enabled: SpeedRamp.usable;
+            clicked => {
+                Editor.blur();
+                if (!SpeedRamp.has-curve) {
+                    Editor.phone-edit-started();
+                    SpeedRamp.toggle-curve(true);
+                    Editor.phone-edit-finished();
+                }
+                root.expanded = !root.expanded;
+            }
+        }
+    }
+
+    if !SpeedRamp.has-curve: VerticalLayout {
+        spacing: 4px;
+        HorizontalLayout {
+            spacing: 4px;
+            for preset in [0.25, 0.5, 1.0, 2.0, 4.0]: PhoneCommand {
+                label: "\{preset}×";
+                selected: Math.abs(Editor.selected-clip.speed - preset) < 0.001;
+                enabled: SpeedRamp.usable;
+                clicked => {
+                    Editor.blur();
+                    Editor.phone-edit-started();
+                    Editor.clip-set(ClipField.speed, preset);
+                    Editor.phone-edit-finished();
+                }
+            }
+        }
+        PhoneValue {
+            label: I18n.t("common.rate");
+            value: Editor.selected-clip.speed;
+            minimum: 0.0625; maximum: 16;
+            logarithmic: true; detent: 1;
+            precision: 4; step: 0.005; unit: "×";
+            enabled: SpeedRamp.usable;
+            started => { Editor.phone-edit-started(); }
+            edited(v) => { Editor.clip-set(ClipField.speed, v); Editor.phone-edit-preview(); }
+            finished => { Editor.phone-edit-finished(); }
+        }
+    }
+    if SpeedRamp.has-curve: Select {
+        height: 48px;
+        options: SpeedRamp.preset-names;
+        property <int> preset: SpeedRamp.active-preset;
+        current: self.preset;
+        changed preset => { self.current = self.preset; }
+        placeholder: I18n.t("speedRamp.custom");
+        changed(index) => {
+            Editor.phone-edit-started();
+            SpeedRamp.pick-preset(index);
+            Editor.phone-edit-finished();
+        }
+    }
+    if Editor.selected-clip.motion-status != "": Text {
+        text: Editor.selected-clip.motion-status;
+        color: Theme.fg;
+        wrap: word-wrap;
+    }
+    if root.can-interpolate: PhoneCommand {
+        label: I18n.t("mobile.opticalFlow");
+        enabled: Editor.reversible;
+        clicked => { Editor.shortcut("optical-flow"); }
+    }
+    if SpeedRamp.has-curve && root.expanded: VerticalLayout {
+        spacing: 8px;
+        ClipFilmstrip {
+            strip: Editor.phone-selected-strip;
+            playhead-at: SpeedRamp.playhead-at;
+            scrubbed(at) => { Editor.phone-clip-scrubbed(at); }
+        }
+        HorizontalLayout {
+            spacing: 6px;
+            PhoneCommand {
+                label: I18n.t("mobile.addPoint");
+                enabled: SpeedRamp.usable;
+                clicked => {
+                    Editor.phone-edit-started();
+                    SpeedRamp.insert-point();
+                    Editor.phone-edit-finished();
+                }
+            }
+            PhoneCommand {
+                label: I18n.t("mobile.removePoint");
+                enabled: SpeedRamp.usable && SpeedRamp.can-remove-point;
+                clicked => {
+                    Editor.phone-edit-started();
+                    SpeedRamp.remove-selected();
+                    Editor.phone-edit-finished();
+                }
+            }
+        }
+        SpeedGraph {
+            touch-mode: true;
+            started => { Editor.phone-edit-started(); }
+            preview => { Editor.phone-edit-preview(); }
+            changed => { Editor.phone-edit-finished(); }
+        }
+        HorizontalLayout {
+            spacing: 6px;
+            for option[i] in [I18n.t("speedRamp.smooth"), I18n.t("speedRamp.straight")]: PhoneCommand {
+                label: option;
+                selected: SpeedRamp.eased == (i == 0);
+                enabled: SpeedRamp.usable;
+                clicked => {
+                    Editor.phone-edit-started();
+                    SpeedRamp.set-eased(i == 0);
+                    Editor.phone-edit-finished();
+                }
+            }
+        }
+    }
+}
+
+export component PhoneAudioGain inherits VerticalLayout {
+    property <int> field-index;
+    property <[string]> labels: [
+        I18n.t("mobile.gain"), I18n.t("clipInspector.fadeIn"), I18n.t("clipInspector.fadeOut")
+    ];
+    spacing: 4px;
+    HorizontalLayout {
+        spacing: 4px;
+        for label[i] in root.labels: PhoneCommand {
+            label: label;
+            selected: root.field-index == i;
+            enabled: Editor.can-delete-selection && Editor.selected-clip.has-sound && (!Editor.selected-clip.batch-volume || i == 0);
+            clicked => { Editor.blur(); root.field-index = i; }
+        }
+    }
+    PhoneValue {
+        label: root.labels[root.field-index];
+        enabled: Editor.can-delete-selection && Editor.selected-clip.has-sound;
+        value: root.field-index == 0 ? InspectorFmt.to-decibels(Editor.selected-clip.volume)
+            : root.field-index == 1 ? Editor.selected-clip.fade-in : Editor.selected-clip.fade-out;
+        minimum: root.field-index == 0 ? -60 : 0;
+        maximum: root.field-index == 0 ? 24 : Math.min(10.0, Editor.selected-clip.duration / 2);
+        step: root.field-index == 0 ? 0.1 : 0.01;
+        unit: root.field-index == 0 ? "dB" : "s";
+        started => { Editor.phone-edit-started(); }
+        edited(v) => {
+            if (root.field-index == 0) { Editor.clip-set(ClipField.volume, InspectorFmt.from-decibels(v)); }
+            else { Editor.clip-set(root.field-index == 1 ? ClipField.fade-in : ClipField.fade-out, v); }
+        }
+        finished => { Editor.phone-edit-finished(); }
+    }
+}
