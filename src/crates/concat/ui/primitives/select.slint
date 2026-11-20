@@ -57,7 +57,7 @@ export component Select inherits Rectangle {
     callback changed(index: int);
 
     property <bool> ring;
-    property <length> row-h: 26px;
+    in property <length> row-h: 26px;
     /// What the rows need, and what the list is given: the rows, capped
     /// at nine or so. Past the cap the list scrolls, under a wheel or a
     /// finger - see `flick`.
