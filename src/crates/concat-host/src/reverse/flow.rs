@@ -120,6 +120,18 @@ fn between(a: &Frame, b: &Frame, flow: &[Vector; COLS * ROWS], t: f32) -> Frame 
     picture
 }
 
+/// Keep the generated copy within a portable encoder clock and cap
+/// its sustained decoding and storage cost on phones.
+fn interpolation_rates(source: FrameRate, factor: u32) -> (FrameRate, u32, FrameRate) {
+    let input = source.fps().as_f64().round().clamp(1.0, 60.0) as u32;
+    let factor = factor.clamp(2, (120 / input).min(8));
+    (
+        FrameRate::from_int(input),
+        factor,
+        FrameRate::from_int(input * factor),
+    )
+}
+
 pub(super) fn write(
     request: &ReverseRequest,
     factor: u32,
@@ -127,9 +139,8 @@ pub(super) fn write(
     job: &crate::jobs::Job,
 ) -> Result<(), String> {
     let info = concat_media::probe(&request.media_path).map_err(|e| e.to_string())?;
-    let rate = info.video.as_ref().ok_or("no video stream")?.frame_rate;
-    let factor = factor.clamp(2, 8);
-    let output = FrameRate::new(rate.fps() * Rational::new(i64::from(factor), 1));
+    let source_rate = info.video.as_ref().ok_or("no video stream")?.frame_rate;
+    let (rate, factor, output) = interpolation_rates(source_rate, factor);
     let options = DecodeOptions::default()
         .in_software()
         .threaded(2)
@@ -157,10 +168,14 @@ pub(super) fn write(
             if job.cancelled() {
                 return Err("optical flow cancelled".to_owned());
             }
-            let right = decoder
-                .next_frame()
-                .map_err(|e| e.to_string())?
-                .map(|f| crate::enhance::crop(&f, width, height));
+            let right = decoder.next_frame().map_err(|e| e.to_string())?;
+            if right
+                .as_ref()
+                .is_some_and(|frame| frame.width() < width || frame.height() < height)
+            {
+                return Err("the video resolution changed during interpolation".to_owned());
+            }
+            let right = right.map(|frame| crate::enhance::crop(&frame, width, height));
             let flow = right.as_ref().and_then(|r| vectors(&left, r));
             for i in 0..factor {
                 if written == frames {
@@ -202,6 +217,15 @@ pub(super) fn write(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fractional_high_rates_stay_within_the_software_encoders_clock() {
+        let source = FrameRate::new(Rational::new(60_000, 1001));
+        let (input, factor, output) = interpolation_rates(source, 8);
+        assert_eq!(input, FrameRate::from_int(60));
+        assert_eq!(factor, 2);
+        assert_eq!(output, FrameRate::from_int(120));
+    }
 
     #[test]
     fn an_intermediate_picture_warps_motion_instead_of_blending_ghosts() {

@@ -250,7 +250,12 @@ fn footage(
         .video
         .as_ref()
         .ok_or_else(|| "no video stream".to_owned())?;
-    let rate = video.frame_rate;
+    // MPEG-4 Part 2 needs a timebase denominator at most 65,535.
+    let rate = if video.frame_rate.fps().numerator() > 65_535 {
+        FrameRate::from_int(video.frame_rate.fps().as_f64().round().max(1.0) as u32)
+    } else {
+        video.frame_rate
+    };
     // About how many frames the span holds, for the readout and for a
     // container that keeps no clock.
     let expected = (request.duration * rate.fps().as_f64()).max(1.0);
@@ -294,6 +299,9 @@ fn footage(
             };
             if past {
                 break;
+            }
+            if frame.width() < width || frame.height() < height {
+                return Err("the video resolution changed during reverse".to_owned());
             }
             held.push(crate::enhance::crop(&frame, width, height));
             count += 1;

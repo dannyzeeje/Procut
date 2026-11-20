@@ -120,7 +120,8 @@ export struct ClipData {
     fade-in: float,
     fade-out: float,
     smooth-fade-in: bool,
-    smooth-fade-out: bool,    /// linear gain, 1 being unity — the drawn waveform follows it
+    smooth-fade-out: bool,
+    /// linear gain, 1 being unity — the drawn waveform follows it
     volume: float,
     /// a title's words, for the body of a text clip
     text-body: string,
@@ -477,7 +478,8 @@ export struct SelectedClipData {
     fade-in: float,
     fade-out: float,
     smooth-fade-in: bool,
-    smooth-fade-out: bool,    /// The clip's first and last seconds of sound - as far as a fade
+    smooth-fade-out: bool,
+    /// The clip's first and last seconds of sound - as far as a fade
     /// can reach, half the clip and ten seconds at most - as bars in a 1x1
     /// box, for the Audio tab's fade panes; empty while the peaks are not
     /// in, and for what has no sound.

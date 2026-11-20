@@ -755,7 +755,7 @@ export component PhoneEditor inherits Rectangle {
                         }
                     }
                     RoundButton {
-                        glyph: root.multi-select ? Glyph.check : Glyph.copy;
+                        glyph: root.multi-select ? Glyph.check : Glyph.select-clips;
                         label: I18n.t("mobile.selectClips"); size: 38px;
                         foreground: root.multi-select ? Theme.accent : Theme.fg;
                         clicked => { root.multi-select = !root.multi-select; }
