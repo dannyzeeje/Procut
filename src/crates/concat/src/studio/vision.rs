@@ -837,7 +837,7 @@ impl Studio {
                 };
                 (clip_id, source_id, result)
             },
-            |studio, _, _, (clip_id, source_id, result)| {
+            move |studio, _, _, (clip_id, source_id, result)| {
                 studio.reverse_jobs.remove(&clip_id);
                 match result {
                     Ok(path) => {
