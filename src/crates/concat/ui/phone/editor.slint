@@ -1006,7 +1006,7 @@ export component PhoneEditor inherits Rectangle {
         property <length> slot: (root.width - 24px) / (self.can-merge ? 5 : 4);
         ToolItem { width: parent.slot; glyph: Glyph.copy; label: I18n.t("common.copy"); enabled: root.editing-clips; clicked => { Editor.shortcut("copy"); } }
         ToolItem { width: parent.slot; glyph: Glyph.split; label: I18n.t("phone.split"); enabled: Editor.can-trim-selection; clicked => { Editor.shortcut("split-selected"); } }
-        if parent.can-merge: ToolItem { width: parent.slot; glyph: Glyph.merge; label: Editor.merge-label; clicked => { Editor.shortcut("merge"); } }
+        if root.batch-selection && Editor.merge-blocked-because == "": ToolItem { width: parent.slot; glyph: Glyph.merge; label: Editor.merge-label; clicked => { Editor.shortcut("merge"); } }
         ToolItem { width: parent.slot; glyph: Glyph.trash; label: I18n.t("common.delete"); enabled: Editor.can-delete-selection; clicked => { Editor.delete-selected(); } }
         ToolItem { width: parent.slot; glyph: Glyph.check; label: I18n.t("mobile.done"); clicked => { root.multi-select = false; Editor.shortcut("deselect"); } }
     }
