@@ -19,6 +19,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.util.Log;
@@ -79,6 +80,7 @@ public class ConcatFiles extends Fragment {
     }
 
     private static final int REQUEST_PICK = 0xC0C4;
+    private static final int REQUEST_LUT_FOLDER = 0xC0C5;
     private static final int REQUEST_MICROPHONE = 0xC0C5;
     private static final String TAG = "concat-files";
 
@@ -791,12 +793,7 @@ public class ConcatFiles extends Fragment {
         activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                ConcatFiles fragment = new ConcatFiles();
-                activity.getFragmentManager()
-                        .beginTransaction()
-                        .add(fragment, TAG)
-                        .commitAllowingStateLoss();
-                activity.getFragmentManager().executePendingTransactions();
+                ConcatFiles fragment = pickerFragment(activity);
 
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -814,8 +811,36 @@ public class ConcatFiles extends Fragment {
         });
     }
 
+    private static ConcatFiles pickerFragment(Activity activity) {
+        ConcatFiles fragment = new ConcatFiles();
+        activity.getFragmentManager().beginTransaction()
+                .add(fragment, TAG).commitAllowingStateLoss();
+        activity.getFragmentManager().executePendingTransactions();
+        return fragment;
+    }
+
+    /** Opens Android's folder picker for a creative LUT collection. */
+    public static void pickLutFolder(final Activity activity) {
+        activity.runOnUiThread(() -> {
+            ConcatFiles fragment = pickerFragment(activity);
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+            try {
+                fragment.startActivityForResult(intent, REQUEST_LUT_FOLDER);
+            } catch (Exception error) {
+                Log.w(TAG, "Unable to open LUT folder picker", error);
+                fragment.doneFolder(null);
+            }
+        });
+    }
+
     @Override
     public void onActivityResult(int request, int result, Intent data) {
+        if (request == REQUEST_LUT_FOLDER) {
+            doneFolder(result == Activity.RESULT_OK && data != null ? data.getData() : null);
+            return;
+        }
         if (request != REQUEST_PICK) {
             return;
         }
@@ -836,13 +861,87 @@ public class ConcatFiles extends Fragment {
         done(uris);
     }
 
-    /** Copies what was picked and reports it; then the fragment goes. */
-    private void done(final List<Uri> uris) {
+    private void doneFolder(final Uri tree) {
         final Activity activity = getActivity();
+        detachPicker();
+        if (activity == null || tree == null) {
+            filesPicked(new String[0]);
+            return;
+        }
+        new Thread(() -> {
+            File staging = null;
+            try {
+                String id = DocumentsContract.getTreeDocumentId(tree);
+                Uri document = DocumentsContract.buildDocumentUriUsingTree(tree, id);
+                staging = File.createTempFile("procut-luts-", null, activity.getCacheDir());
+                if (!staging.delete() || !staging.mkdir()) {
+                    throw new IOException("Cannot create the LUT import cache directory");
+                }
+                File root = new File(staging, displayName(activity, document));
+                copyLutTree(activity, tree, id, root, 0);
+                filesPicked(new String[]{root.getAbsolutePath()});
+            } catch (Exception error) {
+                Log.w(TAG, "Unable to read the LUT folder", error);
+                if (staging != null) {
+                    discardPickerCache(staging);
+                }
+                filesPicked(new String[0]);
+            }
+        }, TAG).start();
+    }
+
+    private static void copyLutTree(Activity activity, Uri tree, String id, File folder, int depth)
+            throws IOException {
+        if (depth >= 32) {
+            return;
+        }
+        if (!folder.mkdir()) {
+            throw new IOException("Cannot create a LUT collection directory");
+        }
+        Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, id);
+        String[] columns = {
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE
+        };
+        try (Cursor cursor = activity.getContentResolver().query(children, columns, null, null, null)) {
+            if (cursor == null) {
+                throw new IOException("LUT folder provider returned no directory listing");
+            }
+            while (cursor.moveToNext()) {
+                String child = cursor.getString(0);
+                String name = safeName(cursor.getString(1));
+                Uri document = DocumentsContract.buildDocumentUriUsingTree(tree, child);
+                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(cursor.getString(2))) {
+                    copyLutTree(activity, tree, child, unique(folder, name), depth + 1);
+                } else if (name.toLowerCase(java.util.Locale.ROOT).endsWith(".cube")) {
+                    copy(activity, document, unique(folder, name));
+                }
+            }
+        }
+    }
+
+    private static void discardPickerCache(File file) {
+        File[] children = file.listFiles();
+        if (children != null) {
+            for (File child : children) {
+                discardPickerCache(child);
+            }
+        }
+        file.delete();
+    }
+
+    private void detachPicker() {
         try {
             getFragmentManager().beginTransaction().remove(this).commitAllowingStateLoss();
         } catch (Exception ignored) {
         }
+    }
+
+    /** Copies what was picked and reports it; then the fragment goes. */
+    private void done(final List<Uri> uris) {
+        final Activity activity = getActivity();
+        detachPicker();
         if (activity == null || uris.isEmpty()) {
             filesPicked(new String[0]);
             return;
@@ -886,8 +985,12 @@ public class ConcatFiles extends Fragment {
         if (name == null || name.isEmpty()) {
             name = uri.getLastPathSegment();
         }
-        if (name == null || name.isEmpty()) {
-            name = "import";
+        return safeName(name);
+    }
+
+    private static String safeName(String name) {
+        if (name == null || name.isEmpty() || name.equals(".") || name.equals("..")) {
+            return "import";
         }
         // Whatever the provider called it, it is one file name.
         return name.replace('/', '_').replace('\\', '_');

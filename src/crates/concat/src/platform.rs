@@ -780,6 +780,9 @@ pub enum PickKinds {
     },
     /// Anything else, by extension, lowercase and without the dot.
     Files(Vec<String>),
+    /// Directory tree containing creative LUTs.
+    #[cfg(target_os = "android")]
+    LutFolder,
 }
 
 #[cfg(any(target_os = "android", target_os = "ios", test))]
@@ -1123,6 +1126,23 @@ pub fn pick_files_async(
             None => log::warn!(
                 "import: wanted the system's file picker and this platform has none yet; nothing was picked"
             ),
+        }
+    }
+}
+
+/// Picks a directory of LUTs. On Android the document tree is staged in private cache.
+pub fn pick_lut_folder_async(title: &str, picked: impl FnOnce(Vec<PathBuf>) + Send + 'static) {
+    #[cfg(target_os = "android")]
+    {
+        let _ = title;
+        if let Some(picker) = FILE_PICKER.get() {
+            picker(PickKinds::LutFolder, Box::new(picked));
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        if let Some(folder) = pick_folder(title, "") {
+            picked(vec![folder]);
         }
     }
 }

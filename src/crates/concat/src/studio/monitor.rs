@@ -262,6 +262,24 @@ impl Studio {
         }
     }
 
+    fn transport_loop_span(&self) -> Option<(f32, f32)> {
+        if self.voiceover.recording() || self.session.is_none() {
+            return None;
+        }
+        let (start, end) = self
+            .preview_loop_span()
+            .or(self.phone_audio_loop)
+            .or_else(|| {
+                if !self.phone_color_workspace || !self.phone_color_loop {
+                    return None;
+                }
+                let clip = self.phone_grade_clip()?;
+                Some((clip.start as f32, (clip.start + clip.duration) as f32))
+            })?;
+        let end = end.min(self.duration());
+        (end > start).then_some((start, end))
+    }
+
     pub fn play_toggle(&mut self) {
         self.stop_glide();
         // A voiceover take owns the transport while it runs: Space, the
@@ -285,8 +303,12 @@ impl Studio {
         }
         // Playing from the tail would sit there doing nothing, so the
         // button rewinds first - what every editor does.
-        if self.playhead >= self.duration() {
-            self.playhead = 0.0;
+        if let Some((start, end)) = self.transport_loop_span() {
+            if self.playhead < start || self.playhead >= end {
+                self.seek(start);
+            }
+        } else if self.playhead >= self.duration() {
+            self.seek(0.0);
         }
         // The transport owns the monitor from here; a frame from under a
         // pointer that happens to be over the lanes must not stay on it.
@@ -310,11 +332,11 @@ impl Studio {
                         let mut studio = shell.studio.borrow_mut();
                         let end = studio.duration();
                         let mut position = studio.host.playback.position_now() as f32;
-                        if let Some((start, end)) = studio.preview_loop_span()
+                        if let Some((start, end)) = studio.transport_loop_span()
                             && end > start
                             && (position >= end || position < start)
                         {
-                            studio.seek(start);
+                            studio.host.playback.seek(f64::from(start));
                             position = start;
                             shown = None;
                         }

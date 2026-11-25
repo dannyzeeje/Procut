@@ -115,6 +115,28 @@ pub fn source_consumed(clip: &Clip, offset: f64) -> f64 {
     }
 }
 
+/// The longest the right edge can extend with the source frames still available.
+pub fn right_trim_limit(clip: &Clip, media_duration: Option<f64>) -> f64 {
+    use crate::model::ClipKind;
+
+    if !matches!(clip.kind, ClipKind::Video | ClipKind::Audio) {
+        return f64::INFINITY;
+    }
+    let Some(media_duration) = media_duration.filter(|length| length.is_finite() && *length > 0.0)
+    else {
+        return f64::INFINITY;
+    };
+    let remaining = media_duration - clip.source_start - source_consumed(clip, clip.duration);
+    let rate = clip
+        .speed_curve
+        .as_deref()
+        .and_then(engine_curve)
+        .map_or(clip.speed, |curve| curve.speed_at(1.0))
+        .max(MIN_SPEED);
+    // Legacy clips may already run past the source. Let them shorten.
+    clip.duration + remaining.max(0.0) / rate
+}
+
 /// The speed a clip starts at: its curve's first, or its rate.
 pub fn opening_speed(clip: &Clip) -> f64 {
     clip.speed_curve

@@ -23,9 +23,9 @@ impl MotionJob {
 
 fn motion_error(flow: bool, error: &str) -> String {
     if flow {
-        tf("mobile.flowCouldNotGenerate", &[error])
+        tf("mobile.flowCouldNotGenerate", &[&error])
     } else {
-        tf("studio.reverse", &[error])
+        tf("studio.reverse", &[&error])
     }
 }
 

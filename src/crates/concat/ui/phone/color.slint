@@ -6,6 +6,8 @@ import { Editor } from "../editor.slint";
 import { I18n } from "../i18n.slint";
 import { Theme } from "../theme/theme.slint";
 import { PhoneCommand } from "clip-tools.slint";
+import { Glyph } from "../icons.slint";
+import { RoundButton } from "controls.slint";
 import { PhoneValue } from "value.slint";
 
 export component PhoneColorShots inherits Flickable {
@@ -60,8 +62,6 @@ export component PhoneColorShots inherits Flickable {
 export component PhoneColorTools inherits VerticalLayout {
     in-out property <string> selected-key: "exposure";
     in property <bool> before;
-    callback compare(before: bool);
-    callback advanced();
     spacing: 4px;
 
     HorizontalLayout {
@@ -94,26 +94,7 @@ export component PhoneColorTools inherits VerticalLayout {
         wrap: word-wrap;
         vertical-alignment: center;
     }
-    HorizontalLayout {
-        spacing: 4px;
-        PhoneCommand {
-            label: I18n.t("mobile.beforeGrade");
-            selected: root.before;
-            enabled: Editor.phone-can-grade;
-            clicked => { root.compare(true); }
-        }
-        PhoneCommand {
-            label: I18n.t("mobile.afterGrade");
-            selected: !root.before;
-            enabled: Editor.phone-can-grade;
-            clicked => { root.compare(false); }
-        }
-        PhoneCommand {
-            label: I18n.t("phone.more");
-            enabled: Editor.phone-can-grade && !root.before;
-            clicked => { root.advanced(); }
-        }
-    }
+
 }
 
 export component PhoneCameraInput inherits VerticalLayout {
@@ -121,13 +102,17 @@ export component PhoneCameraInput inherits VerticalLayout {
     spacing: 8px;
 
     Text { text: I18n.t("mobile.cameraProfile"); color: Theme.fg; }
+    Text { text: I18n.t("mobile.workingColorSpace"); color: Theme.fg-muted; wrap: word-wrap; }
     Select {
         height: 48px;
         row-h: 48px;
         property <int> selected: Editor.phone-camera-profile;
         current: self.selected;
         changed selected => { self.current = self.selected; }
-        options: [I18n.t("common.off"), "Sony S-Log3 / S-Gamut3.Cine", "Sony S-Log3 / S-Gamut3", "Panasonic V-Log / V-Gamut"];
+        options: [
+            I18n.t("common.off"), "Sony S-Log3 / S-Gamut3.Cine", "Sony S-Log3 / S-Gamut3",
+            "Panasonic V-Log / V-Gamut", "Apple Log / BT.2020", "ARRI LogC3 / Wide Gamut 3 (EI 800)"
+        ];
         changed(index) => { Editor.phone-camera-input(index, Editor.phone-camera-levels); }
     }
     if Editor.phone-camera-profile > 0: VerticalLayout {
@@ -179,22 +164,26 @@ export component PhoneGradeLayers inherits VerticalLayout {
             spacing: 6px;
             HorizontalLayout {
                 spacing: 4px;
-                PhoneCommand {
+                RoundButton {
+                    size: 48px; glyph: layer.on ? Glyph.eye : Glyph.eye-off;
                     label: layer.on ? I18n.t("mobile.gradeEnabled") : I18n.t("mobile.gradeBypassed");
-                    selected: layer.on;
+                    foreground: layer.on ? Theme.accent : Theme.fg;
                     clicked => { Editor.blur(); Editor.phone-grade-layer("toggle", layer.index); }
                 }
-                PhoneCommand {
+                RoundButton {
+                    size: 48px; glyph: Glyph.chevron-up;
                     label: I18n.t("mobile.moveUp");
                     enabled: layer.up;
                     clicked => { Editor.blur(); Editor.phone-grade-layer("up", layer.index); root.active = -1; }
                 }
-                PhoneCommand {
+                RoundButton {
+                    size: 48px; glyph: Glyph.chevron-down;
                     label: I18n.t("mobile.moveDown");
                     enabled: layer.down;
                     clicked => { Editor.blur(); Editor.phone-grade-layer("down", layer.index); root.active = -1; }
                 }
-                PhoneCommand {
+                RoundButton {
+                    size: 48px; glyph: Glyph.trash;
                     label: I18n.t("common.remove");
                     clicked => { Editor.blur(); Editor.phone-grade-layer("remove", layer.index); root.active = -1; }
                 }

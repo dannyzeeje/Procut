@@ -1792,13 +1792,37 @@ impl Studio {
                 group: -1,
                 ..LibraryView::default()
             };
-            let (_, entries) = shelves(
+            let (_, mut entries) = shelves(
                 SHELF_KINDS[0],
                 &every,
                 starred,
                 &self.look_art,
                 &self.card_paths,
                 is_lut,
+            );
+            let looks = Self::looks_dir(&self.host.dirs);
+            entries.retain_mut(|entry| {
+                if !entry.user_imported {
+                    return true;
+                }
+                let folder = looks.join(entry.id.as_str());
+                if folder.join("lut-hidden").is_file() {
+                    return false;
+                }
+                entry.category = std::fs::read_to_string(folder.join("lut-category"))
+                    .ok()
+                    .filter(|label| !label.is_empty())
+                    .unwrap_or_else(|| t("mobile.uncategorizedLuts"))
+                    .into();
+                true
+            });
+            let categories: std::collections::BTreeSet<_> = entries
+                .iter()
+                .map(|entry| entry.category.to_string())
+                .collect();
+            sync(
+                &models.lut_categories,
+                categories.into_iter().map(SharedString::from).collect(),
             );
             sync(&models.catalogue_luts, entries);
             app.global::<Editor>().set_adjustment_art(

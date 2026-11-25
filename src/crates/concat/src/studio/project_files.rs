@@ -384,6 +384,9 @@ impl Studio {
         self.enhance_ticked.clear();
         self.motion_job = None;
         self.phone_color_before = None;
+        self.phone_color_workspace = false;
+        self.phone_color_loop = true;
+        self.phone_audio_loop = None;
         self.phone_audio_zoom = None;
         self.phone_edit_zoom = None;
         self.meters.phone_workspace = false;

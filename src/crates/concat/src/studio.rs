@@ -753,6 +753,7 @@ pub struct Models {
     pub catalogue_filters: Rc<VecModel<CatalogueEntryData>>,
     /// The looks made from tables, for the Adjustments page's LUTs shelf.
     pub catalogue_luts: Rc<VecModel<CatalogueEntryData>>,
+    pub lut_categories: Rc<VecModel<SharedString>>,
     pub catalogue_audio: Rc<VecModel<CatalogueEntryData>>,
     pub catalogue_transitions: Rc<VecModel<CatalogueEntryData>>,
     pub effect_groups: Rc<VecModel<SharedString>>,
@@ -866,6 +867,7 @@ impl Models {
             catalogue_effects: Rc::new(VecModel::default()),
             catalogue_filters: Rc::new(VecModel::default()),
             catalogue_luts: Rc::new(VecModel::default()),
+            lut_categories: Rc::new(VecModel::default()),
             catalogue_audio: Rc::new(VecModel::default()),
             catalogue_transitions: Rc::new(VecModel::default()),
             effect_groups: Rc::new(VecModel::default()),
@@ -1348,6 +1350,9 @@ pub struct Studio {
     motion_job: Option<vision::MotionJob>,
     /// The grade being bypassed in the monitor for a phone comparison.
     phone_color_before: Option<(String, String)>,
+    phone_color_workspace: bool,
+    phone_color_loop: bool,
+    phone_audio_loop: Option<(f32, f32)>,
     phone_audio_zoom: Option<f32>,
     phone_edit_zoom: Option<f32>,
     /// A selection being rendered into one clip, with its own cancel flag.
@@ -1614,6 +1619,7 @@ fn shelves(
             id: meta.id.as_str().into(),
             name: name.into(),
             category: category.as_str().into(),
+            user_imported: meta.id.starts_with("user.") && package.lut().is_some(),
             group: group as i32,
             description: description.into(),
             favourite: starred,
@@ -3246,6 +3252,9 @@ impl Studio {
             enhance_ticked: HashSet::new(),
             motion_job: None,
             phone_color_before: None,
+            phone_color_workspace: false,
+            phone_color_loop: true,
+            phone_audio_loop: None,
             phone_audio_zoom: None,
             phone_edit_zoom: None,
             merge_job: None,

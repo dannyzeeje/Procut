@@ -201,8 +201,39 @@ impl Studio {
         crate::host::pick_files_then(
             t("studio.importLut"),
             Some((t("studio.lut"), &["cube"])),
-            |studio, _, _, paths| studio.import_luts(paths),
+            |studio, _, _, paths| studio.import_luts(paths.into_iter().map(|path| (path, None))),
         );
+    }
+
+    /// Opens a folder picker and keeps each LUT's relative folder as its collection.
+    pub fn import_lut_folder() {
+        let _ = slint::invoke_from_event_loop(|| {
+            crate::platform::pick_lut_folder_async(&t("mobile.importLutFolder"), |paths| {
+                let Some(root) = paths.into_iter().next() else {
+                    return;
+                };
+                // SAF copies off the Android UI thread. Discover files before returning
+                // to Slint so directory providers cannot stall the monitor.
+                let _ = std::thread::Builder::new()
+                    .name("LUT folder".into())
+                    .spawn(move || {
+                        let mut files = Vec::new();
+                        let category = root.file_name().unwrap_or_default().to_string_lossy();
+                        collect_lut_folder(&root, &category, &mut files);
+                        crate::host::on_ui(move |studio, _, _| {
+                            if files.is_empty() {
+                                studio.notify(&t("mediaPane.noLutsYet"), false);
+                            } else {
+                                studio.import_luts(files);
+                            }
+                            #[cfg(target_os = "android")]
+                            if let Some(cache) = root.parent() {
+                                let _ = std::fs::remove_dir_all(cache);
+                            }
+                        });
+                    });
+            });
+        });
     }
 
     /// Imports one or more `.cube` tables as looks: each becomes a package
@@ -210,12 +241,29 @@ impl Studio {
     /// that reads it, the table (see `concat_effects::looks`) - and the
     /// catalogue is rebuilt so the Adjustments page's LUTs shelf shows
     /// them, their cards drawn by their own shaders. Says how many arrived.
-    pub fn import_luts(&mut self, paths: Vec<std::path::PathBuf>) {
+    fn import_luts(
+        &mut self,
+        paths: impl IntoIterator<Item = (std::path::PathBuf, Option<String>)>,
+    ) {
         let dir = Self::looks_dir(&self.host.dirs);
         let mut imported = 0;
-        for path in paths {
+        for (path, category) in paths {
             match concat_effects::looks::import(&dir, &path) {
                 Ok(id) => {
+                    let folder = dir.join(&id);
+                    let hidden = folder.join("lut-hidden");
+                    if hidden.is_file()
+                        && let Err(error) = std::fs::remove_file(hidden)
+                    {
+                        self.notify(&error.to_string(), true);
+                        continue;
+                    }
+                    if let Some(category) = category
+                        && let Err(error) =
+                            super::mobile_tools::write_lut_category(&folder, &category)
+                    {
+                        self.notify(&error.to_string(), true);
+                    }
                     self.look_art.borrow_mut().remove(&id);
                     imported += 1;
                 }
@@ -267,5 +315,35 @@ impl Studio {
             || self.relink.open
             || self.confirm.is_some()
             || self.speech.new_voice.open
+    }
+}
+
+fn collect_lut_folder(
+    path: &std::path::Path,
+    category: &str,
+    files: &mut Vec<(std::path::PathBuf, Option<String>)>,
+) {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
+        let child = entry.path();
+        if kind.is_dir() {
+            let name = entry.file_name();
+            collect_lut_folder(
+                &child,
+                &format!("{category} / {}", name.to_string_lossy()),
+                files,
+            );
+        } else if kind.is_file()
+            && child
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("cube"))
+        {
+            files.push((child, Some(category.to_owned())));
+        }
     }
 }

@@ -573,14 +573,15 @@ impl Studio {
         editor.set_selected_count(self.selection.len() as i32);
         if crate::platform::phone() {
             editor.set_phone_can_grade(self.phone_grade_clip().is_some());
+            let selected = self
+                .selection
+                .first()
+                .filter(|_| self.selection.len() == 1)
+                .and_then(|id| self.clip(id));
             editor.set_phone_selected_strip(
-                self.selection
-                    .first()
-                    .filter(|_| self.selection.len() == 1)
-                    .and_then(|id| self.clip(id))
-                    .map(|clip| self.strip_of(clip))
-                    .unwrap_or_default(),
+                selected.map(|clip| self.strip_of(clip)).unwrap_or_default(),
             );
+            editor.set_phone_selected_start(selected.map_or(0.0, |clip| clip.start as f32));
         }
         // The tray's undo and redo buttons grey out on these; the Edit menu
         // asks the session itself when it opens.

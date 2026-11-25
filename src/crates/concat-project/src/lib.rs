@@ -1068,6 +1068,7 @@ mod tests {
         let (mut editor, media_id, first) = fixture();
         let video = editor.project().active().tracks[0].id.clone();
         let next = lane(&mut editor, &media_id, &video, &[12.0]);
+        editor.project_mut().media[0].duration = Some(20.0);
         editor
             .apply(trim(&first, TrimEdge::End, 5.0, false))
             .expect("trims");
@@ -1398,18 +1399,22 @@ mod tests {
         editor
             .apply(trim(&first, TrimEdge::End, 3.0, true))
             .expect("lengthens");
-        assert_eq!(start_of(&editor, &behind[0]), 11.0, "makes room");
-        assert_eq!(start_of(&editor, &behind[1]), 21.0);
-        assert_eq!(start_of(&editor, &other[0]), 13.0, "and follows back");
+        assert_eq!(
+            start_of(&editor, &behind[0]),
+            10.0,
+            "makes room only for restored footage"
+        );
+        assert_eq!(start_of(&editor, &behind[1]), 20.0);
+        assert_eq!(start_of(&editor, &other[0]), 12.0, "and follows back");
 
         unlink(&mut editor);
         editor
             .apply(trim(&first, TrimEdge::End, -2.0, true))
             .expect("shortens");
-        assert_eq!(start_of(&editor, &behind[0]), 9.0);
+        assert_eq!(start_of(&editor, &behind[0]), 8.0);
         assert_eq!(
             start_of(&editor, &other[0]),
-            13.0,
+            12.0,
             "unlinked, another lane stays"
         );
     }

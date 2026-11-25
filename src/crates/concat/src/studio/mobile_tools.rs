@@ -102,46 +102,61 @@ impl Studio {
             },
         );
     }
-    /// Remove an imported look only when no timeline still needs it.
-    pub fn remove_imported_lut(&mut self, id: &str) {
+    fn imported_lut_folder(&self, id: &str) -> Option<std::path::PathBuf> {
         if !id.starts_with("user.")
             || !id
                 .bytes()
                 .all(|c| c.is_ascii_alphanumeric() || b".-_".contains(&c))
+            || !Catalogue::builtin()
+                .get(id)
+                .is_some_and(|package| package.lut().is_some())
         {
             self.notify(&t("mobile.importedLutsOnly"), true);
+            return None;
+        }
+        Some(Self::looks_dir(&self.host.dirs).join(id))
+    }
+
+    pub fn categorize_lut(&mut self, id: &str, category: &str) {
+        let Some(folder) = self.imported_lut_folder(id) else {
+            return;
+        };
+        if let Err(error) = write_lut_category(&folder, category) {
+            self.notify(&error.to_string(), true);
             return;
         }
-        if self.project().timelines.iter().any(|timeline| {
-            timeline.clips.iter().any(|clip| {
-                clip.video_effects
-                    .iter()
-                    .chain(clip.filters.iter())
-                    .any(|link| link.id == id)
-            })
-        }) {
-            self.notify(&t("mobile.lutInUse"), true);
+        *self.shelf_stamp.borrow_mut() = None;
+    }
+
+    /// Remove a look from the picker while keeping old projects renderable.
+    pub fn remove_imported_lut(&mut self, id: &str) {
+        let Some(folder) = self.imported_lut_folder(id) else {
+            return;
+        };
+        if let Err(error) = std::fs::write(folder.join("lut-hidden"), []) {
+            self.notify(&error.to_string(), true);
             return;
         }
-        let source = Self::looks_dir(&self.host.dirs).join(id);
-        let trash = self.host.dirs.config.join("removed-effects");
-        if let Err(e) = std::fs::create_dir_all(&trash).and_then(|()| {
-            std::fs::rename(
-                source,
-                trash.join(format!(
-                    "{}-{}",
-                    id,
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_nanos()
-                )),
-            )
-        }) {
-            self.notify(&e.to_string(), true);
-            return;
+        *self.shelf_stamp.borrow_mut() = None;
+    }
+}
+
+pub(super) fn write_lut_category(folder: &std::path::Path, category: &str) -> std::io::Result<()> {
+    let category: String = category
+        .trim()
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(240)
+        .collect();
+    let path = folder.join("lut-category");
+    if category.is_empty() {
+        match std::fs::remove_file(path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            result => result,
         }
-        self.look_art.borrow_mut().remove(id);
-        self.reload_packages(false);
+    } else {
+        let temporary = path.with_extension("tmp");
+        std::fs::write(&temporary, category)?;
+        std::fs::rename(temporary, path)
     }
 }

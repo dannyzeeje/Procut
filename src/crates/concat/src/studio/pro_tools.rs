@@ -15,7 +15,12 @@ pub(super) fn is_grade_layer(entry: &AppliedFilter) -> bool {
 }
 
 impl Studio {
-    pub fn phone_workspace_changed(&mut self, audio: bool) {
+    pub fn phone_workspace_changed(&mut self, mode: i32) {
+        self.phone_color_workspace = mode == 1;
+        let audio = mode == 2;
+        if !audio {
+            self.phone_audio_loop = None;
+        }
         self.flush_commit();
         self.phone_color_compare(false);
         if audio != self.meters.phone_workspace {
@@ -92,7 +97,7 @@ impl Studio {
     }
 
     pub fn phone_camera_input(&mut self, profile: i32, levels: i32) {
-        if !(0..=3).contains(&profile) || !(0..=1).contains(&levels) {
+        if !(0..=5).contains(&profile) || !(0..=1).contains(&levels) {
             return;
         }
         self.flush_commit();
@@ -198,24 +203,81 @@ impl Studio {
         }
     }
 
-    pub fn phone_low_pass_region(&mut self, start: f32, end: f32) {
-        if self.session.is_none() || !start.is_finite() || !end.is_finite() {
+    pub fn phone_trim_edge(&mut self, at_start: bool, frames: i32) {
+        if frames.abs_diff(0) != 1 {
             return;
+        }
+        let Some(id) = self.sole_selection() else {
+            return;
+        };
+        let Some(clip) = self.clip(&id) else { return };
+        if self.locked(&clip.track_id) {
+            return;
+        }
+        let frame = 1.0 / self.timeline().video.rate().max(1.0);
+        let delta = f64::from(frames) * frame;
+        if clip.duration + if at_start { -delta } else { delta } < frame - 1e-9 {
+            return;
+        }
+        self.apply(Command::TrimClip {
+            clip_id: id.clone(),
+            edge: if at_start {
+                TrimEdge::Start
+            } else {
+                TrimEdge::End
+            },
+            delta,
+            ripple: self.prefs.magnetic(),
+        });
+        if let Some(clip) = self.clip(&id) {
+            let time = if at_start {
+                clip.start
+            } else {
+                (clip.start + clip.duration - frame).max(clip.start)
+            };
+            self.seek(time as f32);
+        }
+    }
+
+    pub fn phone_color_loop(&mut self, enabled: bool) {
+        self.phone_color_loop = enabled;
+    }
+
+    pub fn phone_audio_loop(&mut self, start: f32, end: f32) {
+        self.phone_audio_loop = self
+            .meters
+            .phone_workspace
+            .then(|| self.phone_audio_span(start, end))
+            .flatten()
+            .map(|(start, end)| (start as f32, end as f32));
+    }
+
+    fn phone_audio_span(&self, start: f32, end: f32) -> Option<(f64, f64)> {
+        if self.session.is_none() || !start.is_finite() || !end.is_finite() {
+            return None;
         }
         let fps = self.timeline().video.rate().max(1.0);
         let limit = f64::from(self.duration());
         let snap = |time: f32| ((f64::from(time) * fps).round() / fps).clamp(0.0, limit);
         let (start, end) = (snap(start), snap(end));
-        let duration = end - start;
-        if duration + 1e-9 < 1.0 / fps {
+        (end - start + 1e-9 >= 1.0 / fps).then_some((start, end))
+    }
+
+    pub fn phone_filter_region(&mut self, start: f32, end: f32, high_pass: bool) {
+        let Some((start, end)) = self.phone_audio_span(start, end) else {
             return;
-        }
+        };
+        let (filter, name) = if high_pass {
+            (HIGH_PASS_ID, t("mobile.highPass"))
+        } else {
+            (LOW_PASS_ID, t("mobile.lowPass"))
+        };
         if let Some(id) = self.apply(Command::AddLayerClip {
             track_id: None,
             start,
-            duration: Some(duration),
-            effect_id: LOW_PASS_ID.to_owned(),
-            name: t("mobile.lowPass"),
+            duration: Some(end - start),
+            effect_id: filter.to_owned(),
+            name,
             sound: true,
         }) {
             self.selection = vec![id];

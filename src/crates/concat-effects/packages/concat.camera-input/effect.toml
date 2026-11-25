@@ -12,10 +12,10 @@ key = "profile"
 label = "Camera profile"
 type = "enum"
 min = 0
-max = 3
+max = 5
 default = 0
-values = [0, 1, 2, 3]
-labels = ["Off", "Sony S-Log3 / S-Gamut3.Cine", "Sony S-Log3 / S-Gamut3", "Panasonic V-Log / V-Gamut"]
+values = [0, 1, 2, 3, 4, 5]
+labels = ["Off", "Sony S-Log3 / S-Gamut3.Cine", "Sony S-Log3 / S-Gamut3", "Panasonic V-Log / V-Gamut", "Apple Log / BT.2020", "ARRI LogC3 / Wide Gamut 3 (EI 800)"]
 
 [[param]]
 key = "levels"

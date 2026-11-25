@@ -551,6 +551,8 @@ struct Shared {
     origin_micros: AtomicI64,
     epoch: std::time::Instant,
     playing: AtomicBool,
+    /// A monotonic clock keeps the picture playing while audio output is unavailable.
+    clock_only: AtomicBool,
     /// Silent while set: the clock runs on, the speakers say nothing. A
     /// voiceover takes the picture without the timeline's sound, so the
     /// speakers do not bleed into the microphone.
@@ -574,6 +576,7 @@ impl Shared {
             origin_micros: AtomicI64::new(0),
             epoch: std::time::Instant::now(),
             playing: AtomicBool::new(false),
+            clock_only: AtomicBool::new(false),
             muted: AtomicBool::new(false),
             peak_left: AtomicU32::new(0),
             peak_right: AtomicU32::new(0),
@@ -605,7 +608,12 @@ impl Shared {
             return position;
         }
         let run_on = self.now_micros() - self.origin_micros.load(Ordering::Relaxed);
-        (run_on as f64 / 1_000_000.0).clamp(position, position + COAST.as_secs_f64())
+        let now = (run_on as f64 / 1_000_000.0).max(position);
+        if self.clock_only.load(Ordering::Relaxed) {
+            now
+        } else {
+            now.min(position + COAST.as_secs_f64())
+        }
     }
 }
 
@@ -875,6 +883,9 @@ impl Playback {
 
     /// Stops playing; the position holds.
     pub fn pause(&self) {
+        if self.shared.clock_only.load(Ordering::Relaxed) {
+            self.shared.stamp(self.shared.position_now());
+        }
         self.shared.playing.store(false, Ordering::Relaxed);
         if self.fine.swap(false, Ordering::Relaxed) {
             fine_timer(false);
@@ -900,7 +911,7 @@ impl Playback {
 
     /// The clock as of now: [`Playback::position`] carried forward by the
     /// time since the device last reported, for drawing frames between its
-    /// buffers. At most [`COAST`] ahead, so a stalled device stalls it.
+    /// buffers. With no audio device it uses the monotonic clock.
     pub fn position_now(&self) -> f64 {
         self.shared.position_now()
     }
@@ -1532,8 +1543,10 @@ fn supervise_stream(
                     }
                 }
                 // `_stream` drops here, releasing the device before rebuild.
+                shared.clock_only.store(true, Ordering::Relaxed);
             }
             Err(error) => {
+                shared.clock_only.store(true, Ordering::Relaxed);
                 // Once, not every retry: a machine with no sound card would
                 // otherwise toast every backoff tick forever.
                 if !reported_missing {
@@ -1550,14 +1563,10 @@ fn supervise_stream(
                 // channel stays empty.
                 if let Ok(receiver) = rx.try_lock() {
                     while let Ok(message) = receiver.try_recv() {
-                        match message {
-                            Msg::SetClips(next) => *locked(&last_active) = next,
-                            Msg::Play(at) => {
-                                shared.stamp(at);
-                                shared.playing.store(true, Ordering::Relaxed);
-                            }
-                            Msg::Pause => shared.playing.store(false, Ordering::Relaxed),
-                            Msg::Seek(at) => shared.stamp(at),
+                        // Play, pause and seek already update the shared clock
+                        // when issued. Replaying them here would rewind it.
+                        if let Msg::SetClips(next) = message {
+                            *locked(&last_active) = next;
                         }
                     }
                 }
@@ -1625,10 +1634,11 @@ where
     // playback resumes the same clips at the shared clock's position.
     let mut clips: Vec<ActiveClip> = locked(last_active).clone();
     let mut playing = shared.playing.load(Ordering::Relaxed);
-    let mut position = shared.position();
+    let mut position = shared.position_now();
 
     let failed = Arc::new(AtomicBool::new(false));
     let rx = Arc::clone(rx);
+    let recovery_clock = Arc::clone(shared);
     let shared = Arc::clone(shared);
 
     let stream = device
@@ -1664,6 +1674,7 @@ where
                     if sought {
                         shared.stamp(position);
                     }
+                    shared.clock_only.store(false, Ordering::Relaxed);
                     data.fill(T::from_sample(0.0));
                     return;
                 }
@@ -1731,6 +1742,7 @@ where
                 }
 
                 shared.stamp(position);
+                shared.clock_only.store(false, Ordering::Relaxed);
             },
             {
                 let events = Arc::clone(events);
@@ -1739,6 +1751,7 @@ where
                     // The supervisor rebuilds on this flag; the report says
                     // why the sound hiccuped.
                     report(events.as_ref(), format!("audio stream error: {error}"));
+                    recovery_clock.clock_only.store(true, Ordering::Relaxed);
                     failed.store(true, Ordering::Relaxed);
                 }
             },

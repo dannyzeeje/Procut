@@ -67,6 +67,7 @@ export struct CatalogueEntryData {
     favourite: bool,
     /// The shelf's label, and its index into the kind's group list.
     category: string,
+    user-imported: bool,
     group: int,
     description: string,
     /// The card's still: an author's own, else the one drawn by the
@@ -3290,6 +3291,7 @@ export component AdjustPanel inherits VerticalLayout {
 /// (and a loop's lap and amount) under them. They move the whole picture
 /// where it is placed, over its keys.
 export component AnimatePanel inherits VerticalLayout {
+    in property <bool> phone;
     in property <SelectedClipData> selected;
 
     callback set(field: ClipField, value: float);
@@ -3357,6 +3359,12 @@ export component AnimatePanel inherits VerticalLayout {
         none-label: I18n.t("common.none");
         current: root.selected.motion-out;
         picked(index) => { root.set(ClipField.motion-out, index); root.commit(); }
+    }
+
+    if root.phone && root.page == 2 && root.selected.motion-loop >= 0: Button {
+        label: I18n.t("motion.removeLoop");
+        height: 48px;
+        clicked => { root.set(ClipField.motion-loop, -1); root.commit(); }
     }
 
     if root.page == 2: MotionPicker {

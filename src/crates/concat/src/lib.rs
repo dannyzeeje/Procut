@@ -573,6 +573,7 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
         editor.set_catalogue_effects(ModelRc::from(models.catalogue_effects.clone()));
         editor.set_catalogue_filters(ModelRc::from(models.catalogue_filters.clone()));
         editor.set_catalogue_luts(ModelRc::from(models.catalogue_luts.clone()));
+        editor.set_lut_categories(ModelRc::from(models.lut_categories.clone()));
         editor.set_catalogue_audio(ModelRc::from(models.catalogue_audio.clone()));
         editor.set_catalogue_transitions(ModelRc::from(models.catalogue_transitions.clone()));
         editor.set_effect_groups(ModelRc::from(models.effect_groups.clone()));
@@ -1155,6 +1156,12 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     // Nothing borrowed: the dialog is asked on a turn of its own, and the
     // files it answers with are imported there; see `host::after_dialog`.
     editor.on_library_import_lut(Studio::import_lut);
+    editor.on_library_import_lut_folder(Studio::import_lut_folder);
+    editor.on_library_categorize_lut(on_window!(
+        |state, id: SharedString, category: SharedString| {
+            state.categorize_lut(&id, &category);
+        }
+    ));
     editor.on_library_remove_lut(on_window!(|state, id: SharedString| {
         state.remove_imported_lut(&id);
     }));
@@ -1627,9 +1634,18 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     editor.on_phone_edit_finished(on_window!(|state| {
         state.phone_edit_finished();
     }));
-    editor.on_phone_workspace_changed(on_window!(|state, audio: bool| {
-        state.phone_workspace_changed(audio);
+    editor.on_phone_workspace_changed(on_window!(|state, mode: i32| {
+        state.phone_workspace_changed(mode);
     }));
+    editor.on_phone_trim_edge(on_window!(|state, at_start: bool, frames: i32| {
+        state.phone_trim_edge(at_start, frames);
+    }));
+    editor.on_phone_color_loop(|enabled| {
+        Shell::with(|shell, _| shell.studio.borrow_mut().phone_color_loop(enabled));
+    });
+    editor.on_phone_audio_loop(|start, end| {
+        Shell::with(|shell, _| shell.studio.borrow_mut().phone_audio_loop(start, end));
+    });
     editor.on_phone_camera_input(on_window!(|state, profile: i32, levels: i32| {
         state.phone_camera_input(profile, levels);
     }));
@@ -1644,9 +1660,11 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     editor.on_phone_audio_filter(on_window!(|state, high_pass: bool| {
         state.phone_audio_filter(high_pass);
     }));
-    editor.on_phone_low_pass_region(on_window!(|state, start: f32, end: f32| {
-        state.phone_low_pass_region(start, end);
-    }));
+    editor.on_phone_filter_region(on_window!(
+        |state, start: f32, end: f32, high_pass: bool| {
+            state.phone_filter_region(start, end, high_pass);
+        }
+    ));
     editor.on_phone_audio_key(on_window!(|state, from: f32, at: f32, fraction: f32| {
         state.phone_audio_key(from, at, fraction);
     }));

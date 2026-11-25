@@ -491,12 +491,13 @@ fn trimming_cuts_the_curve_so_what_is_left_plays_as_before() {
 #[test]
 fn a_tail_pulled_past_the_curve_holds_the_end_speed() {
     let (mut editor, _, id) = one_clip();
+    editor.project_mut().media[0].duration = Some(14.0);
     set_curve(&mut editor, &id, Some(straight(&RAMP)), false);
     editor
         .apply(Command::TrimClip {
             clip_id: id.clone(),
             edge: TrimEdge::End,
-            delta: 2.0,
+            delta: 8.0,
             ripple: false,
         })
         .unwrap();

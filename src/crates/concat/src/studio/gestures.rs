@@ -290,9 +290,32 @@ impl Studio {
                     }
                 } else {
                     let wanted = self.snapped(start + duration + seconds, threshold, &id);
-                    let at = wanted.min(ceiling).max(start + MIN_DURATION);
+                    let original = self.session.as_ref().map(|session| session.project());
+                    let original_clip = original
+                        .and_then(|project| project.active().clip(&id))
+                        .cloned();
+                    let limit = original_clip.as_ref().map_or(f64::INFINITY, |clip| {
+                        let length = original
+                            .and_then(|project| project.media_by_id(&clip.media_id))
+                            .and_then(|media| media.duration);
+                        concat_project::speed::right_trim_limit(clip, length)
+                    });
+                    let at = wanted
+                        .min(ceiling)
+                        .min(start + limit as f32)
+                        .max(start + MIN_DURATION);
                     if let Some(clip) = self.echo_clip_mut(&id) {
-                        clip.duration = f64::from(at - start);
+                        clip.duration = f64::from(at - start).min(limit);
+                        if let Some(original) = original_clip {
+                            clip.speed = original.speed;
+                            clip.speed_curve = original.speed_curve;
+                            concat_project::speed::refit_curve(
+                                clip,
+                                original.duration,
+                                0.0,
+                                clip.duration,
+                            );
+                        }
                     }
                     // Trim follow: the playhead on the new last frame, one
                     // frame inside the edge - at the edge itself the clip

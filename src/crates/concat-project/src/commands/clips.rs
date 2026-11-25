@@ -323,6 +323,17 @@ pub(super) fn apply(
             delta,
             ripple,
         } => {
+            let source_limit = project
+                .active()
+                .clip(&clip_id)
+                .map_or(f64::INFINITY, |clip| {
+                    speed::right_trim_limit(
+                        clip,
+                        project
+                            .media_by_id(&clip.media_id)
+                            .and_then(|media| media.duration),
+                    )
+                });
             let timeline = project.active_mut();
             let main = timeline.background_lane().map(str::to_owned);
             let Some(clip) = timeline.clip_mut(&clip_id) else {
@@ -351,6 +362,7 @@ pub(super) fn apply(
                 TrimEdge::End => {
                     let duration = (clip.duration + delta)
                         .min(ceiling - clip.start)
+                        .min(source_limit)
                         .max(MIN_CLIP_DURATION);
                     let old = clip.duration;
                     let applied = assign(&mut clip.duration, duration);

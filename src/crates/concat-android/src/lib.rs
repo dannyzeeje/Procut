@@ -247,6 +247,15 @@ mod picker {
         let types = mime_types(kinds).join(",");
         super::java::with_class(app, |env, activity, class| {
             let types = env.new_string(&types)?;
+            if matches!(kinds, concat::PickKinds::LutFolder) {
+                env.call_static_method(
+                    class,
+                    jni_str!("pickLutFolder"),
+                    jni_sig!("(Landroid/app/Activity;)V"),
+                    &[activity.into()],
+                )?;
+                return Ok(());
+            }
             env.call_static_method(
                 class,
                 jni_str!("pick"),
@@ -277,7 +286,7 @@ mod picker {
             .into_iter()
             .filter_map(|(on, kind)| on.then_some(kind))
             .collect(),
-            concat::PickKinds::Files(_) => Vec::new(),
+            concat::PickKinds::Files(_) | concat::PickKinds::LutFolder => Vec::new(),
         }
     }
 

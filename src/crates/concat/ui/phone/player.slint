@@ -10,24 +10,23 @@ export component PhoneTransport inherits Rectangle {
     callback fullscreen();
     background: Theme.page;
 
-        height: 96px;
-        HorizontalLayout {
-            x: 12px; y: 0; width: parent.width - 24px; height: 36px; spacing: 4px;
-            Text {
-                text: Fmt.frames-timecode(Editor.playhead, Editor.frame-rate) + " / " + Fmt.short-duration(Editor.preview-duration);
-                color: Theme.fg; font-size: 12px; font-family: Theme.font-technical; vertical-alignment: center; horizontal-stretch: 1;
-            }
-            RoundButton { glyph: Glyph.undo; label: I18n.t("phone.undo"); enabled: Editor.can-undo; size: 36px; clicked => { Editor.undo(); } }
-            RoundButton { glyph: Glyph.redo; label: I18n.t("phone.redo"); enabled: Editor.can-redo; size: 36px; clicked => { Editor.redo(); } }
-            RoundButton { glyph: Glyph.fit; label: I18n.t("mobile.fullscreen"); size: 36px; clicked => { root.fullscreen(); } }
-        }
-        HorizontalLayout {
-            y: 38px; width: parent.width; height: 56px; alignment: center; spacing: 16px;
-            RoundButton { glyph: Glyph.step-back; label: I18n.t("previewPane.previousFrame"); repeats: true; clicked => { Editor.step-frames(-1); } }
-            RoundButton { glyph: Editor.playing ? Glyph.pause : Glyph.play; label: Editor.playing ? I18n.t("previewPane.pause") : I18n.t("previewPane.play"); accent: true; size: 52px; clicked => { Editor.play-toggled(); } }
-            RoundButton { glyph: Glyph.step-forward; label: I18n.t("previewPane.nextFrame"); repeats: true; clicked => { Editor.step-frames(1); } }
-        }
-    
+    height: 76px;
+    Text {
+        x: 8px; y: 0; width: parent.width - 16px; height: 24px;
+        text: Fmt.frames-timecode(Editor.playhead, Editor.frame-rate) + " / " + Fmt.short-duration(Editor.preview-duration);
+        color: Theme.fg; font-size: 12px; font-family: Theme.font-technical;
+        vertical-alignment: center; horizontal-alignment: center;
+    }
+    HorizontalLayout {
+        y: 24px; width: parent.width; height: 52px;
+        alignment: center; spacing: 2px;
+        RoundButton { size: 48px; glyph: Glyph.undo; label: I18n.t("phone.undo"); enabled: Editor.can-undo; clicked => { Editor.undo(); } }
+        RoundButton { size: 48px; glyph: Glyph.redo; label: I18n.t("phone.redo"); enabled: Editor.can-redo; clicked => { Editor.redo(); } }
+        RoundButton { size: 48px; glyph: Glyph.step-back; label: I18n.t("previewPane.previousFrame"); repeats: true; clicked => { Editor.step-frames(-1); } }
+        RoundButton { glyph: Editor.playing ? Glyph.pause : Glyph.play; label: Editor.playing ? I18n.t("previewPane.pause") : I18n.t("previewPane.play"); accent: true; size: 52px; clicked => { Editor.play-toggled(); } }
+        RoundButton { size: 48px; glyph: Glyph.step-forward; label: I18n.t("previewPane.nextFrame"); repeats: true; clicked => { Editor.step-frames(1); } }
+        RoundButton { size: 48px; glyph: Glyph.fit; label: I18n.t("mobile.fullscreen"); clicked => { root.fullscreen(); } }
+    }
 }
 export component FullscreenPlayer inherits Rectangle {
     in property <string> project-name;

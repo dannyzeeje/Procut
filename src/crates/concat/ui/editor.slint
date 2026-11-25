@@ -138,6 +138,8 @@ export global Editor {
     /// Adjustments page: import `.cube` tables as looks of the user's own,
     /// which its LUTs shelf lists.
     callback library-import-lut();
+    callback library-import-lut-folder();
+    callback library-categorize-lut(id: string, category: string);
     callback library-remove-lut(id: string);
     callback replace-clip-media();
     callback export-project-package();
@@ -193,16 +195,20 @@ export global Editor {
     in-out property <[ColorShotData]> phone-color-shots;
     in-out property <[AppliedParamData]> phone-color-params;
     in-out property <StripData> phone-selected-strip;
+    in-out property <float> phone-selected-start;
+    callback phone-trim-edge(at-start: bool, frames: int);
     in-out property <[GradeLayerData]> phone-grade-layers;
     in-out property <[AppliedParamData]> phone-grade-params;
     in-out property <int> phone-camera-profile;
     in-out property <int> phone-camera-levels;
-    callback phone-workspace-changed(audio: bool);
+    callback phone-workspace-changed(mode: int);
+    callback phone-color-loop(enabled: bool);
+    callback phone-audio-loop(start: float, end: float);
     callback phone-camera-input(profile: int, levels: int);
     callback phone-grade-layer(action: string, index: int);
     callback phone-track-mix(id: string, field: string, value: float);
     callback phone-audio-filter(high-pass: bool);
-    callback phone-low-pass-region(start: float, end: float);
+    callback phone-filter-region(start: float, end: float, high-pass: bool);
     callback phone-audio-key(from: float, at: float, fraction: float);
     callback phone-audio-remove-key(at: float);
     callback phone-color-shot(id: string);
@@ -227,6 +233,7 @@ export global Editor {
     /// The looks made from tables - the user's imported LUTs - which the
     /// Adjustments page lists and the Filters page does not.
     in-out property <[CatalogueEntryData]> catalogue-luts;
+    in property <[string]> lut-categories;
     /// The adjustment layer's card: the colour panel's package at work.
     in-out property <image> adjustment-art;
     in-out property <[CatalogueEntryData]> catalogue-audio;

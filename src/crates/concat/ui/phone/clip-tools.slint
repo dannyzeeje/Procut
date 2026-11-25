@@ -39,7 +39,7 @@ export component PhoneCommand inherits Rectangle {
     }
 }
 
-component ClipFilmstrip inherits Rectangle {
+export component ClipFilmstrip inherits Rectangle {
     in property <StripData> strip;
     in property <float> playhead-at: -1;
     callback scrubbed(at: float);
