@@ -485,12 +485,14 @@ export component PhoneEditor inherits Rectangle {
         root.hide();
         root.before-grade = false;
         root.workspace-mode = mode;
+        root.multi-select = false;
         root.close-range();
         Editor.phone-color-active = root.color-mode;
         Editor.phone-workspace-changed(mode);
     }
     property <bool> editing-clips: Editor.selected-count > 0;
     property <bool> batch-selection: Editor.selected-count > 1;
+    property <bool> batch-toolbar: root.multi-select || root.batch-selection;
     property <bool> has-clip: Editor.selected-clip.present;
     property <ClipKind> kind: Editor.selected-clip.kind;
     property <bool> is-video: !Editor.selected-clip.batch-volume && root.kind == ClipKind.video;
@@ -997,25 +999,25 @@ export component PhoneEditor inherits Rectangle {
         Editor.clip-context(Editor.primary-selected-id);
         root.show("tools", true);
     }
-    if root.batch-selection && root.workspace-mode == 0: HorizontalLayout {
+    if root.batch-toolbar && root.workspace-mode == 0: HorizontalLayout {
         x: 0; y: root.tools-y; width: root.width; height: root.bar-h;
         padding-left: 12px; padding-right: 12px; spacing: 0px;
-        property <bool> can-merge: Editor.merge-blocked-because == "";
+        property <bool> can-merge: root.batch-selection && Editor.merge-blocked-because == "";
         property <length> slot: (root.width - 24px) / (self.can-merge ? 5 : 4);
-        ToolItem { width: parent.slot; glyph: Glyph.check; label: I18n.t("mobile.done"); clicked => { root.multi-select = false; Editor.shortcut("deselect"); } }
-        ToolItem { width: parent.slot; glyph: Glyph.copy; label: I18n.t("common.copy"); clicked => { Editor.shortcut("copy"); } }
+        ToolItem { width: parent.slot; glyph: Glyph.copy; label: I18n.t("common.copy"); enabled: root.editing-clips; clicked => { Editor.shortcut("copy"); } }
         ToolItem { width: parent.slot; glyph: Glyph.split; label: I18n.t("phone.split"); enabled: Editor.can-trim-selection; clicked => { Editor.shortcut("split-selected"); } }
+        if parent.can-merge: ToolItem { width: parent.slot; glyph: Glyph.merge; label: Editor.merge-label; clicked => { Editor.shortcut("merge"); } }
         ToolItem { width: parent.slot; glyph: Glyph.trash; label: I18n.t("common.delete"); enabled: Editor.can-delete-selection; clicked => { Editor.delete-selected(); } }
-        if Editor.merge-blocked-because == "": ToolItem { width: parent.slot; glyph: Glyph.merge; label: Editor.merge-label; clicked => { Editor.shortcut("merge"); } }
+        ToolItem { width: parent.slot; glyph: Glyph.check; label: I18n.t("mobile.done"); clicked => { root.multi-select = false; Editor.shortcut("deselect"); } }
     }
-    if root.editing-clips && !root.batch-selection && root.workspace-mode == 0: HorizontalLayout {
+    if root.editing-clips && !root.batch-toolbar && root.workspace-mode == 0: HorizontalLayout {
         x: 0; y: root.tools-y; width: root.width; height: root.bar-h;
         padding-left: 12px; padding-right: 12px; spacing: 0px;
         property <int> slots: root.is-video ? 6 : root.is-picture ? 5 : 4;
         property <length> slot: (root.width - 24px) / self.slots;
         ToolItem {
             width: parent.slot;
-            glyph: root.is-audio ? Glyph.volume : root.is-text ? Glyph.text-mark : root.is-picture ? Glyph.frame : Glyph.sliders;
+            glyph: root.is-audio ? Glyph.volume : root.is-text ? Glyph.text-mark : Glyph.sliders;
             label: root.is-audio ? I18n.t("common.audio") : root.is-text ? I18n.t("common.text")
                 : root.is-picture ? I18n.t("clipInspector.transform") : I18n.t("phone.edit");
             clicked => {
@@ -1029,7 +1031,7 @@ export component PhoneEditor inherits Rectangle {
         if root.is-video: ToolItem { width: parent.slot; glyph: Glyph.clock; label: I18n.t("common.speed"); clicked => { root.show("clip-speed", true); } }
         ToolItem { width: parent.slot; glyph: Glyph.more; label: I18n.t("phone.more"); clicked => { root.show-clip-actions(); } }
     }
-    if !root.editing-clips && root.workspace-mode == 0: ToolStrip {
+    if !root.editing-clips && !root.batch-toolbar && root.workspace-mode == 0: ToolStrip {
         y: root.tools-y; width: root.width; height: root.bar-h;
         for tool in Editor.mobile-quick-tools: ToolItem { glyph: tool.glyph; label: tool.label; clicked => { root.activate-tool(tool.id); } }
         ToolItem { glyph: Glyph.more; label: I18n.t("mobile.allTools"); clicked => { root.show("tools", false); } }
