@@ -201,7 +201,7 @@ impl Studio {
         crate::host::pick_files_then(
             t("studio.importLut"),
             Some((t("studio.lut"), &["cube"])),
-            |studio, _, _, paths| studio.import_luts(paths.into_iter().map(|path| (path, None))),
+            |studio, _, _, files| studio.import_luts(files, None),
         );
     }
 
@@ -212,26 +212,7 @@ impl Studio {
                 let Some(root) = paths.into_iter().next() else {
                     return;
                 };
-                // SAF copies off the Android UI thread. Discover files before returning
-                // to Slint so directory providers cannot stall the monitor.
-                let _ = std::thread::Builder::new()
-                    .name("LUT folder".into())
-                    .spawn(move || {
-                        let mut files = Vec::new();
-                        let category = root.file_name().unwrap_or_default().to_string_lossy();
-                        collect_lut_folder(&root, &category, &mut files);
-                        crate::host::on_ui(move |studio, _, _| {
-                            if files.is_empty() {
-                                studio.notify(&t("mediaPane.noLutsYet"), false);
-                            } else {
-                                studio.import_luts(files);
-                            }
-                            #[cfg(target_os = "android")]
-                            if let Some(cache) = root.parent() {
-                                let _ = std::fs::remove_dir_all(cache);
-                            }
-                        });
-                    });
+                crate::host::on_ui(move |studio, _, _| studio.import_luts(Vec::new(), Some(root)));
             });
         });
     }
@@ -241,49 +222,62 @@ impl Studio {
     /// that reads it, the table (see `concat_effects::looks`) - and the
     /// catalogue is rebuilt so the Adjustments page's LUTs shelf shows
     /// them, their cards drawn by their own shaders. Says how many arrived.
-    fn import_luts(
-        &mut self,
-        paths: impl IntoIterator<Item = (std::path::PathBuf, Option<String>)>,
-    ) {
+    fn import_luts(&mut self, files: Vec<std::path::PathBuf>, root: Option<std::path::PathBuf>) {
         let dir = Self::looks_dir(&self.host.dirs);
-        let mut imported = 0;
-        for (path, category) in paths {
-            match concat_effects::looks::import(&dir, &path) {
-                Ok(id) => {
-                    let folder = dir.join(&id);
-                    let hidden = folder.join("lut-hidden");
-                    if hidden.is_file()
-                        && let Err(error) = std::fs::remove_file(hidden)
-                    {
-                        self.notify(&error.to_string(), true);
-                        continue;
-                    }
-                    if let Some(category) = category
-                        && let Err(error) =
-                            super::mobile_tools::write_lut_category(&folder, &category)
-                    {
-                        self.notify(&error.to_string(), true);
-                    }
-                    self.look_art.borrow_mut().remove(&id);
-                    imported += 1;
+        spawn(
+            move || {
+                // Serialize writes to a look so a second import cannot see an
+                // incomplete package or overwrite the first one's folder.
+                static IMPORTS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+                let _import = IMPORTS
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let mut paths: Vec<_> = files.into_iter().map(|file| (file, None)).collect();
+                if let Some(root) = root.as_ref() {
+                    let category = root.file_name().unwrap_or_default().to_string_lossy();
+                    collect_lut_folder(root, &category, &mut paths);
                 }
-                Err(error) => {
-                    self.notify(
-                        &tf("studio.couldNotImport", &[&path.display(), &error]),
+                let empty = paths.is_empty();
+                let mut imported = 0;
+                let mut errors = Vec::new();
+                for (path, category) in paths {
+                    let saved = concat_effects::looks::import(&dir, &path).and_then(|id| {
+                        restore_lut(&dir.join(id), category.as_deref())
+                            .map_err(|error| error.to_string())
+                    });
+                    match saved {
+                        Ok(()) => imported += 1,
+                        Err(error) => errors.push((path, error)),
+                    }
+                }
+                #[cfg(target_os = "android")]
+                if let Some(cache) = root.as_deref().and_then(std::path::Path::parent) {
+                    let _ = std::fs::remove_dir_all(cache);
+                }
+                (imported, errors, empty)
+            },
+            |studio, _, _, (imported, errors, empty)| {
+                if empty {
+                    studio.notify(&t("mediaPane.noLutsYet"), false);
+                    return;
+                }
+                if imported > 0 {
+                    *studio.shelf_stamp.borrow_mut() = None;
+                }
+                let loaded = imported > 0 && studio.reload_packages(false) == 0;
+                if let Some((path, error)) = errors.first() {
+                    for (path, error) in &errors {
+                        log::warn!("LUT import failed for {}: {error}", path.display());
+                    }
+                    studio.notify(
+                        &tf("studio.couldNotImport", &[&path.display(), error]),
                         true,
                     );
+                } else if loaded {
+                    studio.notify(&tf("studio.importedLutsFindThem", &[&imported]), false);
                 }
-            }
-        }
-        if imported == 0 {
-            return;
-        }
-        // A look that will not load has its reason on screen; the count of
-        // the rest would only cover it.
-        if self.reload_packages(false) > 0 {
-            return;
-        }
-        self.notify(&tf("studio.importedLutsFindThem", &[&imported]), false);
+            },
+        );
     }
 
     pub fn save_template(&mut self) {
@@ -345,5 +339,15 @@ fn collect_lut_folder(
         {
             files.push((child, Some(category.to_owned())));
         }
+    }
+}
+
+fn restore_lut(folder: &std::path::Path, category: Option<&str>) -> std::io::Result<()> {
+    if let Some(category) = category {
+        super::mobile_tools::write_lut_category(folder, category)?;
+    }
+    match std::fs::remove_file(folder.join("lut-hidden")) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        result => result,
     }
 }

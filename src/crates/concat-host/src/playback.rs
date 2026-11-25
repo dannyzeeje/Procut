@@ -1803,6 +1803,20 @@ mod tests {
         );
     }
 
+    #[test]
+    fn missing_audio_output_can_keep_the_video_clock_running() {
+        let shared = Shared::new();
+        shared.playing.store(true, Ordering::Relaxed);
+        shared.clock_only.store(true, Ordering::Relaxed);
+        shared.stamp(5.0);
+        shared.origin_micros.fetch_sub(1_000_000, Ordering::Relaxed);
+        assert!(shared.position_now() >= 6.0);
+        shared.stamp(2.0);
+        assert!((2.0..2.1).contains(&shared.position_now()));
+        shared.playing.store(false, Ordering::Relaxed);
+        assert_eq!(shared.position_now(), 2.0);
+    }
+
     /// A minimal RIFF/WAVE: fmt chunk, then a data chunk with `samples`.
     fn wav(data_size: u32, samples: &[u8]) -> Vec<u8> {
         let mut bytes = Vec::new();

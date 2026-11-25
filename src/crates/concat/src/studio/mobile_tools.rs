@@ -102,7 +102,7 @@ impl Studio {
             },
         );
     }
-    fn imported_lut_folder(&self, id: &str) -> Option<std::path::PathBuf> {
+    fn imported_lut_folder(&mut self, id: &str) -> Option<std::path::PathBuf> {
         if !id.starts_with("user.")
             || !id
                 .bytes()

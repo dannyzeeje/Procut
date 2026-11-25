@@ -895,6 +895,8 @@ export component PhoneEditor inherits Rectangle {
                             Editor.finger-held();
                             self.origin = self.absolute-position.x + self.mouse-x;
                             self.initial = is-start ? root.region-start : root.region-end;
+                        } else if (event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel) {
+                            Editor.finger-lifted();
                         }
                     }
                     moved => {
@@ -1163,7 +1165,7 @@ export component PhoneEditor inherits Rectangle {
                     label: I18n.t("mediaPane.importALut");
                     clicked => { Editor.library-import-lut(); }
                 }
-                PhoneCommand {
+                if Editor.lut-folder-picker: PhoneCommand {
                     label: I18n.t("mobile.importLutFolder");
                     clicked => { Editor.library-import-lut-folder(); }
                 }
