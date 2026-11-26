@@ -390,6 +390,7 @@ impl Studio {
         self.phone_range_preview = None;
         self.phone_pair_generation = self.phone_pair_generation.wrapping_add(1);
         self.phone_pair_busy = false;
+        self.phone_crop_lock = false;
         self.phone_pair_pending = None;
         self.phone_audio_zoom = None;
         self.phone_edit_zoom = None;

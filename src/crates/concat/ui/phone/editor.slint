@@ -531,6 +531,7 @@ export component PhoneEditor inherits Rectangle {
     property <int> transform-control;
     property <bool> trim-start: true;
     property <int> crop-side;
+    property <bool> crop-lock;
     property <[string]> crop-labels: [
         I18n.t("common.left"), I18n.t("common.top"), I18n.t("common.right"), I18n.t("common.bottom")
     ];
@@ -582,6 +583,7 @@ export component PhoneEditor inherits Rectangle {
     }
 
     function show(name: string, needs-clip: bool) {
+        if (root.sheet == "clip-crop" && name != "clip-crop") { root.crop-lock = false; Editor.phone-crop-lock(false); }
         if (name != "audio-range" && root.audio-region) { root.close-range(); }
         if (name != "color-compare" && root.before-grade) { root.compare-grade(false); }
         root.expanded-tool = false;
@@ -611,6 +613,7 @@ export component PhoneEditor inherits Rectangle {
     }
     function set-fullscreen(on: bool) { Editor.preview-fullscreen = on; Editor.preview-fullscreen-changed(on); }
     function hide() {
+        if (root.crop-lock) { root.crop-lock = false; Editor.phone-crop-lock(false); }
         root.split-compare = false;
         Editor.phone-preview-pair("", false);
         if (root.audio-region) { root.close-range(); }
@@ -1352,9 +1355,8 @@ export component PhoneEditor inherits Rectangle {
                             label: lut.name;
                             enabled: root.can-grade || root.sheet == "project-luts";
                             clicked => {
-                                Editor.library-apply-lut(lut.id, lut.name);
-                                if (root.sheet == "clip-luts") { root.show("grade-layers", true); }
-                                else { root.hide(); }
+                                if (root.sheet == "clip-luts") { Editor.effect-preview("effect", lut.id, lut.name); }
+                                else { Editor.library-apply-lut(lut.id, lut.name); root.hide(); }
                             }
                         }
                         if lut.user-imported: RoundButton {
@@ -1693,6 +1695,20 @@ export component PhoneEditor inherits Rectangle {
 
         if root.sheet == "clip-crop": VerticalLayout {
             spacing: 6px;
+            HorizontalLayout {
+                spacing: 6px;
+                Select {
+                    height: 48px; row-h: 48px;
+                    options: [I18n.t("mobile.resetCrop"), "1:1", "16:9", "9:16", "4:3"];
+                    current: -1; placeholder: I18n.t("mobile.cropRatio");
+                    changed(index) => { Editor.phone-crop-preset(index == 0 ? 0 : index == 1 ? 1 : index == 2 ? 16.0 / 9.0 : index == 3 ? 9.0 / 16.0 : 4.0 / 3.0); }
+                }
+                RoundButton {
+                    size: 48px; glyph: root.crop-lock ? Glyph.lock : Glyph.unlock;
+                    label: I18n.t("mobile.lockCropRatio"); foreground: root.crop-lock ? Theme.accent : Theme.fg;
+                    clicked => { root.crop-lock = !root.crop-lock; Editor.phone-crop-lock(root.crop-lock); }
+                }
+            }
             HorizontalLayout {
                 spacing: 4px;
                 for name[i] in root.crop-labels: PhoneCommand {
@@ -2207,10 +2223,18 @@ export component PhoneEditor inherits Rectangle {
     }
 
     if Editor.effect-preview-active: Rectangle {
-        y: root.height - 64px; width: root.width; height: 64px; background: Theme.panel;
+        y: (root.docked-sheet ? root.tools-y : root.height) - 64px; width: root.width; height: 64px; background: Theme.panel;
         HorizontalLayout { padding: 10px; spacing: 12px;
             SheetButton { glyph: Glyph.close; label: I18n.t("common.cancel"); clicked => { Editor.effect-preview-finish(false); } }
-            SheetButton { glyph: Glyph.check; primary: true; label: I18n.t("common.apply"); clicked => { Editor.effect-preview-finish(true); root.hide(); } }
+            SheetButton { glyph: Glyph.check; primary: true; label: I18n.t("common.apply"); clicked => {
+                Editor.effect-preview-finish(true);
+                if (root.sheet == "clip-luts" && root.can-grade) {
+                    root.show("grade-layers", true);
+                    if (Editor.phone-grade-layers.length > 0) {
+                        root.active-grade = Editor.phone-grade-layers[Editor.phone-grade-layers.length - 1].index;
+                    }
+                } else { root.hide(); }
+            } }
         }
     }
     // ── the Add bar ──────────────────────────────────────────────────

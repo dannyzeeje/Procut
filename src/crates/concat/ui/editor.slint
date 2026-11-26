@@ -197,6 +197,8 @@ export global Editor {
     in-out property <StripData> phone-selected-strip;
     in-out property <float> phone-selected-start;
     callback phone-trim-edge(at-start: bool, frames: int);
+    callback phone-crop-preset(ratio: float);
+    callback phone-crop-lock(on: bool);
     in-out property <[GradeLayerData]> phone-grade-layers;
     in-out property <[AppliedParamData]> phone-grade-params;
     in-out property <int> phone-camera-profile;

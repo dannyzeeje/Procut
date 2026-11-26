@@ -204,6 +204,42 @@ impl Studio {
         }
     }
 
+    pub fn phone_crop_lock(&mut self, on: bool) {
+        self.phone_crop_lock = on;
+    }
+
+    pub fn phone_crop_preset(&mut self, ratio: f32) {
+        self.flush_commit();
+        let Some(clip) = self.phone_grade_clip() else {
+            return;
+        };
+        let crop = if ratio == 0.0 {
+            None
+        } else {
+            let Some(media) = self.project().media_by_id(&clip.media_id) else {
+                return;
+            };
+            let Some((width, height)) = media.width.zip(media.height) else {
+                return;
+            };
+            if width == 0 || height == 0 {
+                return;
+            }
+            let ratio = f64::from(ratio) * f64::from(height) / f64::from(width);
+            let Some(crop) = model::Crop::centred_ratio(ratio) else {
+                return;
+            };
+            (!crop.is_none()).then_some(crop)
+        };
+        self.apply(Command::UpdateClip {
+            clip_id: clip.id.clone(),
+            patch: ClipPatch {
+                crop: Some(crop),
+                ..Default::default()
+            },
+        });
+    }
+
     pub fn phone_trim_edge(&mut self, at_start: bool, frames: i32) {
         if frames.abs_diff(0) != 1 {
             return;

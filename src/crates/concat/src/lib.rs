@@ -1638,6 +1638,12 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     editor.on_phone_workspace_changed(on_window!(|state, mode: i32| {
         state.phone_workspace_changed(mode);
     }));
+    editor.on_phone_crop_preset(on_window!(|state, ratio: f32| {
+        state.phone_crop_preset(ratio);
+    }));
+    editor.on_phone_crop_lock(|on| {
+        Shell::with(|shell, _| shell.studio.borrow_mut().phone_crop_lock(on));
+    });
     editor.on_phone_trim_edge(on_window!(|state, at_start: bool, frames: i32| {
         state.phone_trim_edge(at_start, frames);
     }));

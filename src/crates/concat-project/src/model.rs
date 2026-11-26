@@ -765,6 +765,70 @@ pub struct Crop {
 }
 
 impl Crop {
+    /// Crop the largest centred window of a fractionally scaled aspect.
+    pub fn centred_ratio(ratio: f64) -> Option<Self> {
+        if !(0.1..=10.0).contains(&ratio) {
+            return None;
+        }
+        let x = (1.0 - ratio.min(1.0)) / 2.0;
+        let y = (1.0 - (1.0 / ratio).min(1.0)) / 2.0;
+        Some(Self {
+            left: x,
+            right: x,
+            top: y,
+            bottom: y,
+        })
+    }
+
+    /// Resize a side while holding the cropped aspect and its opposite
+    /// edge. Keep the orthogonal centre when there is enough room for it.
+    pub fn drag_side(self, edge: usize, delta: f64, lock_ratio: bool) -> Self {
+        let across = edge % 2 == 0;
+        let (mut leading, mut trailing, mut cross_leading, mut cross_trailing) = if across {
+            (self.left, self.right, self.top, self.bottom)
+        } else {
+            (self.top, self.bottom, self.left, self.right)
+        };
+        let ratio =
+            (1.0 - leading - trailing).max(0.1) / (1.0 - cross_leading - cross_trailing).max(0.1);
+        let (dragged, held) = if edge < 2 {
+            (&mut leading, trailing)
+        } else {
+            (&mut trailing, leading)
+        };
+        let available = 1.0 - held;
+        let span = available - *dragged - delta;
+        let span = if lock_ratio {
+            let max = available.min(ratio).max(0.1);
+            let span = span.clamp((ratio * 0.1).max(0.1).min(max), max);
+            let cross = (span / ratio).clamp(0.1, 1.0);
+            let middle = ((1.0 + cross_leading - cross_trailing) / 2.0)
+                .clamp(cross / 2.0, 1.0 - cross / 2.0);
+            cross_leading = middle - cross / 2.0;
+            cross_trailing = 1.0 - middle - cross / 2.0;
+            span
+        } else {
+            span.clamp(0.1, available.max(0.1))
+        };
+        *dragged = available - span;
+        if across {
+            Self {
+                left: leading,
+                right: trailing,
+                top: cross_leading,
+                bottom: cross_trailing,
+            }
+        } else {
+            Self {
+                top: leading,
+                bottom: trailing,
+                left: cross_leading,
+                right: cross_trailing,
+            }
+        }
+        .tidy()
+    }
+
     /// True when nothing is cut.
     pub fn is_none(&self) -> bool {
         self.left <= 0.0 && self.top <= 0.0 && self.right <= 0.0 && self.bottom <= 0.0
@@ -3943,6 +4007,20 @@ impl Timeline {
 #[cfg(test)]
 mod shape_tests {
     use super::*;
+
+    #[test]
+    fn ratio_locked_crop_keeps_the_opposite_side_and_aspect() {
+        let original = Crop::centred_ratio(0.5625).expect("a portrait crop");
+        let ratio = |crop: Crop| (1.0 - crop.left - crop.right) / (1.0 - crop.top - crop.bottom);
+        for edge in 0..4 {
+            for delta in [-0.7, -0.1, 0.1, 0.7] {
+                let cropped = original.drag_side(edge, delta, true);
+                assert!((ratio(cropped) - ratio(original)).abs() < 1e-10);
+                let opposite = |c: Crop| [c.right, c.bottom, c.left, c.top][edge];
+                assert!((opposite(cropped) - opposite(original)).abs() < 1e-10);
+            }
+        }
+    }
 
     #[test]
     fn a_shape_written_before_heights_reads_as_it_was_drawn() {

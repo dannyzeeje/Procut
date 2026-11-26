@@ -732,14 +732,7 @@ impl Studio {
                 axis,
             } => {
                 let delta = (x - from.0) * axis.0 + (y - from.1) * axis.1;
-                let mut crop = *original;
-                let (edge, opposite) = match edge {
-                    0 => (&mut crop.left, crop.right),
-                    1 => (&mut crop.top, crop.bottom),
-                    2 => (&mut crop.right, crop.left),
-                    _ => (&mut crop.bottom, crop.top),
-                };
-                *edge = (*edge + delta).clamp(0.0, (0.9 - opposite).max(0.0));
+                let crop = original.drag_side(*edge, delta, self.phone_crop_lock);
                 if let Some(clip) = self.echo_clip_mut(clip) {
                     clip.crop = (!crop.is_none()).then_some(crop);
                 }
