@@ -45,6 +45,8 @@ pub fn clamp_speed(speed: f64) -> f64 {
 /// One audible clip, in timeline terms.
 #[derive(Clone, Debug)]
 pub struct AudioClip {
+    /// Timeline track index, used by scoped sound layers.
+    pub track: usize,
     /// The media file.
     pub path: std::path::PathBuf,
     /// Which of the file's audio streams, by stream index; `None` is the
@@ -181,6 +183,8 @@ impl AudioClip {
 /// several.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AudioBus {
+    /// An individual track to process, or None for the master mix.
+    pub target: Option<usize>,
     /// Where the span starts on the timeline, in seconds.
     pub start: f64,
     /// How long it runs, in seconds.
@@ -413,7 +417,7 @@ const BUS_EDGE: f64 = 0.002;
 /// taken `strength` of the untreated one's place. The chain is fed only
 /// what plays inside the span, so an echo does not repeat what came before
 /// the layer, and what it rings on with past the span is cut at the end.
-fn bus_stage(index: usize, bus: &AudioBus, origin: f64) -> String {
+fn bus_stage(prefix: &str, index: usize, bus: &AudioBus, origin: f64) -> String {
     let start = (bus.start - origin).max(0.0);
     let end = start + bus.duration.max(0.0);
     let edge = BUS_EDGE.min(bus.duration / 2.0).max(1e-4);
@@ -429,7 +433,7 @@ fn bus_stage(index: usize, bus: &AudioBus, origin: f64) -> String {
         (end - ramp_out).max(start)
     );
     let chain = &bus.filter_chain;
-    let (here, next) = (format!("s{index}"), format!("s{}", index + 1));
+    let (here, next) = (format!("{prefix}{index}"), format!("{prefix}{}", index + 1));
     // Restamped after the sum, as before the first stage: a chain's
     // output need not stamp its frames the way its input did, and the
     // next stage's fades are placed by the stamps.
@@ -439,6 +443,18 @@ fn bus_stage(index: usize, bus: &AudioBus, origin: f64) -> String {
          [{here}t]{gate},{chain},{ramp},volume={strength:.6}[{here}w];\
          [{here}d][{here}n][{here}w]amix=inputs=3:normalize=0,aresample={MIX_RATE},asetpts=N/SR/TB[{next}]"
     )
+}
+
+fn sum_inputs(inputs: &[String], output: &str) -> String {
+    match inputs {
+        [] => format!("anullsrc=r={MIX_RATE}:cl=stereo[{output}]"),
+        [input] => format!("{input}anull[{output}]"),
+        _ => format!(
+            "{}amix=inputs={}:normalize=0[{output}]",
+            inputs.concat(),
+            inputs.len()
+        ),
+    }
 }
 
 /// The graph for `clips`, each heard as `heard` says, on a clock that
@@ -535,17 +551,37 @@ fn mix_graph_from(
         chains.push(stage);
     }
 
-    let inputs: String = (0..clips.len())
-        .map(|index| format!("[a{index}]"))
-        .collect();
-    let mix = match clips.len() {
-        // Nothing to hear: silence, for as long as it is read, so a window
-        // with no clip in it still comes out its length.
-        0 => format!("anullsrc=r={MIX_RATE}:cl=stereo[mixed]"),
-        // amix with one input would still apply its normalisation curve.
-        1 => format!("{inputs}anull[mixed]"),
-        count => format!("{inputs}amix=inputs={count}:normalize=0[mixed]"),
-    };
+    let mut targets = std::collections::BTreeMap::<usize, Vec<&AudioBus>>::new();
+    for bus in buses.iter().filter(|bus| bus.audible()) {
+        if let Some(target) = bus.target {
+            targets.entry(target).or_default().push(bus);
+        }
+    }
+    let mut master_inputs = Vec::new();
+    let mut branches = std::collections::BTreeMap::<usize, Vec<String>>::new();
+    for (index, clip) in clips.iter().enumerate() {
+        let input = format!("[a{index}]");
+        if targets.contains_key(&clip.track) {
+            branches.entry(clip.track).or_default().push(input);
+        } else {
+            master_inputs.push(input);
+        }
+    }
+    for (track, inputs) in branches {
+        let prefix = format!("track{track}_");
+        let mixed = format!("{prefix}mixed");
+        chains.push(sum_inputs(&inputs, &mixed));
+        chains.push(format!(
+            "[{mixed}]aresample={MIX_RATE},asetpts=N/SR/TB[{prefix}0]"
+        ));
+        let stages = &targets[&track];
+        for (index, bus) in stages.iter().enumerate() {
+            validate_chain(&bus.filter_chain)?;
+            chains.push(bus_stage(&prefix, index, bus, origin));
+        }
+        master_inputs.push(format!("[{prefix}{}]", stages.len()));
+    }
+    let mix = sum_inputs(&master_inputs, "mixed");
 
     // The `aresample` is load-bearing, and not about sample rates.
     //
@@ -584,10 +620,13 @@ fn mix_graph_from(
     // and the resampler left on it.
     let mut stages = String::new();
     let mut count = 0;
-    for bus in buses.iter().filter(|bus| bus.audible()) {
+    for bus in buses
+        .iter()
+        .filter(|bus| bus.target.is_none() && bus.audible())
+    {
         validate_chain(&bus.filter_chain)?;
         stages.push(';');
-        stages.push_str(&bus_stage(count, bus, origin));
+        stages.push_str(&bus_stage("s", count, bus, origin));
         count += 1;
     }
     chains.push(if count == 0 {
@@ -1363,6 +1402,7 @@ mod tests {
 
     fn clip(path: &str) -> AudioClip {
         AudioClip {
+            track: 0,
             path: path.into(),
             stream: None,
             start: 0.0,
@@ -1410,6 +1450,7 @@ mod tests {
     #[test]
     fn a_changing_rate_is_one_tempo_chain_stepped_by_commands() {
         let mut clip = AudioClip {
+            track: 0,
             path: "a.wav".into(),
             stream: None,
             start: 0.0,
@@ -1699,6 +1740,7 @@ mod tests {
             for (source_start, want) in [(0.0, 0.5), (0.2, 0.3)] {
                 let source = format!("{}/fixtures/{fixture}", env!("CARGO_MANIFEST_DIR"));
                 let piece = AudioClip {
+                    track: 0,
                     duration: 1.0,
                     source_start,
                     ..clip(&source)
@@ -1744,6 +1786,7 @@ mod tests {
         let output = dir.join("concat-mix-trim-out.m4a");
         silent_aac(&source, 6.0);
         let piece = |start: f64, source_start: f64, duration: f64| AudioClip {
+            track: 0,
             path: source.clone(),
             stream: None,
             start,
@@ -1784,6 +1827,7 @@ mod tests {
 
     fn bus(start: f64, duration: f64, chain: &str) -> AudioBus {
         AudioBus {
+            target: None,
             start,
             duration,
             filter_chain: chain.to_owned(),
@@ -1899,6 +1943,43 @@ mod tests {
     }
 
     #[test]
+    fn a_scoped_region_leaves_other_tracks_and_times_audible() {
+        let path =
+            std::env::temp_dir().join(format!("concat-track-range-{}.wav", std::process::id()));
+        tone_wav(&path, 2.0);
+        let a = AudioClip {
+            track: 2,
+            path: path.clone(),
+            duration: 2.0,
+            volume: 0.5,
+            ..clip("")
+        };
+        let b = AudioClip {
+            track: 3,
+            ..a.clone()
+        };
+        let mut one_bus = bus(0.5, 1.0, "volume=0");
+        one_bus.target = Some(2);
+        let mut bytes = Vec::new();
+        mix_pcm(&[a, b], &[one_bus], 0.0, 2.0, |chunk| {
+            bytes.extend_from_slice(chunk);
+            Ok(())
+        })
+        .expect("mixes");
+        let _ = std::fs::remove_file(path);
+        let peak = |from: f64, until: f64| {
+            let sample = |t: f64| (t * f64::from(MIX_RATE)) as usize * 4;
+            bytes[sample(from)..sample(until)]
+                .chunks_exact(4)
+                .map(|frame| (f32::from(i16::from_le_bytes([frame[0], frame[1]])) / 32768.0).abs())
+                .fold(0.0_f32, f32::max)
+        };
+        assert!((peak(0.1, 0.3) - 0.5).abs() < 0.02);
+        assert!((peak(0.8, 1.2) - 0.25).abs() < 0.02);
+        assert!((peak(1.65, 1.85) - 0.5).abs() < 0.02);
+    }
+
+    #[test]
     fn saving_audio_as_wav_writes_pcm_that_decodes_with_the_expected_samples() {
         use crate::{AudioDecoder, AudioOptions};
 
@@ -1913,6 +1994,7 @@ mod tests {
         let duration = 6007.0 / f64::from(MIX_RATE);
         for (input, extension) in [(&source, "wav"), (&video, "WAV")] {
             let piece = AudioClip {
+                track: 0,
                 path: input.clone(),
                 source_start: 0.6,
                 duration,
@@ -2013,6 +2095,7 @@ mod tests {
             }
             encoder.finish().expect("finishes");
             let piece = AudioClip {
+                track: 0,
                 path: tone.clone(),
                 duration: 1.0,
                 ..clip("")
@@ -2072,6 +2155,7 @@ mod tests {
         let source = dir.join("tone.wav");
         tone_wav(&source, 0.25);
         let piece = AudioClip {
+            track: 0,
             path: source,
             duration: 0.25,
             ..clip("")

@@ -433,6 +433,12 @@ pub enum Command {
         /// layer.
         #[serde(default)]
         sound: bool,
+        /// Processing target for a sound layer. None treats the master mix.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        audio_target: Option<String>,
+        /// Optional cutoff in Hz for a timed high-pass or low-pass filter.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        audio_cutoff: Option<f64>,
     },
     /// Places a transition as a clip of its own (#621): the package named,
     /// at its defaults, acting on everything beneath it for its span - from
@@ -1223,9 +1229,12 @@ impl Command {
                     })
             }
             Command::AddLayerClip {
-                start, duration, ..
-            }
-            | Command::AddTransitionClip {
+                start,
+                duration,
+                audio_cutoff,
+                ..
+            } => bad([*start]) || bad(*duration) || bad(*audio_cutoff),
+            Command::AddTransitionClip {
                 start, duration, ..
             } => bad([*start]) || bad(*duration),
             Command::SetClipSpeedCurve { curve, .. } => bad(curve

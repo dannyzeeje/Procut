@@ -4,6 +4,8 @@ import { Editor } from "../editor.slint";
 import { I18n } from "../i18n.slint";
 import { Theme } from "../theme/theme.slint";
 import { Select } from "../primitives/select.slint";
+import { Glyph } from "../icons.slint";
+import { RoundButton } from "controls.slint";
 import { ClipField } from "../timeline/model.slint";
 import { Meters } from "../timeline/vu-meter.slint";
 import { KeyEditor } from "../workspace/keyframes-pane.slint";
@@ -55,32 +57,76 @@ export component PhoneMixer inherits VerticalLayout {
     property <string> track-id;
 
     PhoneMasterMeter {}
-    AuditionButton {}
-    for track in Editor.tracks: VerticalLayout {
-        if track.mixable: VerticalLayout {
-            spacing: 4px;
-            PhoneCommand {
-                label: track.label;
-                selected: root.track-id == track.id;
-                clicked => { Editor.blur(); root.track-id = track.id == root.track-id ? "" : track.id; }
-            }
-            if root.track-id == track.id: VerticalLayout {
-                spacing: 4px;
-                HorizontalLayout {
-                    spacing: 6px;
-                    PhoneCommand {
-                        label: I18n.t("studio.mute");
-                        selected: track.muted;
-                        enabled: !track.locked;
-                        clicked => { Editor.phone-track-mix(track.id, "mute", track.muted ? 0 : 1); }
-                    }
-                    PhoneCommand {
-                        label: I18n.t("mobile.solo");
-                        selected: track.solo;
-                        enabled: !track.locked;
-                        clicked => { Editor.phone-track-mix(track.id, "solo", track.solo ? 0 : 1); }
+    Flickable {
+        height: 202px;
+        content-width: cards.width;
+        content-height: self.height;
+        cards := HorizontalLayout {
+            width: Math.max(parent.width, self.preferred-width);
+            height: parent.height; alignment: start; spacing: 6px;
+            for track in Editor.tracks: HorizontalLayout {
+                if track.mixable: Rectangle {
+                    width: 96px; height: 202px;
+                    border-radius: Theme.r;
+                    border-width: 1px;
+                    border-color: root.track-id == track.id ? Theme.accent : Theme.line;
+                    background: root.track-id == track.id ? Theme.accent-soft : Theme.well;
+                    VerticalLayout {
+                        padding: 4px; spacing: 3px;
+                        PhoneCommand {
+                            label: track.label; selected: root.track-id == track.id;
+                            clicked => { Editor.blur(); root.track-id = track.id; }
+                        }
+                        fader := TouchArea {
+                            min-height: 96px; enabled: !track.locked;
+                            accessible-role: slider;
+                            accessible-label: track.label + " " + I18n.t("mobile.gain");
+                            property <float> pending: track.gain-db;
+                            function sample() {
+                                let gain = 24 - Math.clamp((self.mouse-y - 12px) / Math.max(1px, self.height - 24px), 0, 1) * 84;
+                                self.pending = Math.abs(gain) < 2 ? 0 : Math.round(gain * 10) / 10;
+                            }
+                            pointer-event(event) => {
+                                if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                                    self.sample(); Editor.phone-track-mix(track.id, "gain", self.pending);
+                                }
+                            }
+                            moved => { if (self.pressed) { self.sample(); } }
+                            property <float> shown: self.pressed ? self.pending : track.gain-db;
+                            Rectangle {
+                                x: (parent.width - 4px) / 2; y: 12px;
+                                width: 4px; height: parent.height - 24px;
+                                border-radius: 2px; background: Theme.line-strong;
+                            }
+                            Rectangle {
+                                x: (parent.width - 34px) / 2;
+                                y: 7px + (parent.height - 24px) * Math.clamp((24 - fader.shown) / 84, 0, 1);
+                                width: 34px; height: 10px; border-radius: 4px; background: Theme.accent;
+                            }
+                        }
+                        HorizontalLayout {
+                            alignment: center;
+                            RoundButton {
+                                size: 42px; glyph: track.muted ? Glyph.volume-off : Glyph.volume;
+                                label: I18n.t("studio.mute"); foreground: track.muted ? Theme.accent : Theme.fg;
+                                enabled: !track.locked;
+                                clicked => { Editor.phone-track-mix(track.id, "mute", track.muted ? 0 : 1); }
+                            }
+                            RoundButton {
+                                size: 42px; glyph: Glyph.headphones;
+                                label: I18n.t("mobile.solo"); foreground: track.solo ? Theme.accent : Theme.fg;
+                                enabled: !track.locked;
+                                clicked => { Editor.phone-track-mix(track.id, "solo", track.solo ? 0 : 1); }
+                            }
+                        }
                     }
                 }
+            }
+        }
+    }
+    for track in Editor.tracks: VerticalLayout {
+        if root.track-id == track.id: VerticalLayout {
+            spacing: 4px;
                 for control[i] in [I18n.t("mobile.gain"), I18n.t("mobile.pan")]: PhoneValue {
                     property <float> pending: self.value;
                     label: control;
@@ -95,7 +141,6 @@ export component PhoneMixer inherits VerticalLayout {
                     finished => { Editor.phone-track-mix(track.id, i == 0 ? "gain" : "pan", self.pending); }
                 }
             }
-        }
     }
 }
 

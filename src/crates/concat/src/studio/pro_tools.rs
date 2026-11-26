@@ -20,6 +20,7 @@ impl Studio {
         let audio = mode == 2;
         if !audio {
             self.phone_audio_loop = None;
+            self.clear_phone_range_preview();
         }
         self.flush_commit();
         self.phone_color_compare(false);
@@ -263,7 +264,64 @@ impl Studio {
         (end - start + 1e-9 >= 1.0 / fps).then_some((start, end))
     }
 
-    pub fn phone_filter_region(&mut self, start: f32, end: f32, high_pass: bool) {
+    pub fn clear_phone_range_preview(&mut self) {
+        if self.phone_range_preview.take().is_some() {
+            self.sync_audio();
+        }
+    }
+
+    pub fn preview_phone_range(
+        &mut self,
+        start: f32,
+        end: f32,
+        target: &str,
+        high_pass: bool,
+        cutoff: f32,
+    ) {
+        let prepared = self.phone_audio_span(start, end).and_then(|(start, end)| {
+            let timeline = self.timeline();
+            let track = if target.is_empty() {
+                None
+            } else {
+                Some(
+                    timeline
+                        .tracks
+                        .iter()
+                        .position(|track| track.id == target)?,
+                )
+            };
+            if !cutoff.is_finite() {
+                return None;
+            }
+            let effect = if high_pass { HIGH_PASS_ID } else { LOW_PASS_ID };
+            let mut link = AppliedFilter::new(effect);
+            link.params
+                .insert("frequency".into(), f64::from(cutoff).clamp(20.0, 20_000.0));
+            let mut preview = concat_export::ExportClip::blank(
+                concat_export::ClipKind::SoundLayer,
+                start,
+                end - start,
+                timeline.tracks.len(),
+            );
+            preview.filter_chain = concat_export::chains::audio_filter_chain(&[link]);
+            preview.sound_target = track;
+            Some((target.to_owned(), preview))
+        });
+        if self.phone_range_preview != prepared {
+            self.phone_range_preview = prepared;
+            self.sync_audio();
+        }
+    }
+
+    pub fn phone_filter_region(
+        &mut self,
+        start: f32,
+        end: f32,
+        target: &str,
+        high_pass: bool,
+        cutoff: f32,
+    ) {
+        self.clear_phone_range_preview();
         let Some((start, end)) = self.phone_audio_span(start, end) else {
             return;
         };
@@ -279,6 +337,8 @@ impl Studio {
             effect_id: filter.to_owned(),
             name,
             sound: true,
+            audio_target: (!target.is_empty()).then(|| target.to_owned()),
+            audio_cutoff: cutoff.is_finite().then_some(f64::from(cutoff)),
         }) {
             self.selection = vec![id];
             self.transition_selected = None;

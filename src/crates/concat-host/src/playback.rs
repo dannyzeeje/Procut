@@ -109,6 +109,9 @@ fn linear_ease() -> [f64; 4] {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClipSpec {
+    /// Timeline track index for range effects.
+    #[serde(default)]
+    pub track: usize,
     /// The media file.
     pub path: String,
     /// Which of the file's audio streams, by index; absent is the first.
@@ -171,6 +174,9 @@ pub struct BusMix {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BusSpec {
+    /// Track index, or None for the master mix.
+    #[serde(default)]
+    pub target: Option<usize>,
     /// Timeline seconds.
     pub start: f64,
     /// Timeline seconds it runs.
@@ -188,6 +194,7 @@ pub struct BusSpec {
 impl BusSpec {
     fn engine(&self) -> concat_media::audio::AudioBus {
         concat_media::audio::AudioBus {
+            target: self.target,
             start: self.start,
             duration: self.duration,
             filter_chain: self.chain.clone(),
@@ -202,6 +209,7 @@ impl ClipSpec {
     /// The engine's view of this clip, for a mix.
     fn engine(&self) -> concat_media::audio::AudioClip {
         concat_media::audio::AudioClip {
+            track: self.track,
             path: PathBuf::from(&self.path),
             stream: self.audio_stream.map(|index| index as usize),
             start: self.start,
@@ -237,6 +245,7 @@ pub fn audible(clips: &[concat_export::ExportClip]) -> Vec<ClipSpec> {
         })
         .flat_map(concat_export::audio_pieces)
         .map(|piece| ClipSpec {
+            track: piece.track,
             path: piece.path.to_string_lossy().into_owned(),
             audio_stream: piece.stream.map(|index| index as u32),
             start: piece.start,
@@ -313,6 +322,7 @@ pub fn with_sound_layers(
                 .map(|index| {
                     let layer = layers[index];
                     BusSpec {
+                        target: layer.target,
                         start: layer.start,
                         duration: layer.duration,
                         chain: layer.filter_chain.clone(),
@@ -323,6 +333,7 @@ pub fn with_sound_layers(
                 })
                 .collect();
             ClipSpec {
+                track: 0,
                 path: String::new(),
                 audio_stream: None,
                 start,
@@ -1213,7 +1224,11 @@ fn decode_key(spec: &ClipSpec) -> String {
         eat(b"bus");
         eat(&spec.start.to_bits().to_le_bytes());
         eat(&spec.duration.to_bits().to_le_bytes());
+        let scoped = bus.layers.iter().any(|layer| layer.target.is_some());
         for clip in &bus.clips {
+            if scoped {
+                eat(&(clip.track as u64).to_le_bytes());
+            }
             eat(decode_key(clip).as_bytes());
             eat(&[
                 u8::from(clip.smooth_fade_in),
@@ -1235,6 +1250,10 @@ fn decode_key(spec: &ClipSpec) -> String {
         }
         for layer in &bus.layers {
             eat(b"layer");
+            if let Some(target) = layer.target {
+                eat(b"track");
+                eat(&(target as u64).to_le_bytes());
+            }
             for number in [
                 layer.start,
                 layer.duration,
@@ -1834,6 +1853,7 @@ mod tests {
 
     fn layer(start: f64, duration: f64) -> concat_media::audio::AudioBus {
         concat_media::audio::AudioBus {
+            target: None,
             start,
             duration,
             filter_chain: "lowpass=f=60,lowpass=f=60".to_owned(),
@@ -1845,6 +1865,7 @@ mod tests {
 
     fn tone_spec(path: &std::path::Path, start: f64, duration: f64) -> super::ClipSpec {
         super::ClipSpec {
+            track: 0,
             path: path.to_string_lossy().into_owned(),
             audio_stream: None,
             start,

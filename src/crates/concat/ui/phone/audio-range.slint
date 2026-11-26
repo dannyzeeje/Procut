@@ -1,0 +1,79 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import { Editor } from "../editor.slint";
+import { I18n } from "../i18n.slint";
+import { Theme } from "../theme/theme.slint";
+
+export component AudioRangeBand inherits Rectangle {
+    in property <float> range-start;
+    in property <float> range-end;
+    in property <bool> editable;
+    callback resized(at-start: bool, time: float);
+    callback shifted(start: float, duration: float);
+    callback settled();
+
+    property <length> start-x: (root.range-start - Editor.scroll-left) / Math.max(0.000001, Editor.seconds-per-pixel) * 1px;
+    property <length> end-x: (root.range-end - Editor.scroll-left) / Math.max(0.000001, Editor.seconds-per-pixel) * 1px;
+
+    Rectangle {
+        x: root.start-x; width: root.end-x - root.start-x; height: root.height;
+        background: Theme.accent.with-alpha(0.22);
+        border-width: 1px; border-color: Theme.accent;
+    }
+    if root.editable: TouchArea {
+        x: Math.max(0px, root.start-x); width: Math.max(0px, Math.min(root.width, root.end-x) - self.x);
+        height: Math.min(48px, root.height);
+        accessible-role: slider;
+        accessible-label: I18n.t("mobile.moveAudioRange");
+        property <length> origin;
+        property <float> initial;
+        property <float> span;
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) {
+                Editor.finger-held();
+                self.origin = self.absolute-position.x + self.mouse-x;
+                self.initial = root.range-start;
+                self.span = root.range-end - root.range-start;
+            } else if (event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel) {
+                Editor.finger-lifted(); root.settled();
+            }
+        }
+        moved => {
+            if (self.pressed) {
+                root.shifted(self.initial + (self.absolute-position.x + self.mouse-x - self.origin)
+                    / 1px * Editor.seconds-per-pixel, self.span);
+            }
+        }
+    }
+    for at-start in [true, false]: TouchArea {
+        property <length> edge: at-start ? root.start-x : root.end-x;
+        x: at-start ? self.edge - self.width : self.edge;
+        width: 48px; height: Math.min(52px, root.height);
+        visible: self.edge >= 0px && self.edge <= root.width;
+        enabled: root.editable;
+        accessible-role: slider;
+        accessible-label: at-start ? I18n.t("motion.in") : I18n.t("motion.out");
+        property <length> origin;
+        property <float> initial;
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) {
+                Editor.finger-held();
+                self.origin = self.absolute-position.x + self.mouse-x;
+                self.initial = at-start ? root.range-start : root.range-end;
+            } else if (event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel) {
+                Editor.finger-lifted(); root.settled();
+            }
+        }
+        moved => {
+            if (self.pressed) {
+                root.resized(at-start, self.initial + (self.absolute-position.x + self.mouse-x - self.origin)
+                    / 1px * Editor.seconds-per-pixel);
+            }
+        }
+        Rectangle {
+            x: at-start ? parent.width - self.width : 0px;
+            y: 2px; width: 7px; height: Math.max(0px, parent.height - 4px);
+            background: Theme.accent; border-radius: 3px;
+        }
+    }
+}

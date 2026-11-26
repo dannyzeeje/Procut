@@ -4271,6 +4271,8 @@ mod tests {
                 effect_id: "concat.adjust".into(),
                 name: "Adjustment".into(),
                 sound: false,
+                audio_target: None,
+                audio_cutoff: None,
             })
             .expect("adds")
             .created_id
@@ -4398,6 +4400,8 @@ mod tests {
                 effect_id: "concat.telephone".into(),
                 name: "Telephone".into(),
                 sound: true,
+                audio_target: None,
+                audio_cutoff: None,
             })
             .expect("adds")
             .created_id
@@ -4447,6 +4451,8 @@ mod tests {
                 effect_id: source.filters[0].id.clone(),
                 name: source.name.clone(),
                 sound: true,
+                audio_target: None,
+                audio_cutoff: None,
             })
             .expect("adds")
             .created_id
@@ -5925,6 +5931,8 @@ mod tests {
                     effect_id: "concat.warm".into(),
                     name: name.into(),
                     sound: false,
+                    audio_target: None,
+                    audio_cutoff: None,
                 })
                 .expect("a layer");
         }

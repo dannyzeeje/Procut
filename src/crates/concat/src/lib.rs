@@ -1662,10 +1662,21 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
         state.phone_audio_filter(high_pass);
     }));
     editor.on_phone_filter_region(on_window!(
-        |state, start: f32, end: f32, high_pass: bool| {
-            state.phone_filter_region(start, end, high_pass);
+        |state, start: f32, end: f32, target: SharedString, high_pass: bool, cutoff: f32| {
+            state.phone_filter_region(start, end, &target, high_pass, cutoff);
         }
     ));
+    editor.on_phone_preview_range(|start, end, target, high_pass, cutoff| {
+        Shell::with(|shell, _| {
+            shell
+                .studio
+                .borrow_mut()
+                .preview_phone_range(start, end, &target, high_pass, cutoff)
+        });
+    });
+    editor.on_phone_clear_range_preview(|| {
+        Shell::with(|shell, _| shell.studio.borrow_mut().clear_phone_range_preview());
+    });
     editor.on_phone_audio_key(on_window!(|state, from: f32, at: f32, fraction: f32| {
         state.phone_audio_key(from, at, fraction);
     }));
@@ -1675,6 +1686,15 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     editor.on_phone_color_shot(on_window!(|state, id: SharedString| {
         state.phone_color_shot(id.as_str());
     }));
+    editor.on_phone_preview_pair(|mode: SharedString, at_start| {
+        Shell::with(|shell, app| {
+            let editor = app.global::<Editor>();
+            shell
+                .studio
+                .borrow_mut()
+                .request_phone_pair(&editor, mode.as_str(), at_start);
+        });
+    });
     editor.on_phone_color_compare(on_lanes!(|state, before: bool| {
         state.phone_color_compare(before);
     }));

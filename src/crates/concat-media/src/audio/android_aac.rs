@@ -334,6 +334,7 @@ mod tests {
         let m4a = dir.join("click.m4a");
         click_wav(&wav);
         let clip = AudioClip {
+            track: 0,
             path: wav.clone(),
             stream: None,
             start: 0.0,

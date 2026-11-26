@@ -2,6 +2,7 @@ import { SpeedRamp } from "../inspector/speed-ramp.slint";
 import { PhoneCameraInput, PhoneColorShots, PhoneColorTools, PhoneGradeLayers } from "color.slint";
 import { ClipFilmstrip, PhoneAudioGain, PhoneCommand, PhoneSpeed } from "clip-tools.slint";
 import { PhoneAudioFilters, PhoneMixer, PhoneVolumeGraph } from "audio-workspace.slint";
+import { AudioRangeBand } from "audio-range.slint";
 import { PhoneValue } from "value.slint";
 import { ToolGrid } from "tool-grid.slint";
 import { PhoneQuickActions } from "quick-actions.slint";
@@ -436,9 +437,58 @@ export component PhoneEditor inherits Rectangle {
     property <float> region-end;
     property <bool> region-loop;
     property <bool> region-high-pass;
+    property <string> region-track;
+    property <string> region-track-label;
+    property <bool> region-choosing-track;
+    property <bool> region-effect-page;
+    property <bool> region-bypass: true;
+    property <float> region-cutoff: 1200;
+    property <bool> showing-applied-region: root.audio-mode && root.kind == ClipKind.sound-layer && root.sheet == "audio-filters";
+    property <bool> showing-range: (root.audio-region && root.region-valid) || root.showing-applied-region;
+    property <string> band-track: root.showing-applied-region ? Editor.phone-sound-target : root.region-track;
+    property <float> band-start: root.showing-applied-region ? Editor.phone-selected-start : root.region-start;
+    property <float> band-end: root.showing-applied-region ? Editor.phone-selected-start + Editor.selected-clip.duration : root.region-end;
+
+    function preview-range() {
+        if (root.audio-region && root.region-valid && root.region-effect-page && !root.region-bypass) {
+            Editor.phone-preview-range(root.region-start, root.region-end, root.region-track, root.region-high-pass, root.region-cutoff);
+        } else { Editor.phone-clear-range-preview(); }
+    }
+    function move-range(start: float, duration: float) {
+        let snapped = Math.round(start * Editor.frame-rate) / Math.max(1, Editor.frame-rate);
+        root.region-start = Math.clamp(snapped, 0, Math.max(0, Editor.preview-duration - duration));
+        root.region-end = root.region-start + duration;
+        if (root.region-loop) { Editor.phone-audio-loop(root.region-start, root.region-end); }
+    }
     property <float> frame-seconds: 1 / Math.max(1, Editor.frame-rate);
     property <bool> region-valid: root.region-end - root.region-start > root.frame-seconds * 0.99;
     property <bool> color-loop: true;
+    property <bool> color-compare: root.sheet == "color-compare";
+    property <bool> split-compare;
+    property <float> comparison-divider: 0.5;
+    property <bool> paired-pictures: Editor.phone-frames-ready && !Editor.playing;
+    property <bool> show-split: root.color-compare && root.split-compare && root.paired-pictures;
+    property <bool> show-cut: root.sheet == "clip-trim" && root.paired-pictures;
+    property <bool> pair-playing: Editor.playing;
+    property <float> pair-time: Editor.playhead;
+    property <bool> refresh-pair;
+    changed pair-playing => {
+        if (!root.pair-playing && (root.split-compare || root.sheet == "clip-trim")) { root.refresh-pair = true; }
+    }
+    changed pair-time => {
+        if (!root.pair-playing && root.color-compare && root.split-compare) { root.refresh-pair = true; }
+    }
+    Timer {
+        interval: 80ms;
+        running: root.refresh-pair;
+        triggered => {
+            root.refresh-pair = false;
+            if (!root.pair-playing && root.color-compare && root.split-compare) { Editor.phone-preview-pair("color", false); }
+            if (!root.pair-playing && root.sheet == "clip-trim") { Editor.phone-preview-pair("trim", root.trim-start); }
+        }
+    }
+    property <int> active-grade: -1;
+    property <bool> color-adjust-open: true;
     function region-edge(is-start: bool, time: float) {
         let snapped = Math.round(time * Editor.frame-rate) / Math.max(1, Editor.frame-rate);
         if (is-start) { root.region-start = Math.clamp(snapped, 0, Math.max(0, root.region-end - root.frame-seconds)); }
@@ -449,6 +499,7 @@ export component PhoneEditor inherits Rectangle {
         root.audio-region = false;
         root.region-loop = false;
         Editor.phone-audio-loop(0, 0);
+        Editor.phone-clear-range-preview();
     }
     function open-range() {
         root.region-start = 0;
@@ -456,7 +507,14 @@ export component PhoneEditor inherits Rectangle {
         root.region-edge(true, Editor.playhead);
         root.region-edge(false, root.region-start + 3);
         root.region-high-pass = false;
+        root.region-cutoff = 1200;
+        root.region-track = "";
+        root.region-track-label = "";
+        root.region-choosing-track = false;
+        root.region-effect-page = false;
+        root.region-bypass = true;
         root.audio-region = true;
+        root.show("audio-range", false);
     }
     property <bool> audio-source: root.has-clip && !root.batch-selection && Editor.selected-clip.has-sound;
     property <bool> editable-audio: root.audio-source || (root.has-clip && !root.batch-selection && root.kind == ClipKind.sound-layer);
@@ -472,7 +530,7 @@ export component PhoneEditor inherits Rectangle {
     ];
     property <string> grading-target: Editor.primary-selected-id;
     property <bool> can-grade: Editor.phone-can-grade;
-    changed grading-target => { root.before-grade = false; }
+    changed grading-target => { root.before-grade = false; root.active-grade = -1; }
     changed can-grade => { if (!root.can-grade) { root.before-grade = false; } }
 
     function compare-grade(before: bool) {
@@ -518,11 +576,19 @@ export component PhoneEditor inherits Rectangle {
     }
 
     function show(name: string, needs-clip: bool) {
+        if (name != "audio-range" && root.audio-region) { root.close-range(); }
+        if (name != "color-compare" && root.before-grade) { root.compare-grade(false); }
         root.expanded-tool = false;
         root.editing-lut = "";
         Editor.effect-preview-finish(false);
         root.sheet = name;
         root.sheet-needs-clip = needs-clip;
+        root.split-compare = false;
+        Editor.phone-preview-pair("", false);
+        if (name == "clip-trim") {
+            if (Editor.playing) { Editor.play-toggled(); }
+            Editor.phone-preview-pair("trim", root.trim-start);
+        }
         if (name == "clip-animate") { Editor.effect-preview("animation", "", ""); }
     }
     function activate-tool(id: string) {
@@ -539,6 +605,10 @@ export component PhoneEditor inherits Rectangle {
     }
     function set-fullscreen(on: bool) { Editor.preview-fullscreen = on; Editor.preview-fullscreen-changed(on); }
     function hide() {
+        root.split-compare = false;
+        Editor.phone-preview-pair("", false);
+        if (root.audio-region) { root.close-range(); }
+        if (root.before-grade) { root.compare-grade(false); }
         Editor.effect-preview-finish(false);
         root.sheet = "";
         root.sheet-needs-clip = false;
@@ -573,6 +643,7 @@ export component PhoneEditor inherits Rectangle {
             : name == "clip-audio" ? I18n.t("common.audio")
             : name == "clip-audio-effects" ? I18n.t("configPane.audioEffects")
             : name == "color-input" ? I18n.t("mobile.colorSpaceTransform")
+            : name == "color-compare" ? I18n.t("mobile.compareGrade")
             : name == "grade-layers" ? I18n.t("mobile.gradeLayers")
             : name == "clip-luts" || name == "project-luts" ? I18n.t("mediaPane.luts")
             : name == "audio-range" ? I18n.t("mobile.filterRange")
@@ -598,34 +669,39 @@ export component PhoneEditor inherits Rectangle {
     property <length> top-h: 48px;
     property <length> preview-top: root.top-h;
     property <length> workspace-y: root.height;
-    property <length> tools-y: root.workspace-y - root.bar-h;
-    property <length> transport-h: 76px;
-    /// A resizable timeline with room for the preview.
+    property <length> transport-h: 52px;
+    property <length> bar-h: 62px;
+    property <length> tools-y: root.height - root.bar-h;
     property <float> timeline-share: 0.42;
-    property <float> audio-timeline-share: 0.57;
-    property <length> lanes-h: Math.max(160px, Math.min(
-        root.workspace-y - root.preview-top - root.transport-h - root.bar-h - root.timeline-gap
-            - (root.audio-mode && !root.audio-preview ? 0px : 110px),
-        root.audio-mode && !root.audio-preview ? root.height
-            : root.height * (root.audio-mode ? root.audio-timeline-share : root.timeline-share)));
-    property <length> bar-h: 74px;
-    property <length> lanes-y: root.tools-y - root.lanes-h;
-    property <length> timeline-gap: 20px;
-    property <length> transport-y: root.lanes-y - root.transport-h - root.timeline-gap;
-    property <length> color-panel-h: 280px;
-    property <length> display-transport-y: root.color-mode
-        ? Math.max(root.preview-top + 72px, root.workspace-y - root.color-panel-h - root.transport-h)
-        : root.transport-y;
+    property <float> audio-timeline-share: 0.56;
+    property <length> timeline-gap: 14px;
     property <bool> quick-sheet: root.sheet == "clip-speed" || root.sheet == "clip-audio"
-        || root.sheet == "clip-trim" || root.sheet == "clip-transform";
-    property <length> sheet-h: root.quick-sheet
-        ? (root.expanded-tool ? root.height * 0.7 : Math.min(root.height * 0.52, 346px))
-        : root.sheet == "audio-graph" ? Math.min(root.height * 0.72, 545px)
-        : root.height * 0.5;
+        || root.sheet == "clip-trim" || root.sheet == "clip-transform" || root.sheet == "clip-crop";
+    property <bool> docked-sheet: root.color-mode || root.audio-mode;
+    property <length> workspace-panel-h: root.color-mode
+        ? (root.sheet == "color-compare" ? 128px : Math.clamp(root.height * 0.40, 230px, 390px))
+        : Math.clamp(root.height * 0.43, 225px, 450px);
+    property <length> sheet-h: root.docked-sheet ? root.workspace-panel-h :
+        root.quick-sheet ? (root.expanded-tool ? root.height * 0.6 : Math.min(root.height * 0.45, 320px))
+        : Math.min(root.height * 0.52, 460px);
+    property <length> occupied-bottom: root.sheet != "" && root.docked-sheet
+        ? root.tools-y - root.sheet-h : root.tools-y;
+    property <length> lane-foot: root.sheet != "" && !root.docked-sheet
+        ? Math.min(root.tools-y, root.height - root.sheet-h)
+        : root.occupied-bottom;
+    property <length> max-lanes-h: Math.max(0px, root.lane-foot - root.preview-top
+        - root.transport-h - root.timeline-gap - (root.audio-mode ? (!root.audio-preview ? 0px : root.sheet == "" ? 96px : 66px) : 112px));
+    property <length> lanes-h: Math.min(root.max-lanes-h, root.audio-mode && !root.audio-preview
+        ? root.max-lanes-h : root.height * (root.audio-mode ? root.audio-timeline-share : root.timeline-share));
+    property <length> lanes-y: root.lane-foot - root.lanes-h;
+    property <length> color-controls-h: root.color-adjust-open && root.sheet == "" ? 156px : 0px;
+    property <length> shot-strip-h: 50px;
+    property <length> color-tools-top: root.occupied-bottom - root.color-controls-h;
+    property <length> display-transport-y: Math.max(root.preview-top, root.color-mode
+        ? root.color-tools-top - root.shot-strip-h - root.transport-h
+        : root.lanes-y - root.transport-h - root.timeline-gap);
     property <bool> show-motion-status: !Editor.preview-fullscreen && Editor.motion-status != "";
-    property <length> monitor-foot: root.sheet != ""
-        ? Math.min(root.display-transport-y, root.height - root.sheet-h)
-        : root.display-transport-y;
+    property <length> monitor-foot: root.display-transport-y;
     /// The Add bar under the bin while something is picked.
     property <length> add-bar-h: 68px;
 
@@ -635,20 +711,21 @@ export component PhoneEditor inherits Rectangle {
         HorizontalLayout {
             padding-left: 4px; padding-right: 4px; spacing: 2px;
             RoundButton { size: 48px; glyph: Glyph.chevron-left; label: I18n.t("studio.closeProject"); clicked => { root.switch-workspace(0); root.hide(); root.close-project(); } }
+            Text {
+                horizontal-stretch: 1; min-width: 0px;
+                text: root.project-name; color: Theme.fg; font-size: Theme.fs;
+                horizontal-alignment: left; vertical-alignment: center; overflow: elide;
+            }
             Select {
                 height: 48px; row-h: 48px; flat: true;
                 horizontal-stretch: 0;
-                preferred-width: 94px;
+                min-width: 82px; preferred-width: root.width < 360px ? 86px : 98px;
+                max-width: 104px;
                 options: [I18n.t("phone.edit"), I18n.t("common.color"), I18n.t("common.audio")];
                 property <int> mode: root.workspace-mode;
                 current: self.mode;
                 changed mode => { self.current = self.mode; }
                 changed(index) => { root.switch-workspace(index); }
-            }
-            Text {
-                horizontal-stretch: 1; min-width: 0px;
-                text: root.project-name; color: Theme.fg; font-size: Theme.fs;
-                horizontal-alignment: center; vertical-alignment: center; overflow: elide;
             }
             RoundButton { size: 48px; glyph: Glyph.more; label: I18n.t("mobile.menu"); clicked => { root.hide(); project-menu.open-state = !project-menu.open-state; } }
             RoundButton { size: 48px; glyph: Glyph.export; accent: true; corner-radius: 13px; label: I18n.t("common.export"); clicked => { root.hide(); root.export-clicked(); } }
@@ -668,6 +745,7 @@ export component PhoneEditor inherits Rectangle {
         height: Math.max(0px, root.monitor-foot - root.preview-top);
 
         monitor := PreviewPane {
+            visible: !root.show-split && !root.show-cut;
             x: 8px;
             y: 0;
             width: parent.width - 16px;
@@ -720,19 +798,62 @@ export component PhoneEditor inherits Rectangle {
         }
     }
 
-    if root.color-mode && root.can-grade && !Editor.preview-fullscreen: HorizontalLayout {
-        x: 12px; y: root.preview-top + 4px; height: 48px;
-        spacing: 6px;
-        PhoneCommand {
-            preferred-width: 72px; min-height: 48px;
-            label: root.before-grade ? I18n.t("mobile.afterGrade") : I18n.t("mobile.beforeGrade");
-            selected: root.before-grade;
-            clicked => { root.compare-grade(!root.before-grade); }
+    if root.show-split: split-picture := Rectangle {
+        x: (root.width - self.width) / 2;
+        y: root.preview-top + (root.monitor-foot - root.preview-top - self.height) / 2;
+        property <float> aspect: Editor.output-width / Math.max(1, Editor.output-height);
+        width: Math.max(0px, Math.min(root.width - 16px, (root.monitor-foot - root.preview-top) * self.aspect));
+        height: self.width / Math.max(0.001, self.aspect);
+        clip: true;
+        Image { width: parent.width; height: parent.height; source: Editor.phone-frame-b; image-fit: fill; }
+        Rectangle {
+            width: parent.width * root.comparison-divider; height: parent.height; clip: true;
+            Image { x: 0; y: 0; width: split-picture.width; height: parent.height; source: Editor.phone-frame-a; image-fit: fill; }
         }
-        PhoneCommand {
-            preferred-width: 112px; min-height: 48px;
-            label: I18n.t("mobile.loopPlayback"); selected: root.color-loop;
-            clicked => { root.color-loop = !root.color-loop; Editor.phone-color-loop(root.color-loop); }
+        Text {
+            x: 6px; y: 6px; text: I18n.t("mobile.beforeGrade");
+            color: #fff; stroke: #000; stroke-width: 2px; font-size: Theme.fs-sm;
+        }
+        Text {
+            x: parent.width - self.width - 6px; y: 6px; text: I18n.t("mobile.afterGrade");
+            color: #fff; stroke: #000; stroke-width: 2px; font-size: Theme.fs-sm;
+        }
+        Rectangle {
+            x: parent.width * root.comparison-divider - 1px; width: 2px; height: parent.height;
+            background: #fff;
+            Rectangle {
+                x: -11px; y: (parent.height - 24px) / 2;
+                width: 24px; height: 24px; border-radius: 12px; background: Theme.panel;
+                border-width: 1px; border-color: #fff;
+                Icon { x: 4px; y: 4px; glyph: Glyph.move; size: 16px; tint: #fff; }
+            }
+        }
+        TouchArea {
+            accessible-role: slider;
+            accessible-label: I18n.t("mobile.splitGrade");
+            moved => { if (self.pressed) { root.comparison-divider = Math.clamp(self.mouse-x / Math.max(1px, self.width), 0.05, 0.95); } }
+            clicked => { root.comparison-divider = Math.clamp(self.mouse-x / Math.max(1px, self.width), 0.05, 0.95); }
+        }
+    }
+
+    if root.show-cut: HorizontalLayout {
+        x: 8px; y: root.preview-top;
+        width: root.width - 16px; height: Math.max(0px, root.monitor-foot - root.preview-top);
+        spacing: 6px;
+        for incoming in [false, true]: Rectangle {
+            horizontal-stretch: 1; min-width: 0px;
+            background: Theme.well; border-radius: Theme.r; clip: true;
+            Image {
+                x: 0; y: 0; width: parent.width; height: Math.max(0px, parent.height - 24px);
+                source: incoming ? Editor.phone-frame-b : Editor.phone-frame-a;
+                image-fit: contain;
+            }
+            Text {
+                y: Math.max(0px, parent.height - 24px); width: parent.width; height: 24px;
+                horizontal-alignment: center; color: Theme.fg; font-size: Theme.fs-sm;
+                text: incoming ? I18n.t("mobile.incomingFrame") : I18n.t("mobile.outgoingFrame");
+                overflow: elide;
+            }
         }
     }
 
@@ -750,7 +871,7 @@ export component PhoneEditor inherits Rectangle {
     // lifting off the glass nudges the lanes a little, and a frame is a
     // pixel or less at most zooms (#244). Held, they keep stepping.
     if root.show-motion-status: Text {
-        x: 12px; y: root.monitor-foot - 24px; width: root.width - 24px; height: 24px;
+        x: 12px; y: Math.max(root.preview-top, root.monitor-foot - 24px); width: root.width - 24px; height: 24px;
         text: Editor.motion-status; color: Theme.fg; font-size: Theme.fs-sm;
         horizontal-alignment: center; vertical-alignment: center; overflow: elide;
     }
@@ -801,7 +922,7 @@ export component PhoneEditor inherits Rectangle {
             clip: true;
 
             PhoneTrackHeaders {
-                x: 0; y: 44px; width: root.sidebar-width; height: parent.height - 44px;
+                x: 0; y: 44px; width: root.sidebar-width; height: Math.max(0px, parent.height - 44px);
                 visible: true;
                 tracks: Editor.tracks; track-scroll: stack.at;
                 selected(index) => { root.track-index = index; root.show("track-controls", false); }
@@ -811,7 +932,7 @@ export component PhoneEditor inherits Rectangle {
                 x: root.sidebar-width;
                 y: 44px;
                 width: parent.width - root.sidebar-width;
-                height: parent.height - 44px;
+                height: Math.max(0px, parent.height - 44px);
 
                 finger: true;
                 duration-seconds: Editor.duration-seconds;
@@ -873,44 +994,25 @@ export component PhoneEditor inherits Rectangle {
                 init => { Editor.lanes-resized(self.width / 1px); }
             }
 
-            if root.audio-mode && root.audio-region && root.region-valid: Rectangle {
+            Rectangle {
                 x: lanes.x; y: lanes.y; width: lanes.width; height: lanes.height;
                 clip: true;
-                property <length> start-x: (root.region-start - Editor.scroll-left) / Math.max(0.000001, Editor.seconds-per-pixel) * 1px;
-                property <length> end-x: (root.region-end - Editor.scroll-left) / Math.max(0.000001, Editor.seconds-per-pixel) * 1px;
-                Rectangle {
-                    x: parent.start-x; width: parent.end-x - parent.start-x; height: parent.height;
-                    background: Theme.accent.with-alpha(0.22);
-                    border-width: 1px; border-color: Theme.accent;
+                visible: root.audio-mode && root.showing-range;
+                if root.band-track == "": AudioRangeBand {
+                    y: lanes.ruler-height; width: parent.width; height: Math.max(0px, parent.height - self.y);
+                    range-start: root.band-start; range-end: root.band-end; editable: root.audio-region;
+                    resized(at-start, time) => { root.region-edge(at-start, time); }
+                    shifted(start, duration) => { root.move-range(start, duration); }
+                    settled => { root.preview-range(); }
                 }
-                for is-start in [true, false]: TouchArea {
-                    property <length> edge-x: is-start ? parent.start-x : parent.end-x;
-                    x: is-start ? self.edge-x - self.width : self.edge-x;
-                    width: 48px; height: Math.min(52px, parent.height);
-                    visible: self.edge-x >= 0px && self.edge-x <= parent.width;
-                    accessible-role: slider;
-                    accessible-label: is-start ? I18n.t("motion.in") : I18n.t("motion.out");
-                    property <length> origin;
-                    property <float> initial;
-                    pointer-event(event) => {
-                        if (event.kind == PointerEventKind.down) {
-                            Editor.finger-held();
-                            self.origin = self.absolute-position.x + self.mouse-x;
-                            self.initial = is-start ? root.region-start : root.region-end;
-                        } else if (event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel) {
-                            Editor.finger-lifted();
-                        }
-                    }
-                    moved => {
-                        if (self.pressed) {
-                            root.region-edge(is-start, self.initial
-                                + (self.absolute-position.x + self.mouse-x - self.origin) / 1px * Editor.seconds-per-pixel);
-                        }
-                    }
-                    Rectangle {
-                        x: is-start ? parent.width - self.width : 0px;
-                        y: 2px; width: 7px; height: parent.height - 4px;
-                        background: Theme.accent; border-radius: 3px;
+                for track in Editor.tracks: Rectangle {
+                    x: 0; y: 0; width: parent.width; height: parent.height;
+                    if root.band-track == track.id: AudioRangeBand {
+                        y: lanes.ruler-height + track.top - stack.at; width: parent.width; height: track.height;
+                        range-start: root.band-start; range-end: root.band-end; editable: root.audio-region;
+                        resized(at-start, time) => { root.region-edge(at-start, time); }
+                        shifted(start, duration) => { root.move-range(start, duration); }
+                        settled => { root.preview-range(); }
                     }
                 }
             }
@@ -980,7 +1082,7 @@ export component PhoneEditor inherits Rectangle {
     Rectangle {
         visible: !root.color-mode;
         x: 0; y: root.lanes-y - root.timeline-gap;
-        width: root.width; height: 20px;
+        width: root.width; height: root.timeline-gap;
         background: Theme.page;
         Rectangle { x: (parent.width - 48px) / 2; y: 7px; width: 48px; height: 4px; border-radius: 2px; background: Theme.fg-muted; }
         TouchArea {
@@ -1013,7 +1115,7 @@ export component PhoneEditor inherits Rectangle {
     if root.editing-clips && !root.batch-toolbar && root.workspace-mode == 0: HorizontalLayout {
         x: 0; y: root.tools-y; width: root.width; height: root.bar-h;
         padding-left: 12px; padding-right: 12px; spacing: 0px;
-        property <int> slots: root.is-video ? 6 : root.is-picture ? 5 : 4;
+        property <int> slots: root.is-video ? 5 : 4;
         property <length> slot: (root.width - 24px) / self.slots;
         ToolItem {
             width: parent.slot;
@@ -1025,7 +1127,7 @@ export component PhoneEditor inherits Rectangle {
                 else { root.activate-tool("edit"); }
             }
         }
-        if root.is-picture: ToolItem { width: parent.slot; glyph: Glyph.frame; label: I18n.t("phone.canvas"); clicked => { root.show("clip-canvas", true); } }
+
         ToolItem { width: parent.slot; glyph: Glyph.split; label: I18n.t("phone.split"); enabled: Editor.can-trim-selection; clicked => { Editor.shortcut("split-selected"); } }
         ToolItem { width: parent.slot; glyph: Glyph.ripple-trim; label: I18n.t("mobile.trim"); enabled: Editor.can-delete-selection; clicked => { root.show("clip-trim", true); } }
         if root.is-video: ToolItem { width: parent.slot; glyph: Glyph.clock; label: I18n.t("common.speed"); clicked => { root.show("clip-speed", true); } }
@@ -1037,93 +1139,86 @@ export component PhoneEditor inherits Rectangle {
         ToolItem { glyph: Glyph.more; label: I18n.t("mobile.allTools"); clicked => { root.show("tools", false); } }
     }
 
-    PhoneScroll {
-        visible: root.color-mode;
-        x: 0; y: root.display-transport-y + root.transport-h;
-        width: root.width; height: Math.max(0px, root.workspace-y - self.y);
-        gutter: 12px;
-        PhoneColorShots {
-            height: 54px;
-            picked(id) => {
-                Editor.blur();
-                root.before-grade = false;
-                Editor.phone-color-shot(id);
-            }
+    if root.color-mode: PhoneColorShots {
+        x: 8px; y: root.display-transport-y + root.transport-h;
+        width: root.width - 16px; height: root.shot-strip-h;
+        picked(id) => {
+            Editor.blur();
+            root.compare-grade(false);
+            Editor.phone-color-shot(id);
         }
+    }
+    if root.color-mode && root.color-controls-h > 0px: PhoneScroll {
+        x: 0; y: root.color-tools-top;
+        width: root.width; height: root.color-controls-h;
+        gutter: 8px;
         PhoneColorTools {
             selected-key <=> root.color-parameter;
+            active <=> root.active-grade;
             before: root.before-grade;
+            choose-layer => { root.show("grade-layers", true); }
         }
-        HorizontalLayout {
-            spacing: 4px;
-            ToolItem {
-                glyph: Glyph.sliders;
-                label: I18n.t("mobile.colorInput");
-                enabled: root.can-grade;
-                clicked => { root.compare-grade(false); root.show("color-input", true); }
+    }
+    if root.color-mode: HorizontalLayout {
+        x: 8px; y: root.tools-y; width: root.width - 16px; height: root.bar-h;
+        spacing: 4px;
+        property <length> slot: (self.width - 12px) / 4;
+        ToolItem {
+            width: parent.slot; glyph: Glyph.sliders;
+            label: I18n.t("common.adjust"); current: root.sheet == "" && root.color-adjust-open;
+            enabled: root.can-grade;
+            clicked => {
+                let closed = root.sheet == "";
+                root.hide();
+                root.color-adjust-open = !closed || !root.color-adjust-open;
             }
-            ToolItem {
-                glyph: Glyph.rows;
-                label: I18n.t("mobile.gradeLayers");
-                enabled: root.can-grade;
-                clicked => { root.compare-grade(false); root.show("grade-layers", true); }
-            }
-            ToolItem {
-                glyph: Glyph.filter;
-                label: I18n.t("mediaPane.luts");
-                clicked => { root.compare-grade(false); root.show("clip-luts", false); }
-            }
+        }
+        ToolItem {
+            width: parent.slot; glyph: Glyph.rows;
+            label: I18n.t("mobile.layers"); current: root.sheet == "grade-layers" || root.sheet == "color-input";
+            enabled: root.can-grade;
+            clicked => { if (self.current) { root.hide(); } else { root.show("grade-layers", true); } }
+        }
+        ToolItem {
+            width: parent.slot; glyph: Glyph.filter;
+            label: I18n.t("mediaPane.luts"); current: root.sheet == "clip-luts";
+            clicked => { if (self.current) { root.hide(); } else { root.show("clip-luts", false); } }
+        }
+        ToolItem {
+            width: parent.slot; glyph: Glyph.eye;
+            label: I18n.t("mobile.compareGrade"); current: root.color-compare;
+            enabled: root.can-grade;
+            clicked => { if (self.current) { root.hide(); } else { root.show("color-compare", true); } }
         }
     }
 
     if root.audio-mode: HorizontalLayout {
-        x: 10px; y: root.tools-y; width: root.width - 20px; height: root.bar-h;
-        padding-top: 5px; padding-bottom: 5px; spacing: 4px;
-        if !root.audio-region: ToolItem {
-            width: (root.width - 36px) / 5;
-            glyph: Glyph.meter; label: I18n.t("mobile.mixer");
-            clicked => { root.show("audio-mixer", false); }
+        x: 8px; y: root.tools-y; width: root.width - 16px; height: root.bar-h;
+        spacing: 4px;
+        property <length> slot: (self.width - 12px) / 4;
+        ToolItem {
+            width: parent.slot; glyph: Glyph.volume; label: I18n.t("mobile.clipAudio");
+            enabled: root.editable-audio; current: root.sheet == "clip-audio" || root.sheet == "audio-filters";
+            clicked => {
+                if (self.current) { root.hide(); }
+                else { root.show(root.kind == ClipKind.sound-layer ? "audio-filters" : "clip-audio", true); }
+            }
         }
-        if !root.audio-region: ToolItem {
-            width: (root.width - 36px) / 5;
-            glyph: Glyph.curves; label: I18n.t("mobile.graph");
-            enabled: root.audio-source;
-            clicked => { root.show("audio-graph", true); }
+        ToolItem {
+            width: parent.slot; glyph: Glyph.meter; label: I18n.t("mobile.mixer");
+            current: root.sheet == "audio-mixer";
+            clicked => { if (self.current) { root.hide(); } else { root.show("audio-mixer", false); } }
         }
-        if !root.audio-region: ToolItem {
-            width: (root.width - 36px) / 5;
-            glyph: Glyph.sliders; label: I18n.t("mediaPane.filters");
-            enabled: root.editable-audio;
-            clicked => { root.show("audio-filters", true); }
-        }
-        if !root.audio-region: ToolItem {
-            width: (root.width - 36px) / 5;
-            glyph: Glyph.trim-follow; label: I18n.t("mobile.filterRange");
+        ToolItem {
+            width: parent.slot; glyph: Glyph.trim-follow; label: I18n.t("mobile.filterRange");
             enabled: Editor.preview-duration >= root.frame-seconds;
-            clicked => { root.open-range(); }
+            current: root.sheet == "audio-range";
+            clicked => { if (self.current) { root.hide(); } else { root.open-range(); } }
         }
-        if !root.audio-region: ToolItem {
-            width: (root.width - 36px) / 5;
-            glyph: Glyph.volume; label: I18n.t("atlas.audioEnvelope");
-            enabled: root.audio-source;
-            clicked => { root.show("clip-audio", true); }
-        }
-        if root.audio-region: PhoneCommand {
-            label: I18n.t("mobile.markIn");
-            clicked => { root.region-edge(true, Editor.playhead); }
-        }
-        if root.audio-region: PhoneCommand {
-            label: I18n.t("mobile.markOut");
-            clicked => { root.region-edge(false, Editor.playhead); }
-        }
-        if root.audio-region: PhoneCommand {
-            label: I18n.t("mediaPane.filters");
-            enabled: root.region-valid;
-            clicked => { root.show("audio-range", false); }
-        }
-        if root.audio-region: RoundButton {
-            size: 48px; glyph: Glyph.close; label: I18n.t("common.cancel");
-            clicked => { root.close-range(); }
+        ToolItem {
+            width: parent.slot; glyph: Glyph.curves; label: I18n.t("mobile.graph");
+            enabled: root.audio-source; current: root.sheet == "audio-graph";
+            clicked => { if (self.current) { root.hide(); } else { root.show("audio-graph", true); } }
         }
     }
 
@@ -1137,21 +1232,61 @@ export component PhoneEditor inherits Rectangle {
         x: 0;
         y: 0;
         width: root.width;
-        height: root.height;
+        height: root.docked-sheet ? root.tools-y : root.height;
         sheet-height: root.sheet-h;
         scroll-enabled: !root.audio-point-dragging;
-        dismiss-on-background: !root.color-mode && !root.quick-sheet && root.sheet != "clip-text" && root.sheet != "clip-mask" && root.sheet != "clip-crop";
-        footer: root.sheet != "audio-graph" && root.sheet != "media" && root.sheet != "tools" && root.sheet != "customize-tools" && !Editor.effect-preview-active;
+        dismiss-on-background: !root.docked-sheet && !root.quick-sheet && root.sheet != "clip-text" && root.sheet != "clip-mask" && root.sheet != "clip-crop";
+        footer: !root.docked-sheet && root.sheet != "audio-graph" && root.sheet != "media" && root.sheet != "tools" && root.sheet != "customize-tools" && !Editor.effect-preview-active;
         preview-footer: Editor.effect-preview-active;
         open: root.sheet != "";
         title: root.sheet-title(root.sheet);
         closed => { Editor.blur(); root.hide(); }
 
         if root.sheet == "color-input" && root.can-grade: PhoneCameraInput {}
-        if root.sheet == "grade-layers" && root.can-grade: PhoneGradeLayers {}
+        if root.sheet == "grade-layers" && root.can-grade: PhoneGradeLayers {
+            active <=> root.active-grade;
+            input => { root.show("color-input", true); }
+            looks => { root.show("clip-luts", false); }
+        }
+        if root.color-compare: HorizontalLayout {
+            spacing: 6px; padding: 8px;
+            PhoneCommand {
+                label: I18n.t("mobile.splitGrade"); selected: root.split-compare;
+                clicked => {
+                    if (Editor.playing) { Editor.play-toggled(); }
+                    root.compare-grade(false);
+                    root.split-compare = true;
+                    Editor.phone-preview-pair("color", false);
+                }
+            }
+            PhoneCommand {
+                label: root.before-grade ? I18n.t("mobile.afterGrade") : I18n.t("mobile.beforeGrade");
+                selected: root.before-grade;
+                clicked => {
+                    root.split-compare = false; Editor.phone-preview-pair("", false);
+                    root.compare-grade(!root.before-grade);
+                }
+            }
+            PhoneCommand {
+                label: I18n.t("mobile.loopPlayback"); selected: root.color-loop;
+                clicked => { root.color-loop = !root.color-loop; Editor.phone-color-loop(root.color-loop); }
+            }
+        }
         if root.sheet == "audio-mixer": PhoneMixer {}
         if root.sheet == "audio-graph" && root.audio-source: PhoneVolumeGraph {
             point-dragging(active) => { root.audio-point-dragging = active; }
+        }
+        if root.showing-applied-region: HorizontalLayout {
+            padding-left: 8px; padding-right: 8px;
+            PhoneCommand {
+                label: I18n.t("mobile.trim");
+                clicked => { root.show("clip-trim", true); }
+            }
+            RoundButton {
+                glyph: Glyph.trash; label: I18n.t("common.remove"); size: 48px;
+                enabled: Editor.can-delete-selection;
+                clicked => { Editor.delete-selected(); }
+            }
         }
         if root.sheet == "audio-filters" && root.editable-audio: PhoneAudioFilters {
             source: root.audio-source;
@@ -1625,9 +1760,11 @@ export component PhoneEditor inherits Rectangle {
                 }
                 finished => { Editor.phone-edit-finished(); }
             }
-            PhoneCommand {
-                label: I18n.t("phone.more");
-                clicked => { root.show("clip-video", true); }
+            HorizontalLayout {
+                spacing: 6px;
+                PhoneCommand { label: I18n.t("clipInspector.crop"); clicked => { root.show("clip-crop", true); } }
+                PhoneCommand { label: I18n.t("phone.canvas"); clicked => { root.show("clip-canvas", true); } }
+                PhoneCommand { label: I18n.t("phone.more"); clicked => { root.show("clip-video", true); } }
             }
         }
 
@@ -1665,50 +1802,124 @@ export component PhoneEditor inherits Rectangle {
         }
 
         if root.sheet == "audio-range": VerticalLayout {
-            padding: 12px; spacing: 8px;
-            SheetNote { text: I18n.t("mobile.masterRange"); }
-            for is-start in [true, false]: HorizontalLayout {
-                spacing: 6px;
-                property <float> time: is-start ? root.region-start : root.region-end;
-                Text {
-                    text: is-start ? I18n.t("motion.in") : I18n.t("motion.out");
-                    color: Theme.fg; vertical-alignment: center; width: 36px;
-                }
-                RoundButton {
-                    size: 48px; glyph: Glyph.step-back; label: I18n.t("previewPane.previousFrame"); repeats: true;
-                    clicked => { root.region-edge(is-start, parent.time - root.frame-seconds); }
-                }
-                NumberField {
-                    height: 48px; value: parent.time; precision: 3; unit: "s";
-                    minimum: 0; maximum: Editor.preview-duration; step: root.frame-seconds;
-                    drag-scrub: false;
-                    changed(value) => { root.region-edge(is-start, value); self.value = parent.time; }
-                }
-                RoundButton {
-                    size: 48px; glyph: Glyph.step-forward; label: I18n.t("previewPane.nextFrame"); repeats: true;
-                    clicked => { root.region-edge(is-start, parent.time + root.frame-seconds); }
-                }
-            }
+            padding: 8px; spacing: 6px;
             HorizontalLayout {
-                spacing: 6px;
-                PhoneCommand { label: I18n.t("mobile.lowPass"); selected: !root.region-high-pass; clicked => { root.region-high-pass = false; } }
-                PhoneCommand { label: I18n.t("mobile.highPass"); selected: root.region-high-pass; clicked => { root.region-high-pass = true; } }
-            }
-            PhoneCommand {
-                label: I18n.t("mobile.loopPlayback"); selected: root.region-loop; enabled: root.region-valid;
-                clicked => {
-                    root.region-loop = !root.region-loop;
-                    Editor.phone-audio-loop(root.region-loop ? root.region-start : 0, root.region-loop ? root.region-end : 0);
-                    if (root.region-loop) { Editor.seek(root.region-start); if (!Editor.playing) { Editor.play-toggled(); } }
+                spacing: 4px;
+                PhoneCommand {
+                    label: I18n.t("mobile.rangeTiming"); selected: !root.region-effect-page;
+                    clicked => { root.region-effect-page = false; root.preview-range(); }
+                }
+                PhoneCommand {
+                    label: I18n.t("common.effects"); selected: root.region-effect-page;
+                    clicked => { root.region-effect-page = true; root.preview-range(); }
                 }
             }
+            Text {
+                text: Fmt.frames-timecode(root.region-start, Editor.frame-rate)
+                    + "  –  " + Fmt.frames-timecode(root.region-end, Editor.frame-rate);
+                color: Theme.fg; font-family: Theme.font-technical;
+                horizontal-alignment: center; overflow: elide; height: 26px;
+            }
             PhoneCommand {
-                label: I18n.t("common.apply"); enabled: root.region-valid;
-                clicked => {
-                    Editor.blur();
-                    Editor.phone-filter-region(root.region-start, root.region-end, root.region-high-pass);
-                    root.close-range();
-                    if (root.kind == ClipKind.sound-layer) { root.show("audio-filters", true); }
+                label: I18n.t("mobile.rangeTarget") + " · " + (root.region-track == "" ? I18n.t("mobile.master") : root.region-track-label);
+                selected: root.region-choosing-track;
+                clicked => { root.region-choosing-track = !root.region-choosing-track; }
+            }
+            if root.region-choosing-track: VerticalLayout {
+                spacing: 4px;
+                PhoneCommand {
+                    label: I18n.t("mobile.master"); selected: root.region-track == "";
+                    clicked => { root.region-track = ""; root.region-choosing-track = false; root.preview-range(); }
+                }
+                for track in Editor.tracks: VerticalLayout {
+                    if track.mixable: PhoneCommand {
+                        label: track.label; selected: root.region-track == track.id;
+                        clicked => {
+                            root.region-track = track.id; root.region-track-label = track.label;
+                            root.region-choosing-track = false; root.preview-range();
+                        }
+                    }
+                }
+            }
+            if !root.region-effect-page && !root.region-choosing-track: VerticalLayout {
+                spacing: 4px;
+                for is-start in [true, false]: HorizontalLayout {
+                    spacing: 6px;
+                    property <float> time: is-start ? root.region-start : root.region-end;
+                    Text {
+                        text: is-start ? I18n.t("motion.in") : I18n.t("motion.out");
+                        color: Theme.fg; vertical-alignment: center; width: 36px;
+                    }
+                    RoundButton {
+                        size: 48px; glyph: Glyph.step-back; label: I18n.t("previewPane.previousFrame"); repeats: true;
+                        clicked => { root.region-edge(is-start, parent.time - root.frame-seconds); }
+                    }
+                    NumberField {
+                        height: 48px; value: parent.time; precision: 3; unit: "s";
+                        minimum: 0; maximum: Editor.preview-duration; step: root.frame-seconds;
+                        drag-scrub: false;
+                        changed(value) => { root.region-edge(is-start, value); self.value = parent.time; root.preview-range(); }
+                    }
+                    RoundButton {
+                        size: 48px; glyph: Glyph.step-forward; label: I18n.t("previewPane.nextFrame"); repeats: true;
+                        clicked => { root.region-edge(is-start, parent.time + root.frame-seconds); }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 4px;
+                    PhoneCommand { label: I18n.t("mobile.markIn"); clicked => { root.region-edge(true, Editor.playhead); } }
+                    PhoneCommand { label: I18n.t("mobile.markOut"); clicked => { root.region-edge(false, Editor.playhead); } }
+                }
+            }
+            if root.region-effect-page && !root.region-choosing-track: VerticalLayout {
+                spacing: 6px;
+                HorizontalLayout {
+                    spacing: 4px;
+                    PhoneCommand {
+                        label: I18n.t("mobile.lowPass"); selected: !root.region-high-pass;
+                        clicked => { root.region-high-pass = false; root.region-cutoff = 1200; root.preview-range(); }
+                    }
+                    PhoneCommand {
+                        label: I18n.t("mobile.highPass"); selected: root.region-high-pass;
+                        clicked => { root.region-high-pass = true; root.region-cutoff = 120; root.preview-range(); }
+                    }
+                }
+                PhoneValue {
+                    label: I18n.t("mobile.cutoff"); unit: "Hz"; precision: 0;
+                    value: root.region-cutoff; minimum: 20; maximum: 20000;
+                    step: 1; detent: root.region-high-pass ? 120 : 1200; logarithmic: true;
+                    edited(value) => { root.region-cutoff = value; }
+                    finished => { root.preview-range(); }
+                }
+                HorizontalLayout {
+                    spacing: 4px;
+                    PhoneCommand {
+                        label: I18n.t("mobile.loopPlayback"); selected: root.region-loop; enabled: root.region-valid;
+                        clicked => {
+                            root.region-loop = !root.region-loop;
+                            if (root.region-loop) {
+                                root.region-bypass = false;
+                                root.preview-range();
+                                Editor.phone-audio-loop(root.region-start, root.region-end);
+                                Editor.seek(root.region-start);
+                                if (!Editor.playing) { Editor.play-toggled(); }
+                            } else { Editor.phone-audio-loop(0, 0); }
+                        }
+                    }
+                    PhoneCommand {
+                        label: I18n.t("mobile.bypass"); selected: root.region-bypass;
+                        clicked => { root.region-bypass = !root.region-bypass; root.preview-range(); }
+                    }
+                }
+                PhoneCommand {
+                    label: I18n.t("common.apply"); enabled: root.region-valid;
+                    clicked => {
+                        Editor.blur();
+                        Editor.phone-filter-region(root.region-start, root.region-end, root.region-track, root.region-high-pass, root.region-cutoff);
+                        root.close-range();
+                        if (root.kind == ClipKind.sound-layer) { root.show("audio-filters", true); }
+                        else { root.hide(); }
+                    }
                 }
             }
         }
@@ -1734,6 +1945,7 @@ export component PhoneEditor inherits Rectangle {
                 playhead-at: Math.clamp((Editor.playhead - Editor.phone-selected-start)
                     / Math.max(root.frame-seconds, Editor.selected-clip.duration), 0, 1);
                 scrubbed(at) => {
+                    Editor.phone-preview-pair("", false);
                     Editor.seek(Editor.phone-selected-start + at
                         * Math.max(0, Editor.selected-clip.duration - root.frame-seconds));
                 }
@@ -1746,19 +1958,20 @@ export component PhoneEditor inherits Rectangle {
             }
             HorizontalLayout {
                 spacing: 6px;
-                RoundButton { size: 48px; glyph: Glyph.step-back; label: I18n.t("previewPane.previousFrame"); enabled: Editor.can-delete-selection; clicked => { Editor.phone-trim-edge(root.trim-start, -1); } }
+                RoundButton { size: 48px; glyph: Glyph.step-back; label: I18n.t("previewPane.previousFrame"); enabled: Editor.can-delete-selection; clicked => { Editor.phone-trim-edge(root.trim-start, -1); Editor.phone-preview-pair("trim", root.trim-start); } }
                 PhoneCommand {
                     label: I18n.t("motion.in"); selected: root.trim-start;
-                    clicked => { root.trim-start = true; Editor.seek(Editor.phone-selected-start); }
+                    clicked => { root.trim-start = true; Editor.seek(Editor.phone-selected-start); Editor.phone-preview-pair("trim", true); }
                 }
                 PhoneCommand {
                     label: I18n.t("motion.out"); selected: !root.trim-start;
                     clicked => {
                         root.trim-start = false;
                         Editor.seek(Editor.phone-selected-start + Math.max(0, Editor.selected-clip.duration - root.frame-seconds));
+                        Editor.phone-preview-pair("trim", false);
                     }
                 }
-                RoundButton { size: 48px; glyph: Glyph.step-forward; label: I18n.t("previewPane.nextFrame"); enabled: Editor.can-delete-selection; clicked => { Editor.phone-trim-edge(root.trim-start, 1); } }
+                RoundButton { size: 48px; glyph: Glyph.step-forward; label: I18n.t("previewPane.nextFrame"); enabled: Editor.can-delete-selection; clicked => { Editor.phone-trim-edge(root.trim-start, 1); Editor.phone-preview-pair("trim", root.trim-start); } }
             }
             HorizontalLayout {
                 spacing: 6px;
@@ -1769,6 +1982,10 @@ export component PhoneEditor inherits Rectangle {
 
         if root.sheet == "clip-audio": VerticalLayout {
             spacing: 8px;
+            if root.audio-mode: PhoneCommand {
+                label: I18n.t("configPane.audioEffects");
+                clicked => { root.show("audio-filters", true); }
+            }
             PhoneAudioGain { }
             PhoneCommand {
                 label: root.expanded-tool ? I18n.t("configPane.basic") : I18n.t("phone.more");

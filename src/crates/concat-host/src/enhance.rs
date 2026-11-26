@@ -519,6 +519,7 @@ fn footage(
             Some((start, duration)) => {
                 let partial_audio = request.target.with_extension("part.m4a");
                 let clip = concat_media::audio::AudioClip {
+                    track: 0,
                     path: PathBuf::from(&request.media_path),
                     stream: None,
                     start: 0.0,

@@ -208,11 +208,18 @@ export global Editor {
     callback phone-grade-layer(action: string, index: int);
     callback phone-track-mix(id: string, field: string, value: float);
     callback phone-audio-filter(high-pass: bool);
-    callback phone-filter-region(start: float, end: float, high-pass: bool);
+    callback phone-filter-region(start: float, end: float, target: string, high-pass: bool, cutoff: float);
+    callback phone-preview-range(start: float, end: float, target: string, high-pass: bool, cutoff: float);
+    callback phone-clear-range-preview();
+    in-out property <string> phone-sound-target;
     callback phone-audio-key(from: float, at: float, fraction: float);
     callback phone-audio-remove-key(at: float);
     callback phone-color-shot(id: string);
     callback phone-color-compare(on: bool);
+    callback phone-preview-pair(mode: string, at-start: bool);
+    in-out property <image> phone-frame-a;
+    in-out property <image> phone-frame-b;
+    in-out property <bool> phone-frames-ready;
     callback phone-clip-scrubbed(at: float);
     callback audio-fades-edited(fade-in: float, fade-out: float);
     /// The families a title can be set in: the bundled face, the user's

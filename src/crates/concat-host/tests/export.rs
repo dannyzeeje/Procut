@@ -184,6 +184,7 @@ fn clock_wav(path: &Path, seconds: u32) {
 /// The clock as the AAC the engine's own mix writes.
 fn clock_aac(wav: &Path, path: &Path, seconds: u32) {
     let clip = AudioClip {
+        track: 0,
         path: wav.to_path_buf(),
         stream: None,
         start: 0.0,
@@ -1763,6 +1764,8 @@ fn every_edit_still_exports() {
             effect_id: "concat.glow".to_owned(),
             name: "Glow".to_owned(),
             sound: false,
+            audio_target: None,
+            audio_cutoff: None,
         });
         let exported = studio.export("layer");
         exported.expect_length(end);
@@ -2284,6 +2287,8 @@ fn a_sound_layer_treats_the_mix_for_its_span_alone() {
             effect_id: "concat.underwater".to_owned(),
             name: "Underwater".to_owned(),
             sound: true,
+            audio_target: None,
+            audio_cutoff: None,
         })
         .expect("a layer has an id");
     let treated = studio.export("sound layer");

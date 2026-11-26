@@ -41,20 +41,21 @@ export component PhoneValue inherits Rectangle {
         root.shown = v;
         root.edited(v);
     }
-    height: 96px;
+    min-height: 92px;
+    preferred-height: 92px;
     HorizontalLayout {
-        height: 48px;
+        x: 0; y: 0; width: root.width; height: 44px;
         spacing: 8px;
         Text {
             text: root.label;
             color: Theme.fg;
             vertical-alignment: center;
             overflow: elide;
-            horizontal-stretch: 1;
+            min-width: 0px; horizontal-stretch: 1;
         }
         NumberField {
             width: 100px;
-            height: 48px;
+            height: 42px;
             value <=> root.shown;
             minimum: root.minimum;
             maximum: root.maximum;
@@ -72,7 +73,7 @@ export component PhoneValue inherits Rectangle {
     }
     rail := TouchArea {
         x: 0;
-        y: 48px;
+        y: 44px;
         width: root.width;
         height: 48px;
         enabled: root.enabled;
@@ -81,6 +82,7 @@ export component PhoneValue inherits Rectangle {
         property <bool> editing;
         property <length> inset: 14px;
         property <length> travel: Math.max(1px, self.width - 2 * self.inset);
+        property <length> centre: self.inset + self.travel * Math.clamp(root.fraction(root.detent), 0, 1);
         property <length> marker: self.inset + self.travel * Math.clamp(root.fraction(root.shown), 0, 1);
         function sample() {
             root.update(root.at((self.mouse-x - self.inset) / self.travel));
@@ -103,8 +105,8 @@ export component PhoneValue inherits Rectangle {
             border-radius: 3px; background: Theme.field;
         }
         Rectangle {
-            x: rail.inset; y: 21px;
-            width: rail.marker - rail.inset; height: 6px;
+            x: Math.min(rail.centre, rail.marker); y: 21px;
+            width: Math.abs(rail.marker - rail.centre); height: 6px;
             border-radius: 3px; background: Theme.accent;
         }
         Rectangle {

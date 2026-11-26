@@ -108,7 +108,12 @@ pub fn flatten_timeline_in(
             // for its span, its opacity the strength and its fades the
             // ramps, silent with its lane.
             if clip.kind == ModelClipKind::SoundLayer {
+                let sound_target = match clip.sound_target() {
+                    Some(id) => Some(timeline.tracks.iter().position(|track| track.id == id)?),
+                    None => None,
+                };
                 return Some(ExportClip {
+                    sound_target,
                     hidden: true,
                     muted: track.muted || clip.muted == Some(true),
                     volume: 0.0,

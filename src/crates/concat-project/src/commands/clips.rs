@@ -211,11 +211,20 @@ pub(super) fn apply(
             effect_id,
             name,
             sound,
+            audio_target,
+            audio_cutoff,
         } => {
             let duration = duration
                 .unwrap_or(DEFAULT_LAYER_DURATION)
                 .max(MIN_CLIP_DURATION);
             let timeline = project.active_mut();
+            if sound
+                && audio_target
+                    .as_ref()
+                    .is_some_and(|id| timeline.track(id).is_none())
+            {
+                return Err(CommandError::TrackGone);
+            }
             let track_id = match track_id {
                 Some(id) if timeline.track(&id).is_some() => id,
                 Some(_) => return Err(CommandError::TrackGone),
@@ -242,7 +251,18 @@ pub(super) fn apply(
             };
             let mut clip = Clip::blank(id.clone(), track_id, kind, name, start, duration);
             if sound {
-                clip.filters = vec![AppliedFilter::new(effect_id)];
+                let mut effect = AppliedFilter::new(effect_id);
+                if matches!(effect.id.as_str(), "concat.low-pass" | "concat.high-pass")
+                    && let Some(cutoff) = audio_cutoff.filter(|value| value.is_finite())
+                {
+                    effect
+                        .params
+                        .insert("frequency".into(), cutoff.clamp(20.0, 20_000.0));
+                }
+                clip.filters = vec![effect];
+                if let Some(target) = audio_target {
+                    clip.extra.insert("procutSoundTarget".into(), target.into());
+                }
             } else {
                 clip.video_effects = vec![AppliedFilter::new(effect_id)];
             }

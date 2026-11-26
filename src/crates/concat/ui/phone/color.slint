@@ -59,42 +59,61 @@ export component PhoneColorShots inherits Flickable {
     }
 }
 
+component GradeRail inherits PhoneValue {
+    in property <int> entry;
+    in property <string> key;
+    started => { Editor.phone-edit-started(); }
+    edited(v) => {
+        if (root.entry < 0) { Editor.adjust-set(root.key, v); }
+        else { Editor.chain-set-param(false, root.entry, root.key, v); }
+        Editor.phone-edit-preview();
+    }
+    finished => { Editor.phone-edit-finished(); }
+}
+
 export component PhoneColorTools inherits VerticalLayout {
     in-out property <string> selected-key: "exposure";
+    in-out property <int> active: -1;
     in property <bool> before;
+    callback choose-layer();
     spacing: 4px;
+    padding-top: 4px;
 
-    HorizontalLayout {
+    if Editor.phone-can-grade: HorizontalLayout {
         spacing: 4px;
         for p in Editor.phone-color-params: PhoneCommand {
             label: p.label;
             selected: root.selected-key == p.key;
-            enabled: Editor.phone-can-grade && !root.before;
+            enabled: !root.before;
             clicked => { Editor.blur(); root.selected-key = p.key; }
         }
     }
     for p in Editor.phone-color-params: VerticalLayout {
-        if p.key == root.selected-key: PhoneValue {
-            label: p.label;
-            unit: p.unit;
-            value: p.value;
-            minimum: p.min;
-            maximum: p.max;
-            step: p.step;
-            detent: p.default-value;
-            enabled: Editor.phone-can-grade && !root.before;
-            started => { Editor.phone-edit-started(); }
-            edited(v) => { Editor.adjust-set(p.key, v); Editor.phone-edit-preview(); }
-            finished => { Editor.phone-edit-finished(); }
+        if p.key == root.selected-key && root.active < 0: GradeRail {
+            entry: -1; key: p.key;
+            label: p.label; unit: p.unit; value: p.value;
+            minimum: p.min; maximum: p.max; step: p.step; detent: p.default-value;
+            enabled: !root.before;
+        }
+    }
+    for p in Editor.phone-grade-params: VerticalLayout {
+        if p.key == root.selected-key && p.entry == root.active: GradeRail {
+            entry: p.entry; key: p.key;
+            label: p.label; unit: p.unit; value: p.value;
+            minimum: p.min; maximum: p.max; step: p.step; detent: p.default-value;
+            enabled: !root.before && (!p.keyed || p.keyable);
+        }
+    }
+    for layer in Editor.phone-grade-layers: VerticalLayout {
+        if layer.index == root.active && (!layer.primaries || !layer.on): PhoneCommand {
+            label: layer.name;
+            clicked => { root.choose-layer(); }
         }
     }
     if !Editor.phone-can-grade: Text {
         text: I18n.t("mobile.selectShot");
-        color: Theme.fg-muted;
-        wrap: word-wrap;
-        vertical-alignment: center;
+        color: Theme.fg-muted; wrap: word-wrap;
     }
-
 }
 
 export component PhoneCameraInput inherits VerticalLayout {
@@ -131,32 +150,49 @@ export component PhoneCameraInput inherits VerticalLayout {
 }
 
 export component PhoneGradeLayers inherits VerticalLayout {
-    property <int> active: -1;
+    in-out property <int> active: -1;
+    callback input();
+    callback looks();
     property <int> bank;
+    property <int> channel;
+    property <int> wheel-index;
+    property <[string]> channel-labels: [I18n.t("mobile.redChannel"), I18n.t("mobile.greenChannel"), I18n.t("mobile.blueChannel")];
+    property <[string]> channel-keys: ["red", "green", "blue"];
     property <string> clip-id: Editor.primary-selected-id;
     changed clip-id => { root.active = -1; root.bank = 0; }
     padding: 12px;
     spacing: 6px;
 
     PhoneCommand {
-        label: I18n.t("mobile.addGradeLayer");
-        clicked => {
-            Editor.blur();
-            Editor.phone-grade-layer("add", -1);
-            if (Editor.phone-grade-layers.length > 0) {
-                root.active = Editor.phone-grade-layers[Editor.phone-grade-layers.length - 1].index;
-                root.bank = 0;
+        label: I18n.t("mobile.colorSpaceTransform");
+        clicked => { root.input(); }
+    }
+    HorizontalLayout {
+        spacing: 6px;
+        PhoneCommand {
+            label: I18n.t("mobile.addGradeLayer");
+            clicked => {
+                Editor.blur();
+                Editor.phone-grade-layer("add", -1);
+                if (Editor.phone-grade-layers.length > 0) {
+                    root.active = Editor.phone-grade-layers[Editor.phone-grade-layers.length - 1].index;
+                    root.bank = 0;
+                }
             }
         }
+        PhoneCommand {
+            label: I18n.t("mediaPane.luts");
+            clicked => { root.looks(); }
+        }
     }
-    for layer in Editor.phone-grade-layers: VerticalLayout {
+    for layer[row] in Editor.phone-grade-layers: VerticalLayout {
         spacing: 4px;
         PhoneCommand {
             label: layer.name;
             selected: root.active == layer.index;
             clicked => {
                 Editor.blur();
-                root.active = root.active == layer.index ? -1 : layer.index;
+                root.active = layer.index;
                 root.bank = layer.primaries ? 0 : layer.wheels ? 1 : layer.curves ? 2 : 0;
             }
         }
@@ -174,13 +210,13 @@ export component PhoneGradeLayers inherits VerticalLayout {
                     size: 48px; glyph: Glyph.chevron-up;
                     label: I18n.t("mobile.moveUp");
                     enabled: layer.up;
-                    clicked => { Editor.blur(); Editor.phone-grade-layer("up", layer.index); root.active = -1; }
+                    clicked => { Editor.blur(); let next = Editor.phone-grade-layers[row - 1].index; Editor.phone-grade-layer("up", layer.index); root.active = next; }
                 }
                 RoundButton {
                     size: 48px; glyph: Glyph.chevron-down;
                     label: I18n.t("mobile.moveDown");
                     enabled: layer.down;
-                    clicked => { Editor.blur(); Editor.phone-grade-layer("down", layer.index); root.active = -1; }
+                    clicked => { Editor.blur(); let next = Editor.phone-grade-layers[row + 1].index; Editor.phone-grade-layer("down", layer.index); root.active = next; }
                 }
                 RoundButton {
                     size: 48px; glyph: Glyph.trash;
@@ -197,9 +233,20 @@ export component PhoneGradeLayers inherits VerticalLayout {
                     PhoneCommand { label: I18n.t("mobile.colorWheels"); selected: root.bank == 1; clicked => { Editor.blur(); root.bank = 1; } }
                     PhoneCommand { label: I18n.t("keyframesPane.curves"); selected: root.bank == 2; clicked => { Editor.blur(); root.bank = 2; } }
                 }
+                if root.bank == 3: HorizontalLayout {
+                    spacing: 4px;
+                    for label[i] in root.channel-labels: PhoneCommand {
+                        label: label;
+                        selected: root.channel == i;
+                        clicked => { Editor.blur(); root.channel = i; }
+                    }
+                }
                 for p in Editor.phone-grade-params: group-box := VerticalLayout {
                     property <bool> channel: p.group == "Gamma channels" || p.group == "Gain channels";
-                    if p.entry == layer.index && ((root.bank == 0 && !group-box.channel) || (root.bank == 3 && group-box.channel)): PhoneValue {
+                    if p.entry == layer.index && ((root.bank == 0 && !group-box.channel)
+                        || (root.bank == 3 && group-box.channel
+                            && (p.key == "gamma_" + root.channel-keys[root.channel]
+                                || p.key == "gain_" + root.channel-keys[root.channel]))): PhoneValue {
                         label: p.label; unit: p.unit; value: p.value;
                         minimum: p.min; maximum: p.max; step: p.step; detent: p.default-value;
                         enabled: !p.keyed || p.keyable;
@@ -211,16 +258,28 @@ export component PhoneGradeLayers inherits VerticalLayout {
                 for group in Editor.visual-wheels: VerticalLayout {
                     if root.bank == 1 && group.entry == layer.index: VerticalLayout {
                         spacing: 6px;
-                        for wheel in group.wheels: ColorWheel {
-                            data: wheel;
-                            moved(x, y) => { Editor.chain-set-param(false, wheel.entry, wheel.key + ".x", x); Editor.chain-set-param(false, wheel.entry, wheel.key + ".y", y); Editor.clip-commit(); }
-                            master-changed(v) => { Editor.chain-set-param(false, wheel.entry, wheel.key + ".m", v); Editor.clip-commit(); }
+                        HorizontalLayout {
+                            spacing: 4px;
+                            for wheel[i] in group.wheels: PhoneCommand {
+                                label: wheel.label; selected: root.wheel-index == i;
+                                clicked => { root.wheel-index = i; }
+                            }
+                        }
+                        for wheel[i] in group.wheels: HorizontalLayout {
+                            alignment: center;
+                            if root.wheel-index == i: ColorWheel {
+                                width: 164px;
+                                data: wheel;
+                                moved(x, y) => { Editor.chain-set-param(false, wheel.entry, wheel.key + ".x", x); Editor.chain-set-param(false, wheel.entry, wheel.key + ".y", y); Editor.clip-commit(); }
+                                master-changed(v) => { Editor.chain-set-param(false, wheel.entry, wheel.key + ".m", v); Editor.clip-commit(); }
+                            }
                         }
                     }
                 }
                 for group in Editor.visual-curves: VerticalLayout {
                     if root.bank == 2 && group.entry == layer.index: CurveEditor {
                         curves: group.curves;
+                        phone: true;
                         point(key, index, x, y) => { Editor.curve-point(group.entry, key, index, x, y); Editor.clip-commit(); }
                         remove(key, index) => { Editor.curve-remove(group.entry, key, index); Editor.clip-commit(); }
                     }

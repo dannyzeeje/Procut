@@ -94,13 +94,13 @@ export component ToolItem inherits Rectangle {
 
     callback clicked();
 
-    min-height: 64px;
+    min-height: 56px;
     width: 76px;
     accessible-role: button;
     accessible-label: root.label;
     border-radius: Theme.r;
     opacity: root.enabled ? 1.0 : 0.35;
-    background: touch.pressed ? Theme.field-active : Colors.transparent;
+    background: touch.pressed ? Theme.field-active : root.current ? Theme.accent-soft : Colors.transparent;
 
     animate background { duration: 100ms; easing: cubic-bezier(0.4, 0, 0.2, 1); }
 

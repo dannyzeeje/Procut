@@ -387,6 +387,10 @@ impl Studio {
         self.phone_color_workspace = false;
         self.phone_color_loop = true;
         self.phone_audio_loop = None;
+        self.phone_range_preview = None;
+        self.phone_pair_generation = self.phone_pair_generation.wrapping_add(1);
+        self.phone_pair_busy = false;
+        self.phone_pair_pending = None;
         self.phone_audio_zoom = None;
         self.phone_edit_zoom = None;
         self.meters.phone_workspace = false;

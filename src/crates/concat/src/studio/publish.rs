@@ -582,6 +582,12 @@ impl Studio {
                 selected.map(|clip| self.strip_of(clip)).unwrap_or_default(),
             );
             editor.set_phone_selected_start(selected.map_or(0.0, |clip| clip.start as f32));
+            editor.set_phone_sound_target(
+                selected
+                    .and_then(|clip| clip.sound_target())
+                    .unwrap_or("")
+                    .into(),
+            );
         }
         // The tray's undo and redo buttons grey out on these; the Edit menu
         // asks the session itself when it opens.

@@ -669,6 +669,7 @@ mod tests {
                 for preserve_pitch in [true, false] {
                     let duration = 1.0;
                     let clip = crate::audio::AudioClip {
+                        track: 0,
                         path: path.clone(),
                         stream: None,
                         start: 0.0,

@@ -63,6 +63,7 @@ mod menus;
 #[cfg(test)]
 mod merge_words_tests;
 mod monitor;
+mod phone_frames;
 mod placing;
 mod pro_tools;
 mod project_files;
@@ -1353,6 +1354,10 @@ pub struct Studio {
     phone_color_workspace: bool,
     phone_color_loop: bool,
     phone_audio_loop: Option<(f32, f32)>,
+    phone_range_preview: Option<(String, concat_export::ExportClip)>,
+    phone_pair_generation: u64,
+    phone_pair_busy: bool,
+    phone_pair_pending: Option<(String, bool)>,
     phone_audio_zoom: Option<f32>,
     phone_edit_zoom: Option<f32>,
     /// A selection being rendered into one clip, with its own cancel flag.
@@ -3255,6 +3260,10 @@ impl Studio {
             phone_color_workspace: false,
             phone_color_loop: true,
             phone_audio_loop: None,
+            phone_range_preview: None,
+            phone_pair_generation: 0,
+            phone_pair_busy: false,
+            phone_pair_pending: None,
             phone_audio_zoom: None,
             phone_edit_zoom: None,
             merge_job: None,

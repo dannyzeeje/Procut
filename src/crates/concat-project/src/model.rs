@@ -2943,6 +2943,11 @@ impl Default for Clip {
 }
 
 impl Clip {
+    /// Audio track processed by a time-limited sound layer.
+    pub fn sound_target(&self) -> Option<&str> {
+        self.extra.get("procutSoundTarget").and_then(Value::as_str)
+    }
+
     /// A clip with nothing set but what names and places it: unity gain,
     /// scale and speed, no fades, no effects, no keys. Every constructor
     /// starts here and sets the few fields its kind needs, so a field added

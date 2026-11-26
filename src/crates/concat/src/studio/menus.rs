@@ -681,6 +681,8 @@ impl Studio {
                         .unwrap_or_default(),
                     name: source.name.clone(),
                     sound,
+                    audio_target: None,
+                    audio_cutoff: None,
                 })
             }
             // A transition clip is laid as one, its package first; the

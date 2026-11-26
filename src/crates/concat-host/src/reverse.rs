@@ -202,6 +202,7 @@ impl Reversers {
 /// The span as the mixer sees it, with `chain` on it.
 fn span_clip(request: &ReverseRequest, chain: &str) -> AudioClip {
     AudioClip {
+        track: 0,
         path: PathBuf::from(&request.media_path),
         stream: request.audio_stream,
         start: 0.0,

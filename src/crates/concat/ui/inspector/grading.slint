@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 Jareer Abdullah
 
 import { I18n } from "../i18n.slint";
+import { Button } from "../primitives/modal.slint";
 import { Theme } from "../theme/theme.slint";
 import { Fmt } from "../util.slint";
 import { NumberField } from "../primitives/number-field.slint";
@@ -232,6 +233,8 @@ component CurvePoint inherits TouchArea {
     in property <length> plot-w;
     in property <length> plot-h;
     in property <color> tint;
+    in property <bool> phone;
+    callback selected();
 
     callback dragged(x: float, y: float);
     callback removed();
@@ -241,15 +244,15 @@ component CurvePoint inherits TouchArea {
     property <bool> dragging;
     property <bool> off;
 
-    x: (self.dragging ? self.drag-x : root.px) * root.plot-w - 8px;
-    y: (1 - (self.dragging ? self.drag-y : root.py)) * root.plot-h - 8px;
-    width: 16px;
-    height: 16px;
+    x: (self.dragging ? self.drag-x : root.px) * root.plot-w - self.width / 2;
+    y: (1 - (self.dragging ? self.drag-y : root.py)) * root.plot-h - self.height / 2;
+    width: root.phone ? 44px : 16px;
+    height: self.width;
     mouse-cursor: move;
 
     Rectangle {
-        x: 3px;
-        y: 3px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
         width: 10px;
         height: 10px;
         border-radius: 5px;
@@ -272,15 +275,16 @@ component CurvePoint inherits TouchArea {
         }
     }
     pointer-event(event) => {
+        if (event.kind == PointerEventKind.down) { root.selected(); }
         if (event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel) {
-            if (self.off && event.kind == PointerEventKind.up) {
+            if (!root.phone && self.off && event.kind == PointerEventKind.up) {
                 root.removed();
             }
             self.dragging = false;
             self.off = false;
         }
     }
-    double-clicked => { root.removed(); }
+    double-clicked => { if (!root.phone) { root.removed(); } }
 }
 
 /// The curves: a tab a channel over one square graph. The chosen channel's
@@ -292,6 +296,9 @@ export component CurveEditor inherits VerticalLayout {
     in property <[CurveData]> curves;
     in property <bool> enabled: true;
     in-out property <int> current: 0;
+    in property <bool> phone;
+    property <int> selected-point: -1;
+    changed current => { root.selected-point = -1; }
 
     /// A point moved, or put down when `index` is -1, in the unit square.
     callback point(key: string, index: int, x: float, y: float);
@@ -307,7 +314,7 @@ export component CurveEditor inherits VerticalLayout {
         spacing: 2px;
 
         for curve[i] in root.curves: Rectangle {
-            height: 22px;
+            height: root.phone ? 48px : 22px;
             horizontal-stretch: 1;
             border-radius: Theme.r-xs;
             background: i == root.current ? Theme.field-active : tab.has-hover ? Theme.field-hover : Theme.field;
@@ -327,7 +334,7 @@ export component CurveEditor inherits VerticalLayout {
     }
 
     graph := Rectangle {
-        height: self.width;
+        height: root.phone ? Math.min(208px, self.width) : self.width;
         background: Theme.well;
         border-width: 1px;
         border-color: Theme.line;
@@ -353,12 +360,20 @@ export component CurveEditor inherits VerticalLayout {
             enabled: root.enabled;
             mouse-cursor: crosshair;
             clicked => {
-                root.point(root.active.key, -1,
+                if (!root.phone) {
+                    root.point(root.active.key, -1,
                     Math.max(0, Math.min(1, self.mouse-x / graph.width)),
                     Math.max(0, Math.min(1, 1 - self.mouse-y / graph.height)));
+                }
             }
         }
 
+        if root.phone: Path {
+            width: graph.width; height: graph.height;
+            viewbox-width: 1; viewbox-height: 1; fit: fill;
+            commands: "M 0 1 L 1 0"; fill: Colors.transparent;
+            stroke: Theme.fg-muted; stroke-width: 1px;
+        }
         for curve[i] in root.curves: Path {
             x: 0;
             y: 0;
@@ -380,9 +395,32 @@ export component CurveEditor inherits VerticalLayout {
             plot-w: graph.width;
             plot-h: graph.height;
             tint: root.tint;
+            phone: root.phone;
             enabled: root.enabled;
+            selected => { root.selected-point = point.index; }
             dragged(x, y) => { root.point(root.active.key, point.index, x, y); }
             removed => { root.remove(root.active.key, point.index); }
+        }
+    }
+    if root.phone: HorizontalLayout {
+        spacing: 6px;
+        Button {
+            height: 48px;
+            label: I18n.t("mobile.addCurvePoint");
+            enabled: root.enabled && root.active.points.length >= 2;
+            clicked => {
+                let next = Math.max(1, Math.min(root.active.points.length - 1, root.selected-point + 1));
+                let l = root.active.points[next - 1];
+                let r = root.active.points[next];
+                root.point(root.active.key, -1, (l.x + r.x) / 2, (l.y + r.y) / 2);
+                root.selected-point = next;
+            }
+        }
+        Button {
+            height: 48px;
+            label: I18n.t("mobile.removeCurvePoint");
+            enabled: root.enabled && root.selected-point > 0 && root.selected-point < root.active.points.length - 1;
+            clicked => { root.remove(root.active.key, root.selected-point); root.selected-point = -1; }
         }
     }
 }

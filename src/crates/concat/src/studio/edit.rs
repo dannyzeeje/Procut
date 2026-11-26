@@ -663,7 +663,23 @@ impl Studio {
         let Some(session) = self.session.as_ref() else {
             return;
         };
-        let specs = audio_specs(&session.flattened_clips());
+        let mut clips = session.flattened_clips();
+        if let Some((target, preview)) = &self.phone_range_preview {
+            if target.is_empty() {
+                clips.push(preview.clone());
+            } else if let Some(index) = session
+                .project()
+                .active()
+                .tracks
+                .iter()
+                .position(|track| &track.id == target)
+            {
+                let mut preview = preview.clone();
+                preview.sound_target = Some(index);
+                clips.push(preview);
+            }
+        }
+        let specs = audio_specs(&clips);
         self.host
             .playback
             .set_clips(std::path::PathBuf::from(session.path()), specs);

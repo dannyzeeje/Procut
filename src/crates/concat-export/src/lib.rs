@@ -156,6 +156,9 @@ pub struct ExportClip {
     pub source_start: f64,
     /// Index into the track stack, zero being bottom-most.
     pub track: usize,
+    /// Track processed by a sound layer. None is the master mix.
+    #[serde(default)]
+    pub sound_target: Option<usize>,
     /// The track's picture is switched off.
     pub hidden: bool,
     /// The track's sound is switched off.
@@ -404,6 +407,7 @@ impl ExportClip {
             duration,
             source_start: 0.0,
             track,
+            sound_target: None,
             hidden: false,
             muted: false,
             volume: 1.0,
@@ -1340,6 +1344,7 @@ pub fn audio_buses(clips: &[ExportClip]) -> Vec<audio::AudioBus> {
     layers
         .into_iter()
         .map(|clip| audio::AudioBus {
+            target: clip.sound_target,
             start: clip.start,
             duration: clip.duration,
             filter_chain: clip.filter_chain.clone(),
@@ -1384,6 +1389,7 @@ fn audio_pieces_of(
     let track = volume_track(clip);
     let Some(curve) = clip.engine_curve().filter(|_| clip.kind != ClipKind::Image) else {
         return vec![AudioClip {
+            track: clip.track,
             path: PathBuf::from(path),
             stream: stream.map(|index| index as usize),
             start: clip.start,
@@ -1424,6 +1430,7 @@ fn audio_pieces_of(
         let speed = audio::clamp_speed(curve.mean());
         let constant = tempo.len() <= 1;
         return vec![AudioClip {
+            track: clip.track,
             path: PathBuf::from(path),
             stream: stream.map(|index| index as usize),
             start: clip.start,
@@ -1461,6 +1468,7 @@ fn audio_pieces_of(
             let fade_out_from = clip.start + clip.duration - clip.fade_out;
             let fade_out = (piece_end - fade_out_from.max(piece_start)).clamp(0.0, piece_duration);
             AudioClip {
+                track: clip.track,
                 path: PathBuf::from(path),
                 stream: stream.map(|index| index as usize),
                 start: piece_start,
@@ -4411,6 +4419,8 @@ mod tests {
                 effect_id: "concat.adjust".into(),
                 name: "Adjustment".into(),
                 sound: false,
+                audio_target: None,
+                audio_cutoff: None,
             })
             .expect("adds the layer")
             .created_id
