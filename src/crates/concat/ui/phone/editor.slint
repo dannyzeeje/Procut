@@ -449,6 +449,12 @@ export component PhoneEditor inherits Rectangle {
     property <float> band-start: root.showing-applied-region ? Editor.phone-selected-start : root.region-start;
     property <float> band-end: root.showing-applied-region ? Editor.phone-selected-start + Editor.selected-clip.duration : root.region-end;
 
+    property <bool> range-actions: root.sheet == "audio-range" && root.region-effect-page && !root.region-choosing-track;
+    function reveal-range-track(top: length, height: length) {
+        let room = Math.max(height, root.lanes-h - 76px);
+        let start = top < stack.at ? top : Math.max(stack.at, top + height - room);
+        stack.lift = Math.clamp(stack.overflow - start, 0px, stack.overflow);
+    }
     function preview-range() {
         if (root.audio-region && root.region-valid && root.region-effect-page && !root.region-bypass) {
             Editor.phone-preview-range(root.region-start, root.region-end, root.region-track, root.region-high-pass, root.region-cutoff);
@@ -680,8 +686,11 @@ export component PhoneEditor inherits Rectangle {
     property <bool> docked-sheet: root.color-mode || root.audio-mode;
     property <length> workspace-panel-h: root.color-mode
         ? (root.sheet == "color-compare" ? 128px : Math.clamp(root.height * 0.40, 230px, 390px))
-        : Math.clamp(root.height * 0.43, 225px, 450px);
-    property <length> sheet-h: root.docked-sheet ? root.workspace-panel-h :
+        : Math.min(Math.max(146px, root.tools-y - root.preview-top - root.transport-h - 88px),
+            Math.clamp(root.height * 0.44, 280px, 430px));
+    property <length> sheet-h: root.docked-sheet
+        ? Math.min(root.workspace-panel-h, Math.max(96px, root.tools-y - root.preview-top - root.transport-h
+            - (root.color-mode ? root.shot-strip-h : 0px))) :
         root.quick-sheet ? (root.expanded-tool ? root.height * 0.6 : Math.min(root.height * 0.45, 320px))
         : Math.min(root.height * 0.52, 460px);
     property <length> occupied-bottom: root.sheet != "" && root.docked-sheet
@@ -1238,6 +1247,7 @@ export component PhoneEditor inherits Rectangle {
         dismiss-on-background: !root.docked-sheet && !root.quick-sheet && root.sheet != "clip-text" && root.sheet != "clip-mask" && root.sheet != "clip-crop";
         footer: !root.docked-sheet && root.sheet != "audio-graph" && root.sheet != "media" && root.sheet != "tools" && root.sheet != "customize-tools" && !Editor.effect-preview-active;
         preview-footer: Editor.effect-preview-active;
+        action-space: root.range-actions ? 56px : 0px;
         open: root.sheet != "";
         title: root.sheet-title(root.sheet);
         closed => { Editor.blur(); root.hide(); }
@@ -1272,7 +1282,7 @@ export component PhoneEditor inherits Rectangle {
                 clicked => { root.color-loop = !root.color-loop; Editor.phone-color-loop(root.color-loop); }
             }
         }
-        if root.sheet == "audio-mixer": PhoneMixer {}
+        if root.sheet == "audio-mixer": PhoneMixer { compact: root.height < 730px; }
         if root.sheet == "audio-graph" && root.audio-source: PhoneVolumeGraph {
             point-dragging(active) => { root.audio-point-dragging = active; }
         }
@@ -1803,24 +1813,24 @@ export component PhoneEditor inherits Rectangle {
 
         if root.sheet == "audio-range": VerticalLayout {
             padding: 8px; spacing: 6px;
-            HorizontalLayout {
+            if !root.region-effect-page: HorizontalLayout {
                 spacing: 4px;
                 PhoneCommand {
-                    label: I18n.t("mobile.rangeTiming"); selected: !root.region-effect-page;
-                    clicked => { root.region-effect-page = false; root.preview-range(); }
+                    label: I18n.t("mobile.rangeTiming"); selected: true;
+                    clicked => { root.region-choosing-track = false; }
                 }
                 PhoneCommand {
-                    label: I18n.t("common.effects"); selected: root.region-effect-page;
-                    clicked => { root.region-effect-page = true; root.preview-range(); }
+                    label: I18n.t("common.effects");
+                    clicked => { root.region-effect-page = true; root.region-choosing-track = false; root.preview-range(); }
                 }
             }
-            Text {
+            if !root.region-effect-page: Text {
                 text: Fmt.frames-timecode(root.region-start, Editor.frame-rate)
                     + "  –  " + Fmt.frames-timecode(root.region-end, Editor.frame-rate);
                 color: Theme.fg; font-family: Theme.font-technical;
                 horizontal-alignment: center; overflow: elide; height: 26px;
             }
-            PhoneCommand {
+            if !root.region-effect-page: PhoneCommand {
                 label: I18n.t("mobile.rangeTarget") + " · " + (root.region-track == "" ? I18n.t("mobile.master") : root.region-track-label);
                 selected: root.region-choosing-track;
                 clicked => { root.region-choosing-track = !root.region-choosing-track; }
@@ -1836,7 +1846,7 @@ export component PhoneEditor inherits Rectangle {
                         label: track.label; selected: root.region-track == track.id;
                         clicked => {
                             root.region-track = track.id; root.region-track-label = track.label;
-                            root.region-choosing-track = false; root.preview-range();
+                            root.region-choosing-track = false; root.reveal-range-track(track.top, track.height); root.preview-range();
                         }
                     }
                 }
@@ -1874,14 +1884,20 @@ export component PhoneEditor inherits Rectangle {
             if root.region-effect-page && !root.region-choosing-track: VerticalLayout {
                 spacing: 6px;
                 HorizontalLayout {
-                    spacing: 4px;
-                    PhoneCommand {
-                        label: I18n.t("mobile.lowPass"); selected: !root.region-high-pass;
-                        clicked => { root.region-high-pass = false; root.region-cutoff = 1200; root.preview-range(); }
+                    spacing: 6px;
+                    RoundButton {
+                        size: 48px; glyph: Glyph.chevron-left; label: I18n.t("mobile.rangeTiming");
+                        clicked => { root.region-effect-page = false; root.preview-range(); }
                     }
-                    PhoneCommand {
-                        label: I18n.t("mobile.highPass"); selected: root.region-high-pass;
-                        clicked => { root.region-high-pass = true; root.region-cutoff = 120; root.preview-range(); }
+                    Select {
+                        row-h: 48px; height: 48px; min-width: 0px;
+                        current: root.region-high-pass ? 1 : 0;
+                        options: [I18n.t("mobile.lowPass"), I18n.t("mobile.highPass")];
+                        changed(index) => {
+                            root.region-high-pass = index == 1;
+                            root.region-cutoff = index == 1 ? 120 : 1200;
+                            root.preview-range();
+                        }
                     }
                 }
                 PhoneValue {
@@ -1890,36 +1906,6 @@ export component PhoneEditor inherits Rectangle {
                     step: 1; detent: root.region-high-pass ? 120 : 1200; logarithmic: true;
                     edited(value) => { root.region-cutoff = value; }
                     finished => { root.preview-range(); }
-                }
-                HorizontalLayout {
-                    spacing: 4px;
-                    PhoneCommand {
-                        label: I18n.t("mobile.loopPlayback"); selected: root.region-loop; enabled: root.region-valid;
-                        clicked => {
-                            root.region-loop = !root.region-loop;
-                            if (root.region-loop) {
-                                root.region-bypass = false;
-                                root.preview-range();
-                                Editor.phone-audio-loop(root.region-start, root.region-end);
-                                Editor.seek(root.region-start);
-                                if (!Editor.playing) { Editor.play-toggled(); }
-                            } else { Editor.phone-audio-loop(0, 0); }
-                        }
-                    }
-                    PhoneCommand {
-                        label: I18n.t("mobile.bypass"); selected: root.region-bypass;
-                        clicked => { root.region-bypass = !root.region-bypass; root.preview-range(); }
-                    }
-                }
-                PhoneCommand {
-                    label: I18n.t("common.apply"); enabled: root.region-valid;
-                    clicked => {
-                        Editor.blur();
-                        Editor.phone-filter-region(root.region-start, root.region-end, root.region-track, root.region-high-pass, root.region-cutoff);
-                        root.close-range();
-                        if (root.kind == ClipKind.sound-layer) { root.show("audio-filters", true); }
-                        else { root.hide(); }
-                    }
                 }
             }
         }
@@ -2179,6 +2165,43 @@ export component PhoneEditor inherits Rectangle {
                     root.hide();
                     Editor.modify-project();
                 }
+            }
+        }
+    }
+
+    if root.range-actions: HorizontalLayout {
+        x: 12px; y: root.tools-y - 54px; width: root.width - 24px; height: 48px;
+        spacing: 6px;
+        RoundButton {
+            glyph: root.region-loop ? Glyph.pause : Glyph.play; size: 48px;
+            label: I18n.t("mobile.loopPlayback"); accent: root.region-loop;
+            enabled: root.region-valid;
+            clicked => {
+                root.region-loop = !root.region-loop;
+                if (root.region-loop) {
+                    root.region-bypass = false;
+                    root.preview-range();
+                    Editor.phone-audio-loop(root.region-start, root.region-end);
+                    Editor.seek(root.region-start);
+                    if (!Editor.playing) { Editor.play-toggled(); }
+                } else {
+                    Editor.phone-audio-loop(0, 0);
+                    if (Editor.playing) { Editor.play-toggled(); }
+                }
+            }
+        }
+        PhoneCommand {
+            label: I18n.t("mobile.bypass"); selected: root.region-bypass;
+            clicked => { root.region-bypass = !root.region-bypass; root.preview-range(); }
+        }
+        PhoneCommand {
+            label: I18n.t("common.apply"); selected: true; enabled: root.region-valid;
+            clicked => {
+                Editor.blur();
+                Editor.phone-filter-region(root.region-start, root.region-end, root.region-track, root.region-high-pass, root.region-cutoff);
+                root.close-range();
+                if (root.kind == ClipKind.sound-layer) { root.show("audio-filters", true); }
+                else { root.hide(); }
             }
         }
     }

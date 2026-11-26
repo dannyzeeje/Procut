@@ -23,6 +23,7 @@ export component PhoneSheet inherits Rectangle {
     in property <bool> open;
     in property <bool> footer: true;
     in property <bool> preview-footer;
+    in property <length> action-space;
     in property <bool> scroll-enabled: true;
     /// Stage tools can leave the preview and transport interactive.
     in property <bool> dismiss-on-background: true;
@@ -169,6 +170,7 @@ export component PhoneSheet inherits Rectangle {
                 @children
             }
             if root.preview-footer: Rectangle { height: 64px; }
+            if root.action-space > 0px: Rectangle { height: root.action-space; }
             if root.footer: Rectangle {
                 height: 68px;
                 AtlasChip { x: 16px; y: 12px; width: parent.width - 32px; height: 44px; current: true; label: I18n.t("mobile.done"); clicked => { root.closed(); } }

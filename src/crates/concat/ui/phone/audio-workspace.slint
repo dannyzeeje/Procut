@@ -44,7 +44,7 @@ export component PhoneMasterMeter inherits HorizontalLayout {
         }
     }
     PhoneCommand {
-        label: I18n.t("mobile.clipping");
+        label: I18n.t("mobile.clipping"); width: 54px; horizontal-stretch: 0;
         enabled: Meters.clipped;
         selected: Meters.clipped;
         clicked => { Meters.clip-cleared(); }
@@ -52,13 +52,15 @@ export component PhoneMasterMeter inherits HorizontalLayout {
 }
 
 export component PhoneMixer inherits VerticalLayout {
-    padding: 12px;
-    spacing: 8px;
+    in property <bool> compact;
+    property <length> card-height: root.compact ? 154px : 202px;
+    padding: root.compact ? 8px : 12px;
+    spacing: 6px;
     property <string> track-id;
 
     PhoneMasterMeter {}
     Flickable {
-        height: 202px;
+        height: root.card-height;
         content-width: cards.width;
         content-height: self.height;
         cards := HorizontalLayout {
@@ -66,7 +68,7 @@ export component PhoneMixer inherits VerticalLayout {
             height: parent.height; alignment: start; spacing: 6px;
             for track in Editor.tracks: HorizontalLayout {
                 if track.mixable: Rectangle {
-                    width: 96px; height: 202px;
+                    width: 96px; height: root.card-height;
                     border-radius: Theme.r;
                     border-width: 1px;
                     border-color: root.track-id == track.id ? Theme.accent : Theme.line;
@@ -78,7 +80,7 @@ export component PhoneMixer inherits VerticalLayout {
                             clicked => { Editor.blur(); root.track-id = track.id; }
                         }
                         fader := TouchArea {
-                            min-height: 96px; enabled: !track.locked;
+                            min-height: root.compact ? 50px : 96px; enabled: !track.locked;
                             accessible-role: slider;
                             accessible-label: track.label + " " + I18n.t("mobile.gain");
                             property <float> pending: track.gain-db;
